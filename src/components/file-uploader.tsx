@@ -86,7 +86,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     if (files && files.length > 0) {
       const file = files[0];
       const allowedTypes = acceptedFileTypes.split(',');
-      const fileExtension = `.${file.name.split('.').pop()}`;
+      const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
       if (allowedTypes.includes(fileExtension)) {
         parseFile(file);
       } else {
