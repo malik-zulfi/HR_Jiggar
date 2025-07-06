@@ -32,15 +32,14 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const parseFile = async (file: File) => {
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
-    try {
-      if (fileExtension === 'pdf') {
+    if (fileExtension === 'pdf') {
+      try {
         const pdfjsLib = await import('pdfjs-dist');
-        // Use a reliable CDN for the worker
+        // Use a reliable CDN for the worker and pin the version
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
         const arrayBuffer = await file.arrayBuffer();
-        const typedArray = new Uint8Array(arrayBuffer);
-        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
         
         let text = '';
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -50,24 +49,36 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         }
         onFileUpload(text);
         setFileName(file.name);
-      } else if (fileExtension === 'docx') {
+      } catch (error) {
+          console.error(`Error parsing PDF file:`, error);
+          toast({ variant: "destructive", title: "Error", description: `Failed to parse PDF file.` });
+          clearFile();
+      }
+    } else if (fileExtension === 'docx') {
+      try {
         const mammoth = await import('mammoth');
         const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+        const result = await mammoth.extractRawText({ arrayBuffer });
         onFileUpload(result.value);
         setFileName(file.name);
-      } else if (fileExtension === 'doc') {
-          toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
-          clearFile();
-      } else { // txt and other text formats
+      } catch (error) {
+        console.error("Error parsing DOCX:", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to parse DOCX file." });
+        clearFile();
+      }
+    } else if (fileExtension === 'doc') {
+        toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
+        clearFile();
+    } else { // txt and other text formats
+      try {
         const text = await file.text();
         onFileUpload(text);
         setFileName(file.name);
-      }
-    } catch (error) {
+      } catch (error) {
         console.error(`Error parsing ${fileExtension?.toUpperCase()} file:`, error);
         toast({ variant: "destructive", title: "Error", description: `Failed to parse ${fileExtension?.toUpperCase()} file.` });
         clearFile();
+      }
     }
   };
 
