@@ -6,7 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import mammoth from 'mammoth';
 
 interface FileUploaderProps {
   onFileUpload: (content: string) => void;
@@ -33,20 +32,30 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const parseFile = async (file: File) => {
     const reader = new FileReader();
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    reader.onload = async (e) => {
+      if (!e.target?.result) {
+        toast({ variant: "destructive", title: "Error", description: "Could not read file." });
+        return;
+      }
+      
+      const fileContent = e.target.result;
 
-    if (fileExtension === 'pdf') {
-      reader.onload = async (e) => {
+      if (fileExtension === 'pdf') {
         try {
-          const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.js`;
+          // Use dynamic import for pdfjs to avoid SSR issues
+          const pdfjsLib = await import('pdfjs-dist');
+          
+          // Use a CDN for the worker to avoid pathing issues
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+          const typedArray = new Uint8Array(fileContent as ArrayBuffer);
           const pdf = await pdfjsLib.getDocument(typedArray).promise;
           let text = '';
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            text += textContent.items.map(item => 'str' in item ? item.str : '').join(' ');
+            text += textContent.items.map((item: any) => item.str).join(' ');
           }
           onFileUpload(text);
           setFileName(file.name);
@@ -55,12 +64,11 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
           toast({ variant: "destructive", title: "Error", description: "Failed to parse PDF file." });
           clearFile();
         }
-      };
-      reader.readAsArrayBuffer(file);
-    } else if (fileExtension === 'docx') {
-      reader.onload = async (e) => {
+      } else if (fileExtension === 'docx') {
         try {
-          const result = await mammoth.extractRawText({ arrayBuffer: e.target?.result as ArrayBuffer });
+          // Use dynamic import for mammoth
+          const mammoth = await import('mammoth');
+          const result = await mammoth.extractRawText({ arrayBuffer: fileContent as ArrayBuffer });
           onFileUpload(result.value);
           setFileName(file.name);
         } catch (error) {
@@ -68,24 +76,26 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
           toast({ variant: "destructive", title: "Error", description: "Failed to parse DOCX file." });
           clearFile();
         }
-      };
-      reader.readAsArrayBuffer(file);
-    } else if (fileExtension === 'doc') {
-        toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
-        clearFile();
-    } else { // txt and other text formats
-      reader.onload = (e) => {
-        onFileUpload(e.target?.result as string);
+      } else if (fileExtension === 'doc') {
+          toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
+          clearFile();
+      } else { // txt and other text formats
+        onFileUpload(fileContent as string);
         setFileName(file.name);
-      };
-      reader.readAsText(file);
+      }
+    };
+    
+    if (fileExtension === 'pdf' || fileExtension === 'docx') {
+        reader.readAsArrayBuffer(file);
+    } else {
+        reader.readAsText(file);
     }
   };
 
   const handleFile = (files: FileList | null) => {
     if (files && files.length > 0) {
       const file = files[0];
-      const allowedTypes = acceptedFileTypes.split(',').map(t => t.toLowerCase());
+      const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
       const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
       if (allowedTypes.includes(fileExtension)) {
         parseFile(file);
