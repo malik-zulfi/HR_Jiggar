@@ -1,7 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle } from "lucide-react";
+import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CandidateCardProps {
@@ -47,25 +47,31 @@ export default function CandidateCard({ candidate }: CandidateCardProps) {
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
           <div>
-            <h4 className="font-semibold mb-2 flex items-center"><ThumbsUp className="w-4 h-4 mr-2 text-green-500"/> Strengths</h4>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              {candidate.strengths.map((s, i) => <li key={`strength-${i}`} className="text-foreground">{s}</li>)}
-            </ul>
+            <h4 className="font-semibold mb-2 flex items-center"><ClipboardCheck className="w-4 h-4 mr-2 text-primary"/> Alignment Summary</h4>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{candidate.alignmentSummary}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-semibold mb-2 flex items-center"><ThumbsUp className="w-4 h-4 mr-2 text-chart-2"/> Strengths</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                {candidate.strengths.map((s, i) => <li key={`strength-${i}`} className="text-foreground">{s}</li>)}
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2 flex items-center"><ThumbsDown className="w-4 h-4 mr-2 text-destructive"/> Weaknesses</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                {candidate.weaknesses.map((w, i) => <li key={`weakness-${i}`} className="text-foreground">{w}</li>)}
+              </ul>
+            </div>
           </div>
           <div>
-            <h4 className="font-semibold mb-2 flex items-center"><ThumbsDown className="w-4 h-4 mr-2 text-red-500"/> Weaknesses</h4>
+            <h4 className="font-semibold mb-2 flex items-center"><Lightbulb className="w-4 h-4 mr-2 text-chart-4"/> Interview Probes</h4>
             <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              {candidate.weaknesses.map((w, i) => <li key={`weakness-${i}`} className="text-foreground">{w}</li>)}
+              {candidate.interviewProbes.map((p, i) => <li key={`probe-${i}`} className="text-foreground">{p}</li>)}
             </ul>
           </div>
-        </div>
-        <div className="mt-6">
-          <h4 className="font-semibold mb-2 flex items-center"><Lightbulb className="w-4 h-4 mr-2 text-yellow-500"/> Interview Probes</h4>
-          <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-            {candidate.interviewProbes.map((p, i) => <li key={`probe-${i}`} className="text-foreground">{p}</li>)}
-          </ul>
         </div>
       </AccordionContent>
     </AccordionItem>

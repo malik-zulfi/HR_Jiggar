@@ -20,6 +20,9 @@ const AnalyzeCVAgainstJDInputSchema = z.object({
 export type AnalyzeCVAgainstJDInput = z.infer<typeof AnalyzeCVAgainstJDInputSchema>;
 
 const AnalyzeCVAgainstJDOutputSchema = z.object({
+  alignmentSummary: z
+    .string()
+    .describe("A summary of the candidate's alignment with the job description requirements."),
   recommendation: z.enum([
     'Strongly Recommended',
     'Recommended with Reservations',
@@ -43,7 +46,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   output: {
     schema: AnalyzeCVAgainstJDOutputSchema,
   },
-  prompt: `You are a candidate assessment specialist. Analyze the following CV against the job description and provide a recommendation, strengths, weaknesses, and suggested interview probes.
+  prompt: `You are a candidate assessment specialist. Analyze the following CV against the job description and provide an alignment summary, a recommendation, strengths, weaknesses, and suggested interview probes.
 
 Job Description:
 {{jobDescription}}
@@ -51,16 +54,17 @@ Job Description:
 CV:
 {{cv}}
 
+Alignment summary should be a concise paragraph summarizing how well the candidate's experience and skills align with the key requirements of the job description.
 Recommendation should be one of: Strongly Recommended, Recommended with Reservations, or Not Recommended.
 Strengths should be a list of the candidate's strengths based on the job description.
 Weaknesses should be a list of the candidate's weaknesses based on the job description.
 Interview probes should be a list of 2-3 suggested interview questions to ask the candidate about their weaknesses.
 
 Follow these formatting instructions:
-* Use clear bullet points and formatting
-* Justify every conclusion with direct evidence from the CV
-* Maintain a neutral, analytical tone
-* Be concise but thorough`,
+* Use clear bullet points and formatting for lists.
+* Justify every conclusion with direct evidence from the CV.
+* Maintain a neutral, analytical tone.
+* Be concise but thorough.`,
 });
 
 const analyzeCVAgainstJDFlow = ai.defineFlow(
