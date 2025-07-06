@@ -47,8 +47,14 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
           const textContent = await page.getTextContent();
           text += textContent.items.map((item: any) => item.str).join(' ');
         }
-        onFileUpload(text);
-        setFileName(file.name);
+        
+        if (text.trim()) {
+          onFileUpload(text);
+          setFileName(file.name);
+        } else {
+          toast({ variant: "destructive", title: "Empty File", description: "The uploaded PDF file appears to be empty." });
+          clearFile();
+        }
       } catch (error) {
           console.error(`Error parsing PDF file:`, error);
           toast({ variant: "destructive", title: "Error", description: `Failed to parse PDF file.` });
@@ -59,8 +65,14 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         const mammoth = await import('mammoth');
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
-        onFileUpload(result.value);
-        setFileName(file.name);
+
+        if (result.value.trim()) {
+          onFileUpload(result.value);
+          setFileName(file.name);
+        } else {
+          toast({ variant: "destructive", title: "Empty File", description: "The uploaded DOCX file appears to be empty." });
+          clearFile();
+        }
       } catch (error) {
         console.error("Error parsing DOCX:", error);
         toast({ variant: "destructive", title: "Error", description: "Failed to parse DOCX file." });
@@ -73,11 +85,11 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
-        if (text) {
+        if (text && text.trim()) {
           onFileUpload(text);
           setFileName(file.name);
         } else {
-          toast({ variant: "destructive", title: "Error", description: `Failed to read file.` });
+          toast({ variant: "destructive", title: "Empty File", description: "The uploaded file is empty or could not be read." });
           clearFile();
         }
       };
