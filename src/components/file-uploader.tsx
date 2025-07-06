@@ -30,65 +30,44 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   };
 
   const parseFile = async (file: File) => {
-    const reader = new FileReader();
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
-    reader.onload = async (e) => {
-      if (!e.target?.result) {
-        toast({ variant: "destructive", title: "Error", description: "Could not read file." });
-        return;
-      }
-      
-      const fileContent = e.target.result;
-
+    try {
       if (fileExtension === 'pdf') {
-        try {
-          // Use dynamic import for pdfjs to avoid SSR issues
-          const pdfjsLib = await import('pdfjs-dist');
-          
-          // Use a CDN for the worker to avoid pathing issues
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        const pdfjsLib = await import('pdfjs-dist');
+        // Use a reliable CDN for the worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-          const typedArray = new Uint8Array(fileContent as ArrayBuffer);
-          const pdf = await pdfjsLib.getDocument(typedArray).promise;
-          let text = '';
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            text += textContent.items.map((item: any) => item.str).join(' ');
-          }
-          onFileUpload(text);
-          setFileName(file.name);
-        } catch (error) {
-          console.error("Error parsing PDF:", error);
-          toast({ variant: "destructive", title: "Error", description: "Failed to parse PDF file." });
-          clearFile();
+        const arrayBuffer = await file.arrayBuffer();
+        const typedArray = new Uint8Array(arrayBuffer);
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          text += textContent.items.map((item: any) => item.str).join(' ');
         }
+        onFileUpload(text);
+        setFileName(file.name);
       } else if (fileExtension === 'docx') {
-        try {
-          // Use dynamic import for mammoth
-          const mammoth = await import('mammoth');
-          const result = await mammoth.extractRawText({ arrayBuffer: fileContent as ArrayBuffer });
-          onFileUpload(result.value);
-          setFileName(file.name);
-        } catch (error) {
-          console.error("Error parsing DOCX:", error);
-          toast({ variant: "destructive", title: "Error", description: "Failed to parse DOCX file." });
-          clearFile();
-        }
+        const mammoth = await import('mammoth');
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+        onFileUpload(result.value);
+        setFileName(file.name);
       } else if (fileExtension === 'doc') {
           toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
           clearFile();
       } else { // txt and other text formats
-        onFileUpload(fileContent as string);
+        const text = await file.text();
+        onFileUpload(text);
         setFileName(file.name);
       }
-    };
-    
-    if (fileExtension === 'pdf' || fileExtension === 'docx') {
-        reader.readAsArrayBuffer(file);
-    } else {
-        reader.readAsText(file);
+    } catch (error) {
+        console.error(`Error parsing ${fileExtension?.toUpperCase()} file:`, error);
+        toast({ variant: "destructive", title: "Error", description: `Failed to parse ${fileExtension?.toUpperCase()} file.` });
+        clearFile();
     }
   };
 
