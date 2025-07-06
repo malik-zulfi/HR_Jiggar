@@ -6,10 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.js`;
 
 interface FileUploaderProps {
   onFileUpload: (content: string) => void;
@@ -40,6 +37,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     if (fileExtension === 'pdf') {
       reader.onload = async (e) => {
         try {
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`;
+
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
           const pdf = await pdfjsLib.getDocument(typedArray).promise;
           let text = '';
