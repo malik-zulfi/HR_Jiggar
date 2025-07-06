@@ -8,109 +8,99 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 interface FileUploaderProps {
-  onFileUpload: (content: string) => void;
+  onFileUpload: (files: { name: string; content: string }[]) => void;
   onFileClear: () => void;
   acceptedFileTypes: string;
   label: string;
   id: string;
+  multiple?: boolean;
 }
 
-export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTypes, label, id }: FileUploaderProps) {
+export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTypes, label, id, multiple = false }: FileUploaderProps) {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const clearFile = () => {
-    setFileName(null);
+  const clearFiles = () => {
+    setFileNames([]);
     onFileClear();
     if (fileInputRef.current) {
         fileInputRef.current.value = "";
     }
   };
 
-  const parseFile = async (file: File) => {
+  const parseFile = async (file: File): Promise<{ name: string; content: string } | null> => {
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
-    
-    if (fileExtension === 'pdf') {
-      try {
-        const pdfjsLib = await import('pdfjs-dist');
-        // Use a reliable CDN for the worker and pin the version
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    let content = '';
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-        
-        let text = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          text += textContent.items.map((item: any) => item.str).join(' ');
-        }
-        
-        if (text.trim()) {
-          onFileUpload(text);
-          setFileName(file.name);
-        } else {
-          toast({ variant: "destructive", title: "Empty File", description: "The uploaded PDF file appears to be empty." });
-          clearFile();
-        }
-      } catch (error) {
-          console.error(`Error parsing PDF file:`, error);
-          toast({ variant: "destructive", title: "Error", description: `Failed to parse PDF file.` });
-          clearFile();
-      }
-    } else if (fileExtension === 'docx') {
-      try {
-        const mammoth = await import('mammoth');
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
+    try {
+        if (fileExtension === 'pdf') {
+            const pdfjsLib = await import('pdfjs-dist');
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-        if (result.value.trim()) {
-          onFileUpload(result.value);
-          setFileName(file.name);
-        } else {
-          toast({ variant: "destructive", title: "Empty File", description: "The uploaded DOCX file appears to be empty." });
-          clearFile();
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                content += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
+            }
+        } else if (fileExtension === 'docx') {
+            const mammoth = await import('mammoth');
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            content = result.value;
+        } else if (fileExtension === 'doc') {
+            toast({ variant: "destructive", title: "Unsupported Format", description: `.doc files are not supported for ${file.name}. Please convert to .docx, .pdf, or .txt` });
+            return null;
+        } else { // txt and other text formats
+            content = await file.text();
         }
-      } catch (error) {
-        console.error("Error parsing DOCX:", error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to parse DOCX file." });
-        clearFile();
-      }
-    } else if (fileExtension === 'doc') {
-        toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
-        clearFile();
-    } else { // txt and other text formats
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        if (text && text.trim()) {
-          onFileUpload(text);
-          setFileName(file.name);
+
+        if (content.trim()) {
+          return { name: file.name, content };
         } else {
-          toast({ variant: "destructive", title: "Empty File", description: "The uploaded file is empty or could not be read." });
-          clearFile();
+          toast({ variant: "destructive", title: "Empty File", description: `The uploaded file "${file.name}" appears to be empty.` });
+          return null;
         }
-      };
-      reader.onerror = () => {
-        toast({ variant: "destructive", title: "Error", description: `Failed to read file.` });
-        clearFile();
-      };
-      reader.readAsText(file);
+    } catch (error) {
+        console.error(`Error parsing file ${file.name}:`, error);
+        toast({ variant: "destructive", title: "Error", description: `Failed to parse file "${file.name}".` });
+        return null;
     }
   };
 
-  const handleFile = (files: FileList | null) => {
-    if (files && files.length > 0) {
-      const file = files[0];
-      const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
-      const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
-      if (allowedTypes.includes(fileExtension)) {
-        parseFile(file);
-      } else {
-        toast({ variant: "destructive", title: "Invalid File Type", description: `Please upload one of the following file types: ${acceptedFileTypes}` });
-      }
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+
+    for (const file of Array.from(files)) {
+        const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
+        if (allowedTypes.includes(fileExtension)) {
+            validFiles.push(file);
+        } else {
+            invalidFiles.push(file.name);
+        }
+    }
+
+    if (invalidFiles.length > 0) {
+        toast({ variant: "destructive", title: "Invalid File Type(s)", description: `Skipping files: ${invalidFiles.join(', ')}. Please use: ${acceptedFileTypes}` });
+    }
+
+    if (validFiles.length === 0) return;
+
+    const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
+
+    if (parsedFiles.length > 0) {
+        onFileUpload(parsedFiles);
+        setFileNames(parsedFiles.map(f => f.name));
+    } else {
+        clearFiles();
     }
   };
 
@@ -135,7 +125,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    handleFile(e.dataTransfer.files);
+    handleFiles(e.dataTransfer.files);
   };
 
   const handleBrowseClick = () => {
@@ -145,15 +135,24 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      {fileName ? (
-        <div className="flex items-center justify-between p-3 rounded-md border bg-muted/50">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <FileIcon className="h-5 w-5 text-primary shrink-0" />
-            <span className="text-sm font-medium text-foreground truncate">{fileName}</span>
+      {fileNames.length > 0 ? (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">{fileNames.length} file(s) selected</p>
+                <Button variant="ghost" size="icon" onClick={clearFiles} className="h-6 w-6 shrink-0">
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+            <div className="p-3 rounded-md border bg-muted/50 max-h-32 overflow-y-auto">
+                <ul className="space-y-1">
+                {fileNames.map((name, index) => (
+                    <li key={index} className="flex items-center gap-2 overflow-hidden">
+                        <FileIcon className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">{name}</span>
+                    </li>
+                ))}
+                </ul>
           </div>
-          <Button variant="ghost" size="icon" onClick={clearFile} className="h-6 w-6 shrink-0">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       ) : (
         <div
@@ -173,13 +172,16 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
             type="file"
             className="hidden"
             accept={acceptedFileTypes}
-            onChange={(e) => handleFile(e.target.files)}
+            onChange={(e) => handleFiles(e.target.files)}
+            multiple={multiple}
           />
           <UploadCloud className="h-8 w-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
             <span className="font-semibold text-primary">Click to upload</span> or drag and drop
           </p>
-          <p className="text-xs text-muted-foreground">PDF, DOCX, or TXT</p>
+          <p className="text-xs text-muted-foreground">
+            {multiple ? 'PDF, DOCX, or TXT (multiple files allowed)' : 'PDF, DOCX, or TXT'}
+          </p>
         </div>
       )}
     </div>

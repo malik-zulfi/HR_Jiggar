@@ -24,7 +24,7 @@ export default function Home() {
 
   const [jd, setJd] = useState("");
   const [analyzedJd, setAnalyzedJd] = useState<ExtractJDCriteriaOutput | null>(null);
-  const [cv, setCv] = useState("");
+  const [cvs, setCvs] = useState<{name: string, content: string}[]>([]);
   const [candidates, setCandidates] = useState<AnalyzedCandidate[]>([]);
   const [summary, setSummary] = useState<CandidateSummaryOutput | null>(null);
   const [cvResetKey, setCvResetKey] = useState(0);
@@ -33,8 +33,10 @@ export default function Home() {
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
-  const handleJdUpload = (content: string) => {
-    setJd(content);
+  const handleJdUpload = (files: { name: string, content: string }[]) => {
+    if(files.length > 0) {
+        setJd(files[0].content);
+    }
   };
   
   const handleJdClear = () => {
@@ -44,12 +46,12 @@ export default function Home() {
     setSummary(null);
   }
 
-  const handleCvUpload = (content: string) => {
-    setCv(content);
+  const handleCvUpload = (files: { name: string, content: string }[]) => {
+    setCvs(files);
   };
   
   const handleCvClear = () => {
-    setCv("");
+    setCvs([]);
   }
 
   const handleAnalyzeJd = async () => {
@@ -73,9 +75,9 @@ export default function Home() {
     }
   };
 
-  const handleAnalyzeCv = async () => {
-    if (!cv) {
-      toast({ variant: "destructive", description: "Please upload a CV file." });
+  const handleAnalyzeCvs = async () => {
+    if (cvs.length === 0) {
+      toast({ variant: "destructive", description: "Please upload one or more CV files." });
       return;
     }
      if (!jd) {
@@ -84,14 +86,23 @@ export default function Home() {
     }
     setIsCvLoading(true);
     try {
-      const result = await analyzeCVAgainstJD({ jobDescription: jd, cv });
-      setCandidates(prev => [...prev, result]);
-      toast({ description: `Candidate "${result.candidateName}" has been assessed.` });
-      setCv("");
+      toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
+      
+      const analysisPromises = cvs.map(cv => 
+        analyzeCVAgainstJD({ jobDescription: jd, cv: cv.content })
+      );
+      
+      const results = await Promise.all(analysisPromises);
+      
+      setCandidates(prev => [...prev, ...results]);
+      toast({ description: `${results.length} candidate(s) have been successfully assessed.` });
+      
+      setCvs([]);
+      // This key change will force the FileUploader to re-mount and clear its internal state
       setCvResetKey(key => key + 1);
     } catch (error) {
-      console.error("Error analyzing CV:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to analyze CV." });
+      console.error("Error analyzing CVs:", error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to analyze one or more CVs." });
     } finally {
       setIsCvLoading(false);
     }
@@ -156,22 +167,23 @@ export default function Home() {
               <Separator />
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CV</CardTitle>
-                  <CardDescription>Upload a candidate's CV to get an assessment against the JD. The candidate's name will be extracted automatically.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
+                  <CardDescription>Upload one or more CVs to get an assessment against the JD.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                      <FileUploader
                         key={cvResetKey}
                         id="cv-uploader"
-                        label="Candidate CV"
+                        label="Candidate CV(s)"
                         acceptedFileTypes={acceptedFileTypes}
                         onFileUpload={handleCvUpload}
                         onFileClear={handleCvClear}
+                        multiple={true}
                       />
-                    <Button onClick={handleAnalyzeCv} disabled={isCvLoading || !cv}>
+                    <Button onClick={handleAnalyzeCvs} disabled={isCvLoading || cvs.length === 0}>
                       {isCvLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Add and Assess Candidate
+                      Add and Assess Candidate(s)
                     </Button>
                   </div>
                 </CardContent>
