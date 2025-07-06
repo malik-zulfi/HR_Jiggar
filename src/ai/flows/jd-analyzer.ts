@@ -1,4 +1,3 @@
-// use server'
 'use server';
 /**
  * @fileOverview Job Description (JD) Analyzer AI agent.
