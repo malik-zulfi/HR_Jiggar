@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb } from "lucide-react";
@@ -20,6 +19,7 @@ import { Header } from "@/components/header";
 import JdAnalysis from "@/components/jd-analysis";
 import CandidateCard from "@/components/candidate-card";
 import SummaryDisplay from "@/components/summary-display";
+import FileUploader from "@/components/file-uploader";
 
 export default function Home() {
   const { toast } = useToast();
@@ -30,14 +30,34 @@ export default function Home() {
   const [candidateName, setCandidateName] = useState("");
   const [candidates, setCandidates] = useState<AnalyzedCandidate[]>([]);
   const [summary, setSummary] = useState<CandidateSummaryOutput | null>(null);
+  const [cvResetKey, setCvResetKey] = useState(0);
 
   const [isJdLoading, setIsJdLoading] = useState(false);
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
+  const handleJdUpload = (content: string) => {
+    setJd(content);
+  };
+  
+  const handleJdClear = () => {
+    setJd("");
+    setAnalyzedJd(null);
+    setCandidates([]);
+    setSummary(null);
+  }
+
+  const handleCvUpload = (content: string) => {
+    setCv(content);
+  };
+  
+  const handleCvClear = () => {
+    setCv("");
+  }
+
   const handleAnalyzeJd = async () => {
     if (!jd) {
-      toast({ variant: "destructive", description: "Job Description cannot be empty." });
+      toast({ variant: "destructive", description: "Please upload a Job Description file." });
       return;
     }
     setIsJdLoading(true);
@@ -57,9 +77,13 @@ export default function Home() {
   };
 
   const handleAnalyzeCv = async () => {
-    if (!cv || !candidateName || !jd) {
-      toast({ variant: "destructive", description: "Candidate name and CV cannot be empty." });
+    if (!cv || !candidateName) {
+      toast({ variant: "destructive", description: "Please provide a candidate name and upload a CV file." });
       return;
+    }
+     if (!jd) {
+        toast({ variant: "destructive", description: "Please analyze a Job Description first." });
+        return;
     }
     setIsCvLoading(true);
     try {
@@ -68,6 +92,7 @@ export default function Home() {
       toast({ description: `Candidate "${candidateName}" has been assessed.` });
       setCv("");
       setCandidateName("");
+      setCvResetKey(key => key + 1);
     } catch (error) {
       console.error("Error analyzing CV:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to analyze CV." });
@@ -98,6 +123,8 @@ export default function Home() {
     }
   };
 
+  const acceptedFileTypes = ".pdf,.docx,.txt";
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -106,13 +133,18 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Briefcase /> Step 1: Analyze Job Description</CardTitle>
-              <CardDescription>Paste the Job Description (JD) below to deconstruct it into key requirements.</CardDescription>
+              <CardDescription>Upload or drop a Job Description (JD) file below to deconstruct it into key requirements.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Label htmlFor="jd-textarea">Job Description</Label>
-                <Textarea id="jd-textarea" placeholder="Paste the full job description here..." value={jd} onChange={e => setJd(e.target.value)} rows={10} />
-                <Button onClick={handleAnalyzeJd} disabled={isJdLoading}>
+                <FileUploader
+                  id="jd-uploader"
+                  label="Job Description"
+                  acceptedFileTypes={acceptedFileTypes}
+                  onFileUpload={handleJdUpload}
+                  onFileClear={handleJdClear}
+                />
+                <Button onClick={handleAnalyzeJd} disabled={isJdLoading || !jd}>
                   {isJdLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Analyze Job Description
                 </Button>
@@ -129,21 +161,27 @@ export default function Home() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
-                  <CardDescription>Enter candidate details and paste their CV to get an assessment against the JD.</CardDescription>
+                  <CardDescription>Enter candidate details and upload their CV to get an assessment against the JD.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-1">
                         <Label htmlFor="candidate-name">Candidate Name</Label>
                         <Input id="candidate-name" placeholder="e.g., Jane Doe" value={candidateName} onChange={e => setCandidateName(e.target.value)} />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cv-textarea">Candidate CV</Label>
-                      <Textarea id="cv-textarea" placeholder="Paste the full CV / resume text here..." value={cv} onChange={e => setCv(e.target.value)} rows={10} />
+                     <div className="space-y-2">
+                      <FileUploader
+                        key={cvResetKey}
+                        id="cv-uploader"
+                        label="Candidate CV"
+                        acceptedFileTypes={acceptedFileTypes}
+                        onFileUpload={handleCvUpload}
+                        onFileClear={handleCvClear}
+                      />
                     </div>
-                    <Button onClick={handleAnalyzeCv} disabled={isCvLoading}>
+                    <Button onClick={handleAnalyzeCv} disabled={isCvLoading || !cv || !candidateName}>
                       {isCvLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Add and Assess Candidate
                     </Button>
