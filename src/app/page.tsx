@@ -225,7 +225,7 @@ export default function Home() {
           )}
 
           {isSummaryLoading && <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-          {summary && <SummaryDisplay summary={summary} />}
+          {summary && <SummaryDisplay summary={summary} candidates={candidates} analyzedJd={analyzedJd!} />}
         </div>
       </main>
     </div>
