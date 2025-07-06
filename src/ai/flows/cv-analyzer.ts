@@ -12,17 +12,43 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+// Copied from jd-analyzer.ts to avoid circular dependency
+const RequirementSchema = z.object({
+  description: z.string().describe('Description of the requirement.'),
+  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
+});
+
+const JDCriteriaSchema = z.object({
+  technicalSkills: z.array(RequirementSchema),
+  softSkills: z.array(RequirementSchema),
+  experience: z.array(RequirementSchema),
+  education: z.array(RequirementSchema),
+  certifications: z.array(RequirementSchema),
+  responsibilities: z.array(RequirementSchema),
+});
+
 const AnalyzeCVAgainstJDInputSchema = z.object({
-  jobDescription: z.string().describe('The job description to analyze against.'),
+  jobDescriptionCriteria: JDCriteriaSchema.describe('The structured job description criteria to analyze against.'),
   cv: z.string().describe('The CV to analyze.'),
 });
 export type AnalyzeCVAgainstJDInput = z.infer<typeof AnalyzeCVAgainstJDInputSchema>;
+
+const AlignmentDetailSchema = z.object({
+  category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
+  requirement: z.string().describe("The specific requirement from the job description."),
+  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
+  status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
+  justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
+});
+export type AlignmentDetail = z.infer<typeof AlignmentDetailSchema>;
+
 
 const AnalyzeCVAgainstJDOutputSchema = z.object({
   candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
   alignmentSummary: z
     .string()
     .describe("A summary of the candidate's alignment with the job description requirements."),
+  alignmentDetails: z.array(AlignmentDetailSchema).describe('A detailed, requirement-by-requirement alignment analysis.'),
   recommendation: z.enum([
     'Strongly Recommended',
     'Recommended with Reservations',
@@ -46,26 +72,41 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   output: {
     schema: AnalyzeCVAgainstJDOutputSchema,
   },
-  prompt: `You are a candidate assessment specialist. Analyze the following CV against the job description.
-  
-  First, extract the candidate's full name from the CV.
-  
-  Then, provide an alignment summary, a recommendation, strengths, weaknesses, and suggested interview probes.
+  prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria.
 
-Job Description:
-{{jobDescription}}
+First, extract the candidate's full name from the CV.
+
+Then, for each requirement in the job description criteria, assess the candidate's CV.
+Determine if the candidate is 'Aligned', 'Partially Aligned', or 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
+Provide a brief justification for your assessment for each requirement, citing evidence from the CV where possible.
+
+Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
+
+Job Description Criteria:
+{{#each jobDescriptionCriteria.technicalSkills}}
+- Technical Skill ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.softSkills}}
+- Soft Skill ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.experience}}
+- Experience ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.education}}
+- Education ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.certifications}}
+- Certification ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.responsibilities}}
+- Responsibility ({{this.priority}}): {{{this.description}}}
+{{/each}}
 
 CV:
-{{cv}}
+{{{cv}}}
 
-Alignment summary should be a concise paragraph summarizing how well the candidate's experience and skills align with the key requirements of the job description.
-Recommendation should be one of: Strongly Recommended, Recommended with Reservations, or Not Recommended.
-Strengths should be a list of the candidate's strengths based on the job description.
-Weaknesses should be a list of the candidate's weaknesses based on the job description.
-Interview probes should be a list of 2-3 suggested interview questions to ask the candidate about their weaknesses.
-
+Your analysis should be thorough but concise. The final output must be a valid JSON object matching the provided schema.
 Follow these formatting instructions:
-* Use clear bullet points and formatting for lists.
 * Justify every conclusion with direct evidence from the CV.
 * Maintain a neutral, analytical tone.
 * Be concise but thorough.`,

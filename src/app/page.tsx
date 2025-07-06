@@ -80,7 +80,7 @@ export default function Home() {
       toast({ variant: "destructive", description: "Please upload one or more CV files." });
       return;
     }
-     if (!jd) {
+     if (!analyzedJd) {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
@@ -89,7 +89,7 @@ export default function Home() {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
       const analysisPromises = cvs.map(cv => 
-        analyzeCVAgainstJD({ jobDescription: jd, cv: cv.content })
+        analyzeCVAgainstJD({ jobDescriptionCriteria: analyzedJd, cv: cv.content })
       );
       
       const results = await Promise.all(analysisPromises);

@@ -1,6 +1,4 @@
-import type { AnalyzeCVAgainstJDOutput } from '@/ai/flows/cv-analyzer';
-import type { ExtractJDCriteriaOutput } from '@/ai/flows/jd-analyzer';
-import type { CandidateSummaryOutput } from '@/ai/flows/candidate-summarizer';
+import type { AnalyzeCVAgainstJDOutput, ExtractJDCriteriaOutput, CandidateSummaryOutput, AlignmentDetail } from '@/ai/flows/cv-analyzer';
 
 export interface Requirement {
   description: string;
@@ -14,4 +12,5 @@ export type {
   AnalyzeCVAgainstJDOutput,
   ExtractJDCriteriaOutput,
   CandidateSummaryOutput,
+  AlignmentDetail,
 };
