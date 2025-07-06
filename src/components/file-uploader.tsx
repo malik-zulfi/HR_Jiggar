@@ -37,8 +37,8 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     if (fileExtension === 'pdf') {
       reader.onload = async (e) => {
         try {
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`;
+          const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.js`;
 
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
           const pdf = await pdfjsLib.getDocument(typedArray).promise;
@@ -85,7 +85,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const handleFile = (files: FileList | null) => {
     if (files && files.length > 0) {
       const file = files[0];
-      const allowedTypes = acceptedFileTypes.split(',');
+      const allowedTypes = acceptedFileTypes.split(',').map(t => t.toLowerCase());
       const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
       if (allowedTypes.includes(fileExtension)) {
         parseFile(file);
