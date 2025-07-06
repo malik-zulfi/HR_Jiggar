@@ -36,7 +36,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
       try {
         const pdfjsLib = await import('pdfjs-dist');
         // Use a reliable CDN for the worker and pin the version
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
@@ -70,15 +70,22 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         toast({ variant: "destructive", title: "Unsupported Format", description: ".doc files are not supported. Please convert to .docx, .pdf, or .txt" });
         clearFile();
     } else { // txt and other text formats
-      try {
-        const text = await file.text();
-        onFileUpload(text);
-        setFileName(file.name);
-      } catch (error) {
-        console.error(`Error parsing ${fileExtension?.toUpperCase()} file:`, error);
-        toast({ variant: "destructive", title: "Error", description: `Failed to parse ${fileExtension?.toUpperCase()} file.` });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (text) {
+          onFileUpload(text);
+          setFileName(file.name);
+        } else {
+          toast({ variant: "destructive", title: "Error", description: `Failed to read file.` });
+          clearFile();
+        }
+      };
+      reader.onerror = () => {
+        toast({ variant: "destructive", title: "Error", description: `Failed to read file.` });
         clearFile();
-      }
+      };
+      reader.readAsText(file);
     }
   };
 
