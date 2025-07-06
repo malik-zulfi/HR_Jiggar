@@ -7,9 +7,7 @@ export interface Requirement {
   priority: 'MUST-HAVE' | 'NICE-TO-HAVE';
 }
 
-export type AnalyzedCandidate = AnalyzeCVAgainstJDOutput & {
-  candidateName: string;
-};
+export type AnalyzedCandidate = AnalyzeCVAgainstJDOutput;
 
 // Re-exporting for convenience
 export type {

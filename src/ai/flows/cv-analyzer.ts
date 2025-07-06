@@ -20,6 +20,7 @@ const AnalyzeCVAgainstJDInputSchema = z.object({
 export type AnalyzeCVAgainstJDInput = z.infer<typeof AnalyzeCVAgainstJDInputSchema>;
 
 const AnalyzeCVAgainstJDOutputSchema = z.object({
+  candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
   alignmentSummary: z
     .string()
     .describe("A summary of the candidate's alignment with the job description requirements."),
@@ -46,7 +47,11 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   output: {
     schema: AnalyzeCVAgainstJDOutputSchema,
   },
-  prompt: `You are a candidate assessment specialist. Analyze the following CV against the job description and provide an alignment summary, a recommendation, strengths, weaknesses, and suggested interview probes.
+  prompt: `You are a candidate assessment specialist. Analyze the following CV against the job description.
+  
+  First, extract the candidate's full name from the CV.
+  
+  Then, provide an alignment summary, a recommendation, strengths, weaknesses, and suggested interview probes.
 
 Job Description:
 {{jobDescription}}

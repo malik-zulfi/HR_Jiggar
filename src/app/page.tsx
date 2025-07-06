@@ -4,8 +4,6 @@ import { useState } from "react";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb } from "lucide-react";
@@ -27,7 +25,6 @@ export default function Home() {
   const [jd, setJd] = useState("");
   const [analyzedJd, setAnalyzedJd] = useState<ExtractJDCriteriaOutput | null>(null);
   const [cv, setCv] = useState("");
-  const [candidateName, setCandidateName] = useState("");
   const [candidates, setCandidates] = useState<AnalyzedCandidate[]>([]);
   const [summary, setSummary] = useState<CandidateSummaryOutput | null>(null);
   const [cvResetKey, setCvResetKey] = useState(0);
@@ -77,8 +74,8 @@ export default function Home() {
   };
 
   const handleAnalyzeCv = async () => {
-    if (!cv || !candidateName) {
-      toast({ variant: "destructive", description: "Please provide a candidate name and upload a CV file." });
+    if (!cv) {
+      toast({ variant: "destructive", description: "Please upload a CV file." });
       return;
     }
      if (!jd) {
@@ -88,10 +85,9 @@ export default function Home() {
     setIsCvLoading(true);
     try {
       const result = await analyzeCVAgainstJD({ jobDescription: jd, cv });
-      setCandidates(prev => [...prev, { ...result, candidateName }]);
-      toast({ description: `Candidate "${candidateName}" has been assessed.` });
+      setCandidates(prev => [...prev, result]);
+      toast({ description: `Candidate "${result.candidateName}" has been assessed.` });
       setCv("");
-      setCandidateName("");
       setCvResetKey(key => key + 1);
     } catch (error) {
       console.error("Error analyzing CV:", error);
@@ -160,19 +156,12 @@ export default function Home() {
               <Separator />
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
-                  <CardDescription>Enter candidate details and upload their CV to get an assessment against the JD.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CV</CardTitle>
+                  <CardDescription>Upload a candidate's CV to get an assessment against the JD. The candidate's name will be extracted automatically.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2 md:col-span-1">
-                        <Label htmlFor="candidate-name">Candidate Name</Label>
-                        <Input id="candidate-name" placeholder="e.g., Jane Doe" value={candidateName} onChange={e => setCandidateName(e.target.value)} />
-                      </div>
-                    </div>
-                     <div className="space-y-2">
-                      <FileUploader
+                     <FileUploader
                         key={cvResetKey}
                         id="cv-uploader"
                         label="Candidate CV"
@@ -180,8 +169,7 @@ export default function Home() {
                         onFileUpload={handleCvUpload}
                         onFileClear={handleCvClear}
                       />
-                    </div>
-                    <Button onClick={handleAnalyzeCv} disabled={isCvLoading || !cv || !candidateName}>
+                    <Button onClick={handleAnalyzeCv} disabled={isCvLoading || !cv}>
                       {isCvLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Add and Assess Candidate
                     </Button>
