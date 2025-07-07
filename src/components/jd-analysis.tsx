@@ -50,9 +50,22 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
           const hasChanged = originalReq ? originalReq.priority !== req.priority : false;
 
           return (
-            <li key={index} className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30">
+            <li 
+                key={index} 
+                className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30 cursor-pointer transition-colors hover:bg-secondary/60"
+                onClick={() => {
+                    const newPriority = req.priority === 'MUST-HAVE' ? 'NICE-TO-HAVE' : 'MUST-HAVE';
+                    onRequirementPriorityChange(req, categoryKey, newPriority);
+                }}
+            >
               <p className="flex-1 text-sm text-foreground">{req.description}</p>
-              <div className="flex items-center space-x-2 shrink-0">
+              <div 
+                className="flex items-center space-x-2 shrink-0"
+                onClick={(e) => {
+                    // Stop the li's onClick from firing when we interact with the switch directly
+                    e.stopPropagation(); 
+                }}
+              >
                   <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
                   <Switch
                       id={`p-switch-${categoryKey}-${index}`}
