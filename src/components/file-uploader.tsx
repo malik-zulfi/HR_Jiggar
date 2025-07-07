@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { performOcr } from '@/ai/flows/ocr';
+import ProgressLoader from './progress-loader';
 
 interface FileUploaderProps {
   onFileUpload: (files: { name: string; content: string }[]) => void;
@@ -21,6 +22,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [fileNames, setFileNames] = useState<string[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearFiles = () => {
@@ -48,7 +50,8 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                 const textContent = await page.getTextContent();
                 content += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
             }
-              if (content.trim().length < 100) {
+
+            if (content.trim().length < 100) {
                 let toastTitle = "Image-based PDF Detected";
                 if (id === 'cv-uploader') {
                     toastTitle = "Image-based CV Detected";
@@ -109,13 +112,15 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         }
     } catch (error) {
         console.error(`Error parsing file ${file.name}:`, error);
-        toast({ variant: "destructive", title: "Empty File", description: `The uploaded file "${file.name}" appears to be empty or could not be read.` });
+        toast({ variant: "destructive", title: "Error", description: `Failed to parse file "${file.name}". It might be corrupted.` });
         return null;
     }
   };
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+
+    setIsParsing(true);
 
     const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
     const validFiles: File[] = [];
@@ -134,9 +139,14 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         toast({ variant: "destructive", title: "Invalid File Type(s)", description: `Skipping files: ${invalidFiles.join(', ')}. Please use: ${acceptedFileTypes}` });
     }
 
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+        setIsParsing(false);
+        return;
+    }
 
     const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
+    
+    setIsParsing(false);
 
     if (parsedFiles.length > 0) {
         onFileUpload(parsedFiles);
@@ -177,7 +187,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      {fileNames.length > 0 ? (
+      {isParsing ? (
+        <ProgressLoader title={`Processing ${multiple ? 'files' : 'file'}...`} />
+      ) : fileNames.length > 0 ? (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-foreground">{fileNames.length} file(s) selected</p>

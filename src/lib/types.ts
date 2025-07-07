@@ -64,7 +64,7 @@ const CandidateAssessmentSchema = z.object({
 
 export const CandidateSummaryInputSchema = z.object({
   candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  jobDescription: z.string().describe('The job description used for the assessments.'),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria.'),
 });
 export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
 
@@ -78,7 +78,6 @@ export const CandidateSummaryOutputSchema = z.object({
 });
 export type CandidateSummaryOutput = z.infer<typeof CandidateSummaryOutputSchema>;
 
-
 // For OCR
 export const OcrInputSchema = z.object({
   image: z.string().describe("The image to perform OCR on, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
@@ -89,3 +88,21 @@ export const OcrOutputSchema = z.object({
   text: z.string().describe('The extracted text from the image.'),
 });
 export type OcrOutput = z.infer<typeof OcrOutputSchema>;
+
+// For session history
+export const CandidateRecordSchema = z.object({
+    cvName: z.string(),
+    cvContent: z.string(),
+    analysis: AnalyzeCVAgainstJDOutputSchema,
+});
+export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
+
+export const AssessmentSessionSchema = z.object({
+    id: z.string(),
+    jdName: z.string(),
+    analyzedJd: ExtractJDCriteriaOutputSchema,
+    candidates: z.array(CandidateRecordSchema),
+    summary: CandidateSummaryOutputSchema.nullable(),
+    createdAt: z.string().datetime(),
+});
+export type AssessmentSession = z.infer<typeof AssessmentSessionSchema>;
