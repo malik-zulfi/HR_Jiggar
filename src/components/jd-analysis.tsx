@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
-import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
+import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +22,8 @@ interface JdAnalysisProps {
     categoryKey: keyof ExtractJDCriteriaOutput,
     newPriority: Requirement['priority']
   ) => void;
+  isDirty: boolean;
+  onSaveChanges: () => Promise<void>;
 }
 
 const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementPriorityChange }: { 
@@ -60,8 +62,15 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
   );
 };
 
-export default function JdAnalysis({ analysis, onRequirementPriorityChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, onRequirementPriorityChange, isDirty, onSaveChanges }: JdAnalysisProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveClick = async () => {
+      setIsSaving(true);
+      await onSaveChanges();
+      setIsSaving(false);
+  };
 
   const categorySections = [
     { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
@@ -117,6 +126,14 @@ export default function JdAnalysis({ analysis, onRequirementPriorityChange }: Jd
                         ))}
                     </div>
                 </CardContent>
+                {isDirty && (
+                    <CardFooter className="flex justify-end p-4 border-t">
+                        <Button onClick={handleSaveClick} disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes & Re-assess
+                        </Button>
+                    </CardFooter>
+                )}
             </CollapsibleContent>
         </Card>
     </Collapsible>

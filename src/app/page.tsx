@@ -8,17 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
@@ -48,13 +37,7 @@ export default function Home() {
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [isReassessing, setIsReassessing] = useState(false);
-  
-  const [isReassessmentDialogOpen, setIsReassessmentDialogOpen] = useState(false);
-  const [pendingJdChange, setPendingJdChange] = useState<{
-    requirement: Requirement;
-    categoryKey: keyof ExtractJDCriteriaOutput;
-    newPriority: Requirement['priority'];
-  } | null>(null);
+  const [jdIsDirty, setJdIsDirty] = useState(false);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -87,6 +70,11 @@ export default function Home() {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [history]);
+
+  useEffect(() => {
+    // When switching sessions, reset the dirty flag
+    setJdIsDirty(false);
+  }, [activeSessionId]);
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -205,42 +193,22 @@ export default function Home() {
     categoryKey: keyof ExtractJDCriteriaOutput,
     newPriority: Requirement['priority']
   ) => {
-    const change = { requirement, categoryKey, newPriority };
-    if (activeSession && activeSession.candidates.length > 0) {
-      setPendingJdChange(change);
-      setIsReassessmentDialogOpen(true);
-    } else {
-      applyJdChange(change);
-    }
+    applyJdChange({ requirement, categoryKey, newPriority });
+    setJdIsDirty(true);
   };
 
-  const handleConfirmReassessment = async () => {
-    if (!pendingJdChange || !activeSessionId) return;
-    setIsReassessmentDialogOpen(false);
+  const handleSaveChanges = async () => {
+    if (!activeSession) return;
     
-    // 1. Calculate the future state of the JD
-    const sessionToUpdate = history.find(s => s.id === activeSessionId);
-    if (!sessionToUpdate || !sessionToUpdate.analyzedJd) return;
-    
-    const { requirement, categoryKey, newPriority } = pendingJdChange;
-    const newAnalyzedJd = { ...sessionToUpdate.analyzedJd };
-    const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
-    const newList = oldList.map(req =>
-      req.description === requirement.description ? { ...req, priority: newPriority } : req
-    );
-    newAnalyzedJd[categoryKey] = newList;
-    
-    // 2. Apply the change and start re-assessment
-    applyJdChange(pendingJdChange);
-    await reAssessCandidates(newAnalyzedJd);
-    setPendingJdChange(null);
-  };
-  
-  const handleDeclineReassessment = () => {
-    if (!pendingJdChange) return;
-    applyJdChange(pendingJdChange);
-    setIsReassessmentDialogOpen(false);
-    setPendingJdChange(null);
+    // Only re-assess if there are candidates
+    if (activeSession.candidates.length > 0) {
+        if (!activeSession.analyzedJd) return;
+        await reAssessCandidates(activeSession.analyzedJd);
+    } else {
+        // If no candidates, just show a toast that changes are saved.
+        toast({ description: "Job Description changes have been saved." });
+    }
+    setJdIsDirty(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -390,6 +358,8 @@ export default function Home() {
                                 <JdAnalysis
                                     analysis={activeSession.analyzedJd}
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
+                                    isDirty={jdIsDirty}
+                                    onSaveChanges={handleSaveChanges}
                                 />
 
                                 <Separator />
@@ -468,22 +438,6 @@ export default function Home() {
                 </SidebarInset>
             </div>
         </SidebarProvider>
-
-        <AlertDialog open={isReassessmentDialogOpen} onOpenChange={setIsReassessmentDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Re-assess Candidates?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        You've changed the job requirements. Would you like to re-assess the existing {activeSession?.candidates.length} candidate(s) with these new criteria? This will replace their current assessments.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setPendingJdChange(null)}>Cancel</AlertDialogCancel>
-                    <Button variant="outline" onClick={handleDeclineReassessment}>Update JD Only</Button>
-                    <AlertDialogAction onClick={handleConfirmReassessment}>Update and Re-assess</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
     </div>
   );
 }
