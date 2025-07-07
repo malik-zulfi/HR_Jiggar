@@ -206,7 +206,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <Header onNewSession={handleNewSession} />
         <SidebarProvider>
-            <div className="flex flex-1 overflow-hidden">
+            <div className="relative flex flex-1 overflow-hidden">
                 <Sidebar side="left" className="h-full">
                     <SidebarHeader>
                         <h2 className="text-lg font-semibold flex items-center gap-2 p-2">
