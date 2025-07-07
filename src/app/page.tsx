@@ -223,20 +223,22 @@ export default function Home() {
   
   const handleSaveChanges = async (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
-
-    const candidatesToReassess = activeSession?.candidates.length > 0;
-
+  
+    const wasDirty = JSON.stringify(activeSession?.analyzedJd) !== JSON.stringify(editedJd);
+  
     setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
             return { ...s, analyzedJd: editedJd, summary: null };
         }
         return s;
     }));
-
-    if (candidatesToReassess) {
-        await reAssessCandidates(editedJd);
-    } else {
-        toast({ description: "Job Description changes have been saved." });
+  
+    const candidatesToReassess = activeSession?.candidates.length > 0;
+  
+    if (wasDirty && candidatesToReassess) {
+      await reAssessCandidates(editedJd);
+    } else if (wasDirty) {
+      toast({ description: "Job Description changes have been saved." });
     }
     
     setIsJdAnalysisOpen(false);

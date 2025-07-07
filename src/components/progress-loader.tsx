@@ -52,8 +52,8 @@ export default function ProgressLoader({
 
   // Terminal view logic
   if (steps && typeof currentStepIndex === 'number' && steps.length > 0) {
-    const start = Math.max(0, currentStepIndex - logLength);
     const end = Math.min(currentStepIndex, steps.length - 1);
+    const start = Math.max(0, end - logLength + 1);
     const visibleSteps = steps.slice(start, end + 1);
     const stepProgress = ((currentStepIndex + 1) / steps.length) * 100;
     
