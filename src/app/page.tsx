@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
-import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
+import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
@@ -29,6 +29,7 @@ export default function Home() {
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [jdFile, setJdFile] = useState<{ name: string; content: string } | null>(null);
   const [cvs, setCvs] = useState<{name: string, content: string}[]>([]);
@@ -44,6 +45,15 @@ export default function Home() {
   const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
+
+  const filteredHistory = useMemo(() => {
+    if (!searchQuery.trim()) {
+        return history;
+    }
+    return history.filter(session =>
+        session.jdName.toLowerCase().includes(searchQuery.toLowerCase().trim())
+    );
+  }, [history, searchQuery]);
 
   useEffect(() => {
     try {
@@ -86,7 +96,7 @@ export default function Home() {
     const session = history.find(s => s.id === activeSessionId);
     setJdIsDirty(false);
     if (session) {
-      const originalData = session.originalAnalyzedJd;
+      const originalData = session.originalAnalyzedJd ?? session.analyzedJd; // Fallback for old data
       const editedData = session.analyzedJd;
 
       setOriginalJd(JSON.parse(JSON.stringify(originalData)));
@@ -142,7 +152,7 @@ export default function Home() {
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
-        originalAnalyzedJd: result,
+        originalAnalyzedJd: JSON.parse(JSON.stringify(result)),
         analyzedJd: result,
         candidates: [],
         summary: null,
@@ -318,14 +328,19 @@ export default function Home() {
             <div className="relative flex flex-1 overflow-hidden">
                 <Sidebar side="left" className="h-full">
                     <SidebarHeader>
-                        <h2 className="text-lg font-semibold flex items-center gap-2 p-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
                             <History className="w-5 h-5"/>
                             Assessments
                         </h2>
+                        <SidebarInput
+                            placeholder="Search assessments..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                     </SidebarHeader>
                     <SidebarContent>
                         <SidebarMenu>
-                            {history.length > 0 ? history.map(session => (
+                            {filteredHistory.length > 0 ? filteredHistory.map(session => (
                                 <SidebarMenuItem key={session.id}>
                                     <SidebarMenuButton 
                                         onClick={() => setActiveSessionId(session.id)}
@@ -341,7 +356,9 @@ export default function Home() {
                                     </SidebarMenuAction>
                                 </SidebarMenuItem>
                             )) : (
-                                <p className="p-4 text-sm text-muted-foreground text-center">No assessments yet.</p>
+                                <p className="p-4 text-sm text-muted-foreground text-center">
+                                    {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
+                                </p>
                             )}
                         </SidebarMenu>
                     </SidebarContent>
