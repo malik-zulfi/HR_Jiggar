@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,8 @@ import CandidateCard from "@/components/candidate-card";
 import SummaryDisplay from "@/components/summary-display";
 import FileUploader from "@/components/file-uploader";
 
+const LOCAL_STORAGE_KEY = 'jiggar-session';
+
 export default function Home() {
   const { toast } = useToast();
 
@@ -32,6 +34,37 @@ export default function Home() {
   const [isJdLoading, setIsJdLoading] = useState(false);
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+        const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedStateJSON) {
+            const savedState = JSON.parse(savedStateJSON);
+            if (savedState.jd) setJd(savedState.jd);
+            if (savedState.analyzedJd) setAnalyzedJd(savedState.analyzedJd);
+            if (savedState.candidates) setCandidates(savedState.candidates);
+            if (savedState.summary) setSummary(savedState.summary);
+        }
+    } catch (error) {
+        console.error("Failed to load state from localStorage", error);
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    const stateToSave = {
+        jd,
+        analyzedJd,
+        candidates,
+        summary,
+    };
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+    } catch (error) {
+        console.error("Failed to save state to localStorage", error);
+    }
+  }, [jd, analyzedJd, candidates, summary]);
+
 
   const handleJdUpload = (files: { name: string, content: string }[]) => {
     if(files.length > 0) {
