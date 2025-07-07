@@ -39,7 +39,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   },
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria.
 
-First, extract the candidate's full name from the CV.
+First, extract the candidate's full name from the CV. Format the name in Title Case (e.g., "John Doe").
 
 Then, for each requirement in the job description criteria, assess the candidate's CV.
 Determine if the candidate is 'Aligned', 'Partially Aligned', or 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
@@ -77,6 +77,15 @@ Follow these formatting instructions:
 * Be concise but thorough.`,
 });
 
+function toTitleCase(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(/[\s-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 const analyzeCVAgainstJDFlow = ai.defineFlow(
   {
     name: 'analyzeCVAgainstJDFlow',
@@ -85,6 +94,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await analyzeCVAgainstJDPrompt(input);
+    if (output) {
+      output.candidateName = toTitleCase(output.candidateName);
+    }
     return output!;
   }
 );
