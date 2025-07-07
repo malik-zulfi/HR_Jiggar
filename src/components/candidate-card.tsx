@@ -38,7 +38,7 @@ export default function CandidateCard({ candidate }: CandidateCardProps) {
 
   return (
     <AccordionItem value={candidate.candidateName}>
-      <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-secondary/50">
+      <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-accent/10 [&>svg]:hidden">
         <div className="flex items-center justify-between w-full gap-4">
           <span className="font-semibold text-foreground truncate">{candidate.candidateName}</span>
           <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
