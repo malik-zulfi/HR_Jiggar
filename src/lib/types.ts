@@ -100,6 +100,7 @@ export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 export const AssessmentSessionSchema = z.object({
     id: z.string(),
     jdName: z.string(),
+    originalAnalyzedJd: ExtractJDCriteriaOutputSchema.optional(),
     analyzedJd: ExtractJDCriteriaOutputSchema,
     candidates: z.array(CandidateRecordSchema),
     summary: CandidateSummaryOutputSchema.nullable(),

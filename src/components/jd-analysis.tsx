@@ -60,7 +60,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                           onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
                       className={cn(
-                        hasChanged && "data-[state=checked]:bg-ring data-[state=unchecked]:bg-ring/30"
+                        hasChanged && "data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-amber-500/30"
                       )}
                   />
                   <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
@@ -116,7 +116,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
                           </CollapsibleTrigger>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Show/Hide Details</p>
+                          <p>Show/Hide Details & Edit Priorities</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

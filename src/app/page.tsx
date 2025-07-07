@@ -77,15 +77,18 @@ export default function Home() {
   useEffect(() => {
     const session = history.find(s => s.id === activeSessionId);
     setJdIsDirty(false);
-    if (session?.analyzedJd) {
-        const deepCopy = JSON.parse(JSON.stringify(session.analyzedJd));
-        setOriginalJd(deepCopy);
-        setEditedJd(deepCopy);
+    if (session) {
+      const originalData = session.originalAnalyzedJd || session.analyzedJd;
+      const editedData = session.analyzedJd;
+
+      setOriginalJd(JSON.parse(JSON.stringify(originalData)));
+      setEditedJd(JSON.parse(JSON.stringify(editedData)));
     } else {
-        setOriginalJd(null);
-        setEditedJd(null);
+      setOriginalJd(null);
+      setEditedJd(null);
     }
   }, [activeSessionId, history]);
+
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -131,6 +134,7 @@ export default function Home() {
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
+        originalAnalyzedJd: result,
         analyzedJd: result,
         candidates: [],
         summary: null,
