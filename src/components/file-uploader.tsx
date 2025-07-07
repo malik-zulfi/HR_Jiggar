@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -25,7 +26,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [fileDisplayNames, setFileDisplayNames] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearFiles = () => {
@@ -123,8 +124,6 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    setIsProcessing(true);
-
     const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
     const validFiles: File[] = [];
     const invalidFiles: string[] = [];
@@ -143,43 +142,75 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     }
 
     if (validFiles.length === 0) {
-        setIsProcessing(false);
         return;
     }
     
-    const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
-    
-    // For CVs, pre-process to get candidate names
+    let steps = [
+        "Initializing secure upload...",
+        "Validating file formats...",
+        `Parsing ${validFiles.length} document(s)...`,
+        "Extracting text content...",
+    ];
     if (id === 'cv-uploader') {
-        const filesWithNames = await Promise.all(
-            parsedFiles.map(async (file) => {
-                try {
-                    const result = await extractCandidateName({ cvText: file.content });
-                    return {
-                        fileName: file.name,
-                        content: file.content,
-                        candidateName: result.candidateName || file.name,
-                    };
-                } catch (e) {
-                    console.error(`Failed to extract name for ${file.name}`, e);
-                    toast({ variant: "destructive", title: "Name Extraction Failed", description: `Could not extract name from ${file.name}. Using filename.` });
-                    return {
-                        fileName: file.name,
-                        content: file.content,
-                        candidateName: file.name, // Fallback to filename
-                    };
-                }
-            })
-        );
-        onFileUpload(filesWithNames);
-        setFileDisplayNames(filesWithNames.map(f => f.candidateName));
-    } else {
-        // For JD, just pass the parsed file
-        onFileUpload(parsedFiles);
-        setFileDisplayNames(parsedFiles.map(f => f.name));
+        steps.push("Identifying candidate names...");
     }
-    
-    setIsProcessing(false);
+    steps.push("Finalizing for analysis...");
+
+    setProcessingProgress({ steps, currentStepIndex: 0 });
+    let simulationInterval: NodeJS.Timeout | null = setInterval(() => {
+        setProcessingProgress(prev => {
+            if (!prev) {
+                if(simulationInterval) clearInterval(simulationInterval);
+                return null;
+            }
+            const nextStep = prev.currentStepIndex + 1;
+            // Stop before last step, which is triggered after the API call
+            if (nextStep >= prev.steps.length - 1) {
+                if(simulationInterval) clearInterval(simulationInterval);
+            }
+            return { ...prev, currentStepIndex: Math.min(nextStep, prev.steps.length - 1) };
+        });
+    }, 500);
+
+    try {
+        const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
+        
+        if (id === 'cv-uploader') {
+            const filesWithNames = await Promise.all(
+                parsedFiles.map(async (file) => {
+                    try {
+                        const result = await extractCandidateName({ cvText: file.content });
+                        return {
+                            fileName: file.name,
+                            content: file.content,
+                            candidateName: result.candidateName || file.name,
+                        };
+                    } catch (e) {
+                        console.error(`Failed to extract name for ${file.name}`, e);
+                        toast({ variant: "destructive", title: "Name Extraction Failed", description: `Could not extract name from ${file.name}. Using filename.` });
+                        return {
+                            fileName: file.name,
+                            content: file.content,
+                            candidateName: file.name, // Fallback to filename
+                        };
+                    }
+                })
+            );
+            onFileUpload(filesWithNames);
+            setFileDisplayNames(filesWithNames.map(f => f.candidateName));
+        } else {
+            onFileUpload(parsedFiles);
+            setFileDisplayNames(parsedFiles.map(f => f.name));
+        }
+    } catch (error) {
+        console.error("Error processing files:", error);
+        toast({ variant: "destructive", title: "Processing Error", description: "An error occurred while processing files."});
+    } finally {
+        if (simulationInterval) clearInterval(simulationInterval);
+        setProcessingProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
+        await new Promise(r => setTimeout(r, 500));
+        setProcessingProgress(null);
+    }
   };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -213,8 +244,12 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      {isProcessing ? (
-        <ProgressLoader title={`Processing ${multiple ? 'files' : 'file'}...`} />
+      {processingProgress ? (
+        <ProgressLoader
+          title={`Processing ${multiple ? 'files' : 'file'}...`}
+          steps={processingProgress.steps}
+          currentStepIndex={processingProgress.currentStepIndex}
+        />
       ) : fileDisplayNames.length > 0 ? (
         <div className="space-y-2">
             <div className="flex items-center justify-between">

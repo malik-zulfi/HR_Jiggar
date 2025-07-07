@@ -36,7 +36,7 @@ export default function Home() {
   const [cvs, setCvs] = useState<CvFile[]>([]);
   const [cvResetKey, setCvResetKey] = useState(0);
 
-  const [isJdLoading, setIsJdLoading] = useState(false);
+  const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
   const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
   const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -133,9 +133,39 @@ export default function Home() {
       toast({ variant: "destructive", description: "Please upload a Job Description file." });
       return;
     }
-    setIsJdLoading(true);
+    
+    const steps = [
+      "Initializing analysis engine...",
+      "Parsing job description document...",
+      "Identifying key responsibilities...",
+      "Extracting technical skill requirements...",
+      "Analyzing soft skill criteria...",
+      "Categorizing requirements by priority...",
+      "Finalizing analysis...",
+    ];
+    setJdAnalysisProgress({ steps, currentStepIndex: 0 });
+    let simulationInterval: NodeJS.Timeout | null = setInterval(() => {
+        setJdAnalysisProgress(prev => {
+            if (!prev) {
+                if (simulationInterval) clearInterval(simulationInterval);
+                return null;
+            }
+            const nextStep = prev.currentStepIndex + 1;
+            // Stop before last step, which is triggered after the API call
+            if (nextStep >= prev.steps.length - 1) {
+                if (simulationInterval) clearInterval(simulationInterval);
+            }
+            return { ...prev, currentStepIndex: Math.min(nextStep, prev.steps.length -1) };
+        });
+    }, 600);
+
     try {
       const result = await extractJDCriteria({ jobDescription: jdFile.content });
+      
+      if (simulationInterval) clearInterval(simulationInterval);
+      setJdAnalysisProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
@@ -153,7 +183,8 @@ export default function Home() {
       console.error("Error analyzing JD:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to analyze Job Description." });
     } finally {
-      setIsJdLoading(false);
+      if (simulationInterval) clearInterval(simulationInterval);
+      setJdAnalysisProgress(null);
     }
   };
   
@@ -390,7 +421,7 @@ export default function Home() {
                 </Sidebar>
                 <SidebarInset className="overflow-y-auto w-full">
                     <div className="space-y-8 p-4 md:p-8">
-                        {!activeSession && !isJdLoading && (
+                        {!activeSession && !jdAnalysisProgress && (
                             <Card>
                                 <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
@@ -413,7 +444,15 @@ export default function Home() {
                             </Card>
                         )}
                         
-                        {isJdLoading && <div className="p-8"><ProgressLoader title="Analyzing Job Description..." /></div>}
+                        {jdAnalysisProgress && (
+                            <div className="p-8">
+                                <ProgressLoader
+                                    title="Analyzing Job Description..."
+                                    steps={jdAnalysisProgress.steps}
+                                    currentStepIndex={jdAnalysisProgress.currentStepIndex}
+                                />
+                            </div>
+                        )}
                         
                         {activeSession && (
                             <>
