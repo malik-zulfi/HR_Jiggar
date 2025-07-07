@@ -39,7 +39,7 @@ export default function Home() {
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
   const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
   const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   
@@ -348,7 +348,31 @@ export default function Home() {
   
   const handleGenerateSummary = async () => {
     if (!activeSession || activeSession.candidates.length === 0 || !activeSession.analyzedJd) return;
-    setIsSummaryLoading(true);
+
+    const steps = [
+      "Initializing summary engine...",
+      "Reviewing all candidate assessments...",
+      "Identifying common strengths across pool...",
+      "Pinpointing common weaknesses and gaps...",
+      "Categorizing candidates into tiers...",
+      "Formulating interview strategy...",
+      "Finalizing summary report...",
+    ];
+    setSummaryProgress({ steps, currentStepIndex: 0 });
+    let simulationInterval: NodeJS.Timeout | null = setInterval(() => {
+        setSummaryProgress(prev => {
+            if (!prev) {
+                if (simulationInterval) clearInterval(simulationInterval);
+                return null;
+            }
+            const nextStep = prev.currentStepIndex + 1;
+            if (nextStep >= prev.steps.length - 1) {
+                if (simulationInterval) clearInterval(simulationInterval);
+            }
+            return { ...prev, currentStepIndex: Math.min(nextStep, prev.steps.length - 1) };
+        });
+    }, 600);
+
     try {
       const candidateAssessments = activeSession.candidates.map(c => ({
         candidateName: c.analysis.candidateName,
@@ -358,6 +382,10 @@ export default function Home() {
         interviewProbes: c.analysis.interviewProbes,
       }));
       const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescriptionCriteria: activeSession.analyzedJd });
+      
+      if (simulationInterval) clearInterval(simulationInterval);
+      setSummaryProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       setHistory(prev => prev.map(session => {
         if (session.id === activeSessionId) {
@@ -371,7 +399,8 @@ export default function Home() {
       console.error("Error generating summary:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to generate summary." });
     } finally {
-      setIsSummaryLoading(false);
+      if (simulationInterval) clearInterval(simulationInterval);
+      setSummaryProgress(null);
     }
   };
 
@@ -535,8 +564,12 @@ export default function Home() {
                                                 <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                                {isSummaryLoading ? (
-                                                    <ProgressLoader title="Generating Summary..." />
+                                                {summaryProgress ? (
+                                                    <ProgressLoader
+                                                        title="Generating Summary..."
+                                                        steps={summaryProgress.steps}
+                                                        currentStepIndex={summaryProgress.currentStepIndex}
+                                                    />
                                                 ) : (
                                                     <Button onClick={handleGenerateSummary}>
                                                         Generate Summary
@@ -547,7 +580,7 @@ export default function Home() {
                                     </>
                                 )}
                                 
-                                {activeSession.summary && !isSummaryLoading && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
+                                {activeSession.summary && !summaryProgress && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
                             </>
                         )}
                     </div>
