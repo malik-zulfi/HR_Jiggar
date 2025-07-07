@@ -23,6 +23,7 @@ import FileUploader from "@/components/file-uploader";
 import ProgressLoader from "@/components/progress-loader";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
+type CvFile = { fileName: string; content: string; candidateName: string };
 
 export default function Home() {
   const { toast } = useToast();
@@ -32,7 +33,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [jdFile, setJdFile] = useState<{ name: string; content: string } | null>(null);
-  const [cvs, setCvs] = useState<{name: string, content: string}[]>([]);
+  const [cvs, setCvs] = useState<CvFile[]>([]);
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [isJdLoading, setIsJdLoading] = useState(false);
@@ -119,7 +120,7 @@ export default function Home() {
     setJdFile(null);
   }
 
-  const handleCvUpload = (files: { name: string, content: string }[]) => {
+  const handleCvUpload = (files: CvFile[]) => {
     setCvs(files);
   };
   
@@ -268,7 +269,7 @@ export default function Home() {
         const cv = cvs[i];
         
         setCurrentStepIndex(0);
-        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
+        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.candidateName });
 
         simulationInterval = setInterval(() => {
             setCurrentStepIndex(prev => Math.min(prev + 1, steps.length - 1));
@@ -281,7 +282,7 @@ export default function Home() {
         setCurrentStepIndex(steps.length);
         
         newCandidates.push({
-            cvName: cv.name,
+            cvName: cv.fileName,
             cvContent: cv.content,
             analysis: result
         });

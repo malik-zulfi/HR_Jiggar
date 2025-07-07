@@ -28,13 +28,6 @@ export default function ProgressLoader({
   const hasRealProgress = typeof current === 'number' && typeof total === 'number' && total > 0;
   const progressValue = hasRealProgress ? (current / total) * 100 : fakeProgress;
   
-  let displayText = title;
-  if (hasRealProgress && itemName && current > 0) {
-    displayText = `${title}: ${itemName} (${current} of ${total})`;
-  } else if (hasRealProgress && current > 0) {
-    displayText = `${title} (${current} of ${total})`;
-  }
-
   useEffect(() => {
     // Fake progress animation for simple loaders
     if (hasRealProgress || (steps && typeof currentStepIndex === 'number')) return;
@@ -58,11 +51,14 @@ export default function ProgressLoader({
     const stepProgress = ((currentStepIndex + 1) / steps.length) * 100;
     
     return (
-      <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50 font-mono text-xs">
-        <p className="text-center text-sm font-sans font-medium text-foreground">{displayText}</p>
+      <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50 text-xs">
+        <div className="text-center font-sans text-sm font-medium text-foreground">
+            <p>{title} {hasRealProgress && `(${current} of ${total})`}</p>
+            {itemName && <p className="font-semibold text-accent">{itemName}</p>}
+        </div>
         <Progress value={progressValue} className="w-full h-2" />
         
-        <div className='mt-4 p-3 bg-black/80 rounded-md text-white/90 h-40 overflow-hidden relative flex flex-col justify-end'>
+        <div className='mt-4 p-3 bg-black/80 rounded-md text-white/90 h-40 overflow-hidden relative flex flex-col justify-end font-mono'>
           <div>
              {visibleSteps.map((step, index) => {
                 const isCurrent = (start + index) === currentStepIndex;
@@ -93,7 +89,10 @@ export default function ProgressLoader({
   // Default simple loader
   return (
     <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
-      <p className="text-center text-sm font-medium text-foreground">{displayText}</p>
+       <div className="text-center text-sm font-medium text-foreground">
+            <p>{title} {hasRealProgress && `(${current} of ${total})`}</p>
+            {itemName && <p className="font-semibold text-accent">{itemName}</p>}
+        </div>
       <Progress value={progressValue} className="w-full h-2" />
     </div>
   );

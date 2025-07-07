@@ -89,6 +89,18 @@ export const OcrOutputSchema = z.object({
 });
 export type OcrOutput = z.infer<typeof OcrOutputSchema>;
 
+// For Name Extractor
+export const ExtractCandidateNameInputSchema = z.object({
+  cvText: z.string().describe('The full text content of the CV.'),
+});
+export type ExtractCandidateNameInput = z.infer<typeof ExtractCandidateNameInputSchema>;
+
+export const ExtractCandidateNameOutputSchema = z.object({
+  candidateName: z.string().describe('The extracted full name of the candidate.'),
+});
+export type ExtractCandidateNameOutput = z.infer<typeof ExtractCandidateNameOutputSchema>;
+
+
 // For session history
 export const CandidateRecordSchema = z.object({
     cvName: z.string(),

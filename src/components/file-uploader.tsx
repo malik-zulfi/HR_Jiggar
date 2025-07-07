@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { performOcr } from '@/ai/flows/ocr';
+import { extractCandidateName } from '@/ai/flows/name-extractor';
 import ProgressLoader from './progress-loader';
 
+type UploadedFile = { fileName: string; content: string; candidateName: string };
+
 interface FileUploaderProps {
-  onFileUpload: (files: { name: string; content: string }[]) => void;
+  onFileUpload: (files: any[]) => void;
   onFileClear: () => void;
   acceptedFileTypes: string;
   label: string;
@@ -21,12 +24,12 @@ interface FileUploaderProps {
 export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTypes, label, id, multiple = false }: FileUploaderProps) {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
-  const [fileNames, setFileNames] = useState<string[]>([]);
-  const [isParsing, setIsParsing] = useState(false);
+  const [fileDisplayNames, setFileDisplayNames] = useState<string[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearFiles = () => {
-    setFileNames([]);
+    setFileDisplayNames([]);
     onFileClear();
     if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -120,7 +123,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    setIsParsing(true);
+    setIsProcessing(true);
 
     const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
     const validFiles: File[] = [];
@@ -140,20 +143,43 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     }
 
     if (validFiles.length === 0) {
-        setIsParsing(false);
+        setIsProcessing(false);
         return;
     }
-
+    
     const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
     
-    setIsParsing(false);
-
-    if (parsedFiles.length > 0) {
-        onFileUpload(parsedFiles);
-        setFileNames(parsedFiles.map(f => f.name));
+    // For CVs, pre-process to get candidate names
+    if (id === 'cv-uploader') {
+        const filesWithNames = await Promise.all(
+            parsedFiles.map(async (file) => {
+                try {
+                    const result = await extractCandidateName({ cvText: file.content });
+                    return {
+                        fileName: file.name,
+                        content: file.content,
+                        candidateName: result.candidateName || file.name,
+                    };
+                } catch (e) {
+                    console.error(`Failed to extract name for ${file.name}`, e);
+                    toast({ variant: "destructive", title: "Name Extraction Failed", description: `Could not extract name from ${file.name}. Using filename.` });
+                    return {
+                        fileName: file.name,
+                        content: file.content,
+                        candidateName: file.name, // Fallback to filename
+                    };
+                }
+            })
+        );
+        onFileUpload(filesWithNames);
+        setFileDisplayNames(filesWithNames.map(f => f.candidateName));
     } else {
-        clearFiles();
+        // For JD, just pass the parsed file
+        onFileUpload(parsedFiles);
+        setFileDisplayNames(parsedFiles.map(f => f.name));
     }
+    
+    setIsProcessing(false);
   };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -187,19 +213,19 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      {isParsing ? (
+      {isProcessing ? (
         <ProgressLoader title={`Processing ${multiple ? 'files' : 'file'}...`} />
-      ) : fileNames.length > 0 ? (
+      ) : fileDisplayNames.length > 0 ? (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-foreground">{fileNames.length} file(s) selected</p>
+                <p className="text-sm font-medium text-foreground">{fileDisplayNames.length} file(s) selected</p>
                 <Button variant="ghost" size="icon" onClick={clearFiles} className="h-6 w-6 shrink-0">
                     <X className="h-4 w-4" />
                 </Button>
             </div>
             <div className="p-3 rounded-md border bg-muted/50 max-h-32 overflow-y-auto">
                 <ul className="space-y-1">
-                {fileNames.map((name, index) => (
+                {fileDisplayNames.map((name, index) => (
                     <li key={index} className="flex items-center gap-2 overflow-hidden">
                         <FileIcon className="h-4 w-4 text-primary shrink-0" />
                         <span className="text-sm text-muted-foreground truncate">{name}</span>
