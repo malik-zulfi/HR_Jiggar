@@ -82,6 +82,14 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     name: 'analyzeCVAgainstJDFlow',
     inputSchema: AnalyzeCVAgainstJDInputSchema,
     outputSchema: AnalyzeCVAgainstJDOutputSchema,
+    retry: {
+      maxAttempts: 3,
+      backoff: {
+        initial: '2s',
+        max: '30s',
+        multiplier: 2,
+      },
+    },
   },
   async input => {
     const {output} = await analyzeCVAgainstJDPrompt(input);

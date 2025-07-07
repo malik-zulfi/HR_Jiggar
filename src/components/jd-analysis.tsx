@@ -27,6 +27,8 @@ interface JdAnalysisProps {
   ) => void;
   isDirty: boolean;
   onSaveChanges: () => Promise<void>;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
 }
 
 const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementPriorityChange }: { 
@@ -87,14 +89,14 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
   );
 };
 
-export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPriorityChange, isDirty, onSaveChanges }: JdAnalysisProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPriorityChange, isDirty, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveClick = async () => {
       setIsSaving(true);
       await onSaveChanges();
       setIsSaving(false);
+      onOpenChange(false);
   };
 
   const categorySections = [
@@ -109,7 +111,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
   return (
     <Collapsible
         open={isOpen}
-        onOpenChange={setIsOpen}
+        onOpenChange={onOpenChange}
         asChild
     >
         <Card>

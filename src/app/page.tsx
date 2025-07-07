@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -36,13 +35,14 @@ export default function Home() {
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [isJdLoading, setIsJdLoading] = useState(false);
-  const [isCvLoading, setIsCvLoading] = useState(false);
+  const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
+  const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
-  const [isReassessing, setIsReassessing] = useState(false);
 
   const [jdIsDirty, setJdIsDirty] = useState(false);
   const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
   const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
+  const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -111,6 +111,7 @@ export default function Home() {
   const handleNewSession = () => {
     setActiveSessionId(null);
     setJdFile(null);
+    setIsJdAnalysisOpen(false);
   };
 
   const handleDeleteSession = (sessionId: string) => {
@@ -160,6 +161,7 @@ export default function Home() {
       };
       setHistory(prev => [newSession, ...prev]);
       setActiveSessionId(newSession.id);
+      setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });
     } catch (error) {
       console.error("Error analyzing JD:", error);
@@ -173,22 +175,23 @@ export default function Home() {
       const session = history.find(s => s.id === activeSessionId);
       if (!session || session.candidates.length === 0) return;
 
-      setIsReassessing(true);
+      setReassessProgress({ current: 0, total: session.candidates.length, name: "Preparing..."});
       try {
         toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
         
-        const analysisPromises = session.candidates.map(c => 
-          analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: c.cvContent })
-        );
-        
-        const results = await Promise.all(analysisPromises);
+        const updatedCandidates: CandidateRecord[] = [];
+        for (let i = 0; i < session.candidates.length; i++) {
+            const oldCandidate = session.candidates[i];
+            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName || oldCandidate.cvName });
+            const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent });
+            updatedCandidates.push({
+                ...oldCandidate,
+                analysis: result
+            });
+        }
         
         setHistory(prev => prev.map(s => {
           if (s.id === activeSessionId) {
-            const updatedCandidates = s.candidates.map((oldCandidate, index) => ({
-              ...oldCandidate,
-              analysis: results[index]
-            }));
             return { ...s, candidates: updatedCandidates, summary: null }; // Invalidate summary
           }
           return s;
@@ -197,9 +200,9 @@ export default function Home() {
         toast({ description: "All candidates have been re-assessed." });
       } catch (error) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to re-assess one or more candidates." });
+        toast({ variant: "destructive", title: "Error", description: "Failed to re-assess one or more candidates. The process has been stopped." });
       } finally {
-        setIsReassessing(false);
+        setReassessProgress(null);
       }
     };
   
@@ -239,6 +242,7 @@ export default function Home() {
     }
     
     setJdIsDirty(false);
+    setIsJdAnalysisOpen(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -250,20 +254,23 @@ export default function Home() {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
-    setIsCvLoading(true);
+    setNewCvAnalysisProgress({ current: 0, total: cvs.length, name: "Preparing..." });
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
-      const analysisPromises = cvs.map(cv => 
-        analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content })
-      );
-      
-      const results = await Promise.all(analysisPromises);
-      const newCandidates: CandidateRecord[] = results.map((res, i) => ({
-        cvName: cvs[i].name,
-        cvContent: cvs[i].content,
-        analysis: res,
-      }));
+      const newCandidates: CandidateRecord[] = [];
+
+      for (let i = 0; i < cvs.length; i++) {
+        const cv = cvs[i];
+        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
+        const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
+        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: result.candidateName || cv.name });
+        newCandidates.push({
+            cvName: cv.name,
+            cvContent: cv.content,
+            analysis: result
+        });
+      }
       
       setHistory(prev => prev.map(session => {
         if (session.id === activeSessionId) {
@@ -278,15 +285,15 @@ export default function Home() {
         return session;
       }));
 
-      toast({ description: `${results.length} candidate(s) have been successfully assessed.` });
+      toast({ description: `${newCandidates.length} candidate(s) have been successfully assessed.` });
       
       setCvs([]);
       setCvResetKey(key => key + 1);
     } catch (error) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to analyze one or more CVs." });
+      toast({ variant: "destructive", title: "Error", description: "Failed to analyze one or more CVs. The process has been stopped." });
     } finally {
-      setIsCvLoading(false);
+      setNewCvAnalysisProgress(null);
     }
   };
   
@@ -398,6 +405,8 @@ export default function Home() {
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
                                     isDirty={jdIsDirty}
                                     onSaveChanges={handleSaveChanges}
+                                    isOpen={isJdAnalysisOpen}
+                                    onOpenChange={setIsJdAnalysisOpen}
                                 />
 
                                 <Separator />
@@ -418,8 +427,13 @@ export default function Home() {
                                             onFileClear={handleCvClear}
                                             multiple={true}
                                         />
-                                        {isCvLoading ? (
-                                            <ProgressLoader title={`Assessing ${cvs.length} candidate(s)...`} />
+                                        {newCvAnalysisProgress ? (
+                                            <ProgressLoader
+                                                title="Assessing Candidate(s)"
+                                                current={newCvAnalysisProgress.current}
+                                                total={newCvAnalysisProgress.total}
+                                                itemName={newCvAnalysisProgress.name}
+                                            />
                                         ) : (
                                             <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
                                                 Add and Assess Candidate(s)
@@ -437,8 +451,13 @@ export default function Home() {
                                                 <CardDescription>Here are the assessments for the submitted candidates. When you're done, generate a final summary.</CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                            {isReassessing ? (
-                                                <ProgressLoader title={`Re-assessing ${activeSession.candidates.length} candidate(s)...`} />
+                                            {reassessProgress ? (
+                                                <ProgressLoader
+                                                    title="Re-assessing Candidate(s)"
+                                                    current={reassessProgress.current}
+                                                    total={reassessProgress.total}
+                                                    itemName={reassessProgress.name}
+                                                />
                                             ) : (
                                                 <Accordion type="single" collapsible className="w-full">
                                                     {activeSession.candidates.map((c, i) => (
