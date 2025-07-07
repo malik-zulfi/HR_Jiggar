@@ -8,6 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
@@ -55,7 +61,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
 };
 
 export default function JdAnalysis({ analysis, onRequirementPriorityChange }: JdAnalysisProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const categorySections = [
     { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
@@ -77,14 +83,23 @@ export default function JdAnalysis({ analysis, onRequirementPriorityChange }: Jd
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                         <CardTitle>Job Description Breakdown</CardTitle>
-                        <CardDescription>The JD has been deconstructed. You can change the priority of requirements below.</CardDescription>
+                        <CardDescription>The JD has been deconstructed. Click the icon to see details and adjust priorities.</CardDescription>
                     </div>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="flex-shrink-0 w-8 h-8 -mt-1 -mr-2">
-                            <ChevronsUpDown className="h-4 w-4" />
-                            <span className="sr-only">Toggle JD Analysis</span>
-                        </Button>
-                    </CollapsibleTrigger>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="icon" className="flex-shrink-0 w-8 h-8 -mt-1 -mr-2">
+                                  <ChevronsUpDown className="h-4 w-4" />
+                                  <span className="sr-only">Toggle JD Analysis</span>
+                              </Button>
+                          </CollapsibleTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Show/Hide Details</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                 </div>
             </CardHeader>
             <CollapsibleContent>
