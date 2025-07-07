@@ -10,35 +10,15 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {
+    CandidateSummaryInputSchema,
+    CandidateSummaryOutputSchema,
+    type CandidateSummaryInput,
+    type CandidateSummaryOutput
+} from '@/lib/types';
 
-const CandidateAssessmentSchema = z.object({
-  candidateName: z.string().describe('The name of the candidate.'),
-  recommendation: z
-    .enum(['Strongly Recommended', 'Recommended with Reservations', 'Not Recommended'])
-    .describe('The overall recommendation for the candidate.'),
-  strengths: z.array(z.string()).describe('A list of strengths of the candidate.'),
-  weaknesses: z.array(z.string()).describe('A list of weaknesses of the candidate.'),
-  interviewProbes: z
-    .array(z.string())
-    .describe('Suggested interview probes to explore weak/unclear areas.'),
-});
 
-const CandidateSummaryInputSchema = z.object({
-  candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  jobDescription: z.string().describe('The job description used for the assessments.'),
-});
-export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
-
-const CandidateSummaryOutputSchema = z.object({
-  topTier: z.array(z.string()).describe('Candidates categorized as Top Tier.'),
-  midTier: z.array(z.string()).describe('Candidates categorized as Mid Tier.'),
-  notSuitable: z.array(z.string()).describe('Candidates categorized as Not Suitable.'),
-  commonStrengths: z.array(z.string()).describe('Common strengths among the candidates.'),
-  commonGaps: z.array(z.string()).describe('Common gaps among the candidates.'),
-  interviewStrategy: z.string().describe('A suggested interview strategy.'),
-});
-export type CandidateSummaryOutput = z.infer<typeof CandidateSummaryOutputSchema>;
+export type { CandidateSummaryInput, CandidateSummaryOutput };
 
 export async function summarizeCandidateAssessments(input: CandidateSummaryInput): Promise<CandidateSummaryOutput> {
   return summarizeCandidateAssessmentsFlow(input);

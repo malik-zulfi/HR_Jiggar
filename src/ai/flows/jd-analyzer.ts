@@ -9,26 +9,14 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { ExtractJDCriteriaOutputSchema, type ExtractJDCriteriaOutput } from '@/lib/types';
 
 const ExtractJDCriteriaInputSchema = z.object({
   jobDescription: z.string().describe('The Job Description to analyze.'),
 });
 export type ExtractJDCriteriaInput = z.infer<typeof ExtractJDCriteriaInputSchema>;
 
-const RequirementSchema = z.object({
-  description: z.string().describe('Description of the requirement.'),
-  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
-});
-
-const ExtractJDCriteriaOutputSchema = z.object({
-  technicalSkills: z.array(RequirementSchema).describe('Technical skills requirements.'),
-  softSkills: z.array(RequirementSchema).describe('Soft skills requirements.'),
-  experience: z.array(RequirementSchema).describe('Experience requirements.'),
-  education: z.array(RequirementSchema).describe('Education requirements.'),
-  certifications: z.array(RequirementSchema).describe('Certification requirements.'),
-  responsibilities: z.array(RequirementSchema).describe('Responsibilities listed in the job description.'),
-});
-export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
+export type { ExtractJDCriteriaOutput };
 
 export async function extractJDCriteria(input: ExtractJDCriteriaInput): Promise<ExtractJDCriteriaOutput> {
   return extractJDCriteriaFlow(input);

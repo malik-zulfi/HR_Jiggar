@@ -11,54 +11,19 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-
-// Copied from jd-analyzer.ts to avoid circular dependency
-const RequirementSchema = z.object({
-  description: z.string().describe('Description of the requirement.'),
-  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
-});
-
-const JDCriteriaSchema = z.object({
-  technicalSkills: z.array(RequirementSchema),
-  softSkills: z.array(RequirementSchema),
-  experience: z.array(RequirementSchema),
-  education: z.array(RequirementSchema),
-  certifications: z.array(RequirementSchema),
-  responsibilities: z.array(RequirementSchema),
-});
+import {
+  ExtractJDCriteriaOutputSchema,
+  AnalyzeCVAgainstJDOutputSchema,
+  type AnalyzeCVAgainstJDOutput,
+} from '@/lib/types';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
-  jobDescriptionCriteria: JDCriteriaSchema.describe('The structured job description criteria to analyze against.'),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
   cv: z.string().describe('The CV to analyze.'),
 });
 export type AnalyzeCVAgainstJDInput = z.infer<typeof AnalyzeCVAgainstJDInputSchema>;
 
-const AlignmentDetailSchema = z.object({
-  category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
-  requirement: z.string().describe("The specific requirement from the job description."),
-  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
-  status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
-  justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
-});
-export type AlignmentDetail = z.infer<typeof AlignmentDetailSchema>;
-
-
-const AnalyzeCVAgainstJDOutputSchema = z.object({
-  candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
-  alignmentSummary: z
-    .string()
-    .describe("A summary of the candidate's alignment with the job description requirements."),
-  alignmentDetails: z.array(AlignmentDetailSchema).describe('A detailed, requirement-by-requirement alignment analysis.'),
-  recommendation: z.enum([
-    'Strongly Recommended',
-    'Recommended with Reservations',
-    'Not Recommended',
-  ]).describe('The recommendation for the candidate.'),
-  strengths: z.array(z.string()).describe('The strengths of the candidate.'),
-  weaknesses: z.array(z.string()).describe('The weaknesses of the candidate.'),
-  interviewProbes: z.array(z.string()).describe('Suggested interview probes to explore weak areas.'),
-});
-export type AnalyzeCVAgainstJDOutput = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
+export type { AnalyzeCVAgainstJDOutput };
 
 export async function analyzeCVAgainstJD(input: AnalyzeCVAgainstJDInput): Promise<AnalyzeCVAgainstJDOutput> {
   return analyzeCVAgainstJDFlow(input);
