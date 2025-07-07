@@ -49,10 +49,17 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                 content += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
             }
 
-            if (content.trim().length < 100) { 
+            if (content.trim().length < 100) {
+                let toastTitle = "Image-based PDF Detected";
+                if (id === 'cv-uploader') {
+                    toastTitle = "Image-based CV Detected";
+                } else if (id === 'jd-uploader') {
+                    toastTitle = "Image-based JD Detected";
+                }
+
                 toast({ 
-                    title: "Scanning Document",
-                    description: `"${file.name}" appears to be image-based. Performing OCR, this may take a few moments...`
+                    title: toastTitle,
+                    description: `Performing OCR on "${file.name}" to extract text. This may take a few moments...`
                 });
 
                 let ocrContent = '';
