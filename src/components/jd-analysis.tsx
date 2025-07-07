@@ -52,7 +52,10 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
           return (
             <li 
                 key={index} 
-                className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30 cursor-pointer transition-colors hover:bg-secondary/60"
+                className={cn(
+                    "flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30 cursor-pointer transition-colors hover:bg-secondary/60",
+                    hasChanged && "bg-accent/20 border-accent/40"
+                )}
                 onClick={() => {
                     const newPriority = req.priority === 'MUST-HAVE' ? 'NICE-TO-HAVE' : 'MUST-HAVE';
                     onRequirementPriorityChange(req, categoryKey, newPriority);
@@ -73,9 +76,6 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                       onCheckedChange={(checked) => {
                           onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
-                      className={cn(
-                        hasChanged && "ring-2 ring-accent"
-                      )}
                   />
                   <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
               </div>
@@ -117,7 +117,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                         <CardTitle>Job Description Breakdown</CardTitle>
-                        <CardDescription>The JD has been deconstructed. Expand to see details and adjust priorities.</CardDescription>
+                        <CardDescription>The JD has been deconstructed. Expand to see details and adjust requirement priorities.</CardDescription>
                     </div>
                     <TooltipProvider>
                       <Tooltip>
