@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
 
-import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession } from "@/lib/types";
+import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
@@ -127,6 +127,37 @@ export default function Home() {
     } finally {
       setIsJdLoading(false);
     }
+  };
+  
+  const handleJdRequirementChange = (
+    requirement: Requirement,
+    fromCategoryKey: keyof ExtractJDCriteriaOutput,
+    toCategoryKey: keyof ExtractJDCriteriaOutput
+  ) => {
+    if (fromCategoryKey === toCategoryKey) return;
+
+    setHistory(prevHistory => 
+        prevHistory.map(session => {
+            if (session.id === activeSessionId && session.analyzedJd) {
+                const newAnalyzedJd = { ...session.analyzedJd };
+
+                const fromList = (newAnalyzedJd[fromCategoryKey] || []) as Requirement[];
+                newAnalyzedJd[fromCategoryKey] = fromList.filter(
+                    req => req.description !== requirement.description
+                );
+
+                const toList = (newAnalyzedJd[toCategoryKey] || []) as Requirement[];
+                newAnalyzedJd[toCategoryKey] = [...toList, requirement];
+
+                return {
+                    ...session,
+                    analyzedJd: newAnalyzedJd,
+                };
+            }
+            return session;
+        })
+    );
+    toast({ description: `Requirement category updated.` });
   };
 
   const handleAnalyzeCvs = async () => {
@@ -267,7 +298,10 @@ export default function Home() {
                         
                         {activeSession && (
                             <>
-                                <JdAnalysis analysis={activeSession.analyzedJd} />
+                                <JdAnalysis
+                                    analysis={activeSession.analyzedJd}
+                                    onRequirementChange={handleJdRequirementChange}
+                                />
 
                                 <Separator />
 
