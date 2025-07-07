@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
-import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
 
 import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
@@ -77,7 +77,8 @@ export default function Home() {
     const updatedHistory = history.filter(s => s.id !== sessionId);
     setHistory(updatedHistory);
     if (activeSessionId === sessionId) {
-        setActiveSessionId(updatedHistory[0]?.id || null);
+        const newActiveSession = updatedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+        setActiveSessionId(newActiveSession?.id || null);
     }
     toast({ description: "Assessment deleted." });
   };
@@ -218,20 +219,17 @@ export default function Home() {
                             {history.length > 0 ? history.map(session => (
                                 <SidebarMenuItem key={session.id}>
                                     <SidebarMenuButton 
-                                    onClick={() => setActiveSessionId(session.id)}
-                                    isActive={session.id === activeSessionId}
-                                    className="justify-between"
+                                        onClick={() => setActiveSessionId(session.id)}
+                                        isActive={session.id === activeSessionId}
                                     >
-                                    <span className="truncate" title={session.jdName}>{session.jdName}</span>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100"
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                                    >
-                                        <Trash2 className="h-4 w-4"/>
-                                    </Button>
+                                        <span className="truncate" title={session.jdName}>{session.jdName}</span>
                                     </SidebarMenuButton>
+                                    <SidebarMenuAction
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                                        className="opacity-50 hover:opacity-100"
+                                    >
+                                        <Trash2/>
+                                    </SidebarMenuAction>
                                 </SidebarMenuItem>
                             )) : (
                                 <p className="p-4 text-sm text-muted-foreground text-center">No assessments yet.</p>
