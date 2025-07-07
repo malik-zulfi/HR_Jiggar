@@ -42,11 +42,12 @@ export default function Home() {
     try {
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedStateJSON) {
-        const savedHistory = JSON.parse(savedStateJSON);
+        const savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
-          setHistory(savedHistory);
+          const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setHistory(sortedHistory);
           // Load the most recent session
-          setActiveSessionId(savedHistory[0].id);
+          setActiveSessionId(sortedHistory[0]?.id);
         }
       }
     } catch (error) {
@@ -73,10 +74,10 @@ export default function Home() {
   };
 
   const handleDeleteSession = (sessionId: string) => {
-    setHistory(prev => prev.filter(s => s.id !== sessionId));
+    const updatedHistory = history.filter(s => s.id !== sessionId);
+    setHistory(updatedHistory);
     if (activeSessionId === sessionId) {
-        const newHistory = history.filter(s => s.id !== sessionId);
-        setActiveSessionId(newHistory[0]?.id || null);
+        setActiveSessionId(updatedHistory[0]?.id || null);
     }
     toast({ description: "Assessment deleted." });
   };
@@ -115,7 +116,7 @@ export default function Home() {
         summary: null,
         createdAt: new Date().toISOString(),
       };
-      setHistory(prev => [newSession, ...prev.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())]);
+      setHistory(prev => [newSession, ...prev]);
       setActiveSessionId(newSession.id);
       toast({ description: "Job Description analyzed successfully." });
     } catch (error) {
