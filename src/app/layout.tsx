@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Jiggar Assessment',
-  description: 'AI-powered candidate assessment and recommendation.',
+  title: 'Jiggar: AI-Powered Candidate Assessment',
+  description: 'Analyze job descriptions, assess candidate CVs, and generate hiring recommendations with the power of AI.',
 };
 
 export default function RootLayout({
