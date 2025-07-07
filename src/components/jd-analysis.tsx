@@ -45,7 +45,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                         onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                     }}
                 />
-                <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-foreground cursor-pointer">Must Have</Label>
+                <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
             </div>
           </li>
         ))}
