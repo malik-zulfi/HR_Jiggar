@@ -40,7 +40,6 @@ export default function Home() {
         const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (savedStateJSON) {
             const savedState = JSON.parse(savedStateJSON);
-            if (savedState.jd) setJd(savedState.jd);
             if (savedState.analyzedJd) setAnalyzedJd(savedState.analyzedJd);
             if (savedState.candidates) setCandidates(savedState.candidates);
             if (savedState.summary) setSummary(savedState.summary);
@@ -53,7 +52,6 @@ export default function Home() {
 
   useEffect(() => {
     const stateToSave = {
-        jd,
         analyzedJd,
         candidates,
         summary,
@@ -63,7 +61,7 @@ export default function Home() {
     } catch (error) {
         console.error("Failed to save state to localStorage", error);
     }
-  }, [jd, analyzedJd, candidates, summary]);
+  }, [analyzedJd, candidates, summary]);
 
 
   const handleJdUpload = (files: { name: string, content: string }[]) => {
@@ -142,7 +140,7 @@ export default function Home() {
   };
   
   const handleGenerateSummary = async () => {
-    if (candidates.length === 0 || !jd) return;
+    if (candidates.length === 0 || !analyzedJd) return;
     setIsSummaryLoading(true);
     try {
       const candidateAssessments = candidates.map(c => ({
@@ -152,7 +150,7 @@ export default function Home() {
         weaknesses: c.weaknesses,
         interviewProbes: c.interviewProbes,
       }));
-      const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescription: jd });
+      const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescriptionCriteria: analyzedJd });
       setSummary(result);
       toast({ description: "Candidate summary generated." });
     } catch (error) {

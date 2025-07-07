@@ -64,7 +64,7 @@ const CandidateAssessmentSchema = z.object({
 
 export const CandidateSummaryInputSchema = z.object({
   candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  jobDescription: z.string().describe('The job description used for the assessments.'),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria.'),
 });
 export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
 
