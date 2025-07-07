@@ -184,7 +184,7 @@ export default function Home() {
         const updatedCandidates: CandidateRecord[] = [];
         for (let i = 0; i < session.candidates.length; i++) {
             const oldCandidate = session.candidates[i];
-            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.cvName });
+            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName });
             const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent });
             updatedCandidates.push({
                 ...oldCandidate,
