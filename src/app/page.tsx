@@ -49,8 +49,16 @@ export default function Home() {
     try {
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedStateJSON) {
-        const savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
+        let savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
+          
+          savedHistory = savedHistory.map(session => {
+            if (!session.originalAnalyzedJd) {
+              return { ...session, originalAnalyzedJd: JSON.parse(JSON.stringify(session.analyzedJd)) };
+            }
+            return session;
+          });
+
           const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setHistory(sortedHistory);
           setActiveSessionId(sortedHistory[0]?.id);
@@ -78,7 +86,7 @@ export default function Home() {
     const session = history.find(s => s.id === activeSessionId);
     setJdIsDirty(false);
     if (session) {
-      const originalData = session.originalAnalyzedJd || session.analyzedJd;
+      const originalData = session.originalAnalyzedJd;
       const editedData = session.analyzedJd;
 
       setOriginalJd(JSON.parse(JSON.stringify(originalData)));
