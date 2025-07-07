@@ -233,13 +233,13 @@ export default function Home() {
         return s;
     }));
 
-    setIsJdAnalysisOpen(false);
-
     if (candidatesToReassess) {
         await reAssessCandidates(editedJd);
     } else {
         toast({ description: "Job Description changes have been saved." });
     }
+    
+    setIsJdAnalysisOpen(false);
   };
 
   const handleAnalyzeCvs = async () => {
