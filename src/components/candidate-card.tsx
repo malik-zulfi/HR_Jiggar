@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, ChevronDown, ChevronRight } from "lucide-react";
+import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
@@ -37,11 +35,10 @@ const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation
 
 export default function CandidateCard({ candidate }: CandidateCardProps) {
   const recommendationInfo = getRecommendationInfo(candidate.recommendation);
-  const [isAlignmentTableOpen, setIsAlignmentTableOpen] = useState(false);
 
   return (
     <AccordionItem value={candidate.candidateName}>
-      <AccordionTrigger className="hover:no-underline px-4 py-3">
+      <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-secondary/50">
         <div className="flex items-center justify-between w-full gap-4">
           <span className="font-semibold text-foreground truncate">{candidate.candidateName}</span>
           <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
@@ -54,23 +51,11 @@ export default function CandidateCard({ candidate }: CandidateCardProps) {
       </AccordionTrigger>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
-          <Collapsible open={isAlignmentTableOpen} onOpenChange={setIsAlignmentTableOpen}>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold flex items-center"><ClipboardCheck className="w-4 h-4 mr-2 text-primary"/> Alignment Details</h4>
-                 <CollapsibleTrigger asChild>
-                    <button className="flex items-center text-sm text-primary hover:underline font-medium">
-                      <span>{isAlignmentTableOpen ? 'Hide' : 'Show'} Table</span>
-                      {isAlignmentTableOpen ? <ChevronDown className="w-4 h-4 ml-1" /> : <ChevronRight className="w-4 h-4 ml-1" />}
-                    </button>
-                  </CollapsibleTrigger>
-              </div>
-              <p className="text-sm text-foreground/80 whitespace-pre-wrap">{candidate.alignmentSummary}</p>
-            </div>
-            <CollapsibleContent className="mt-4 animate-in fade-in-0 zoom-in-95">
-              <AlignmentTable details={candidate.alignmentDetails} />
-            </CollapsibleContent>
-          </Collapsible>
+          <div>
+            <h4 className="font-semibold mb-2 flex items-center"><ClipboardCheck className="w-4 h-4 mr-2 text-primary"/> Alignment Details</h4>
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap mb-4">{candidate.alignmentSummary}</p>
+            <AlignmentTable details={candidate.alignmentDetails} />
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
