@@ -26,7 +26,7 @@ interface JdAnalysisProps {
     newPriority: Requirement['priority']
   ) => void;
   isDirty: boolean;
-  onSaveChanges: () => Promise<void>;
+  onSaveChanges: () => void;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }
@@ -78,7 +78,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                           onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
                   />
-                  <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-primary cursor-pointer">Must Have</Label>
+                  <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
               </div>
             </li>
           );
@@ -91,10 +91,9 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
 export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPriorityChange, isDirty, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveClick = async () => {
+  const handleSaveClick = () => {
       setIsSaving(true);
-      await onSaveChanges();
-      setIsSaving(false);
+      onSaveChanges();
   };
 
   const categorySections = [
@@ -165,3 +164,5 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
     </Collapsible>
   );
 }
+
+    

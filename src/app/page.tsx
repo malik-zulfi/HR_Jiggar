@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -9,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput } from "@/components/ui/sidebar";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
@@ -112,6 +113,8 @@ export default function Home() {
     setActiveSessionId(null);
     setJdFile(null);
     setIsJdAnalysisOpen(false);
+    setCvs([]);
+    setCvResetKey(key => key + 1);
   };
 
   const handleDeleteSession = (sessionId: string) => {
@@ -259,11 +262,14 @@ export default function Home() {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
       const newCandidates: CandidateRecord[] = [];
+      let allAnalyses: AnalyzedCandidate[] = [];
+
 
       for (let i = 0; i < cvs.length; i++) {
         const cv = cvs[i];
         setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
         const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
+        allAnalyses.push(result);
         setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: result.candidateName || cv.name });
         newCandidates.push({
             cvName: cv.name,
@@ -498,3 +504,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
