@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -7,18 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
-import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
+import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
@@ -39,6 +29,7 @@ export default function Home() {
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [jdFile, setJdFile] = useState<{ name: string; content: string } | null>(null);
   const [cvs, setCvs] = useState<{name: string, content: string}[]>([]);
@@ -48,25 +39,38 @@ export default function Home() {
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [isReassessing, setIsReassessing] = useState(false);
-  
-  const [isReassessmentDialogOpen, setIsReassessmentDialogOpen] = useState(false);
-  const [pendingJdChange, setPendingJdChange] = useState<{
-    requirement: Requirement;
-    categoryKey: keyof ExtractJDCriteriaOutput;
-    newPriority: Requirement['priority'];
-  } | null>(null);
+
+  const [jdIsDirty, setJdIsDirty] = useState(false);
+  const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
+  const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
+
+  const filteredHistory = useMemo(() => {
+    if (!searchQuery.trim()) {
+        return history;
+    }
+    return history.filter(session =>
+        session.jdName.toLowerCase().includes(searchQuery.toLowerCase().trim())
+    );
+  }, [history, searchQuery]);
 
   useEffect(() => {
     try {
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedStateJSON) {
-        const savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
+        let savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
+          
+          savedHistory = savedHistory.map(session => {
+            if (!session.originalAnalyzedJd) {
+              return { ...session, originalAnalyzedJd: JSON.parse(JSON.stringify(session.analyzedJd)) };
+            }
+            return session;
+          });
+
           const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setHistory(sortedHistory);
-          // Load the most recent session
           setActiveSessionId(sortedHistory[0]?.id);
         }
       }
@@ -87,6 +91,22 @@ export default function Home() {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [history]);
+
+  useEffect(() => {
+    const session = history.find(s => s.id === activeSessionId);
+    setJdIsDirty(false);
+    if (session) {
+      const originalData = session.originalAnalyzedJd ?? session.analyzedJd; // Fallback for old data
+      const editedData = session.analyzedJd;
+
+      setOriginalJd(JSON.parse(JSON.stringify(originalData)));
+      setEditedJd(JSON.parse(JSON.stringify(editedData)));
+    } else {
+      setOriginalJd(null);
+      setEditedJd(null);
+    }
+  }, [activeSessionId, history]);
+
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -132,6 +152,7 @@ export default function Home() {
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
+        originalAnalyzedJd: JSON.parse(JSON.stringify(result)),
         analyzedJd: result,
         candidates: [],
         summary: null,
@@ -146,24 +167,6 @@ export default function Home() {
     } finally {
       setIsJdLoading(false);
     }
-  };
-  
-  const applyJdChange = (change: { requirement: Requirement; categoryKey: keyof ExtractJDCriteriaOutput; newPriority: Requirement['priority']; }) => {
-     const { requirement, categoryKey, newPriority } = change;
-      setHistory(prevHistory =>
-        prevHistory.map(session => {
-          if (session.id === activeSessionId && session.analyzedJd) {
-            const newAnalyzedJd = { ...session.analyzedJd };
-            const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
-            const newList = oldList.map(req =>
-              req.description === requirement.description ? { ...req, priority: newPriority } : req
-            );
-            return { ...session, analyzedJd: { ...newAnalyzedJd, [categoryKey]: newList }, summary: null }; // Invalidate summary
-          }
-          return session;
-        })
-      );
-      toast({ description: `Requirement priority updated to ${newPriority.replace('-', ' ')}.` });
   };
 
   const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
@@ -205,42 +208,37 @@ export default function Home() {
     categoryKey: keyof ExtractJDCriteriaOutput,
     newPriority: Requirement['priority']
   ) => {
-    const change = { requirement, categoryKey, newPriority };
-    if (activeSession && activeSession.candidates.length > 0) {
-      setPendingJdChange(change);
-      setIsReassessmentDialogOpen(true);
-    } else {
-      applyJdChange(change);
-    }
+    setEditedJd(prevJd => {
+        if (!prevJd) return null;
+        const newAnalyzedJd = { ...prevJd };
+        const category = newAnalyzedJd[categoryKey] as Requirement[];
+        const newList = category.map(req =>
+            req.description === requirement.description ? { ...req, priority: newPriority } : req
+        );
+        return { ...newAnalyzedJd, [categoryKey]: newList };
+    });
+    setJdIsDirty(true);
   };
 
-  const handleConfirmReassessment = async () => {
-    if (!pendingJdChange || !activeSessionId) return;
-    setIsReassessmentDialogOpen(false);
+  const handleSaveChanges = async () => {
+    if (!editedJd || !activeSessionId) return;
+
+    const candidatesToReassess = activeSession?.candidates.length > 0;
+
+    setHistory(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+            return { ...s, analyzedJd: editedJd, summary: null };
+        }
+        return s;
+    }));
+
+    if (candidatesToReassess) {
+        await reAssessCandidates(editedJd);
+    } else {
+        toast({ description: "Job Description changes have been saved." });
+    }
     
-    // 1. Calculate the future state of the JD
-    const sessionToUpdate = history.find(s => s.id === activeSessionId);
-    if (!sessionToUpdate || !sessionToUpdate.analyzedJd) return;
-    
-    const { requirement, categoryKey, newPriority } = pendingJdChange;
-    const newAnalyzedJd = { ...sessionToUpdate.analyzedJd };
-    const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
-    const newList = oldList.map(req =>
-      req.description === requirement.description ? { ...req, priority: newPriority } : req
-    );
-    newAnalyzedJd[categoryKey] = newList;
-    
-    // 2. Apply the change and start re-assessment
-    applyJdChange(pendingJdChange);
-    await reAssessCandidates(newAnalyzedJd);
-    setPendingJdChange(null);
-  };
-  
-  const handleDeclineReassessment = () => {
-    if (!pendingJdChange) return;
-    applyJdChange(pendingJdChange);
-    setIsReassessmentDialogOpen(false);
-    setPendingJdChange(null);
+    setJdIsDirty(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -330,14 +328,19 @@ export default function Home() {
             <div className="relative flex flex-1 overflow-hidden">
                 <Sidebar side="left" className="h-full">
                     <SidebarHeader>
-                        <h2 className="text-lg font-semibold flex items-center gap-2 p-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
                             <History className="w-5 h-5"/>
                             Assessments
                         </h2>
+                        <SidebarInput
+                            placeholder="Search assessments..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                     </SidebarHeader>
                     <SidebarContent>
                         <SidebarMenu>
-                            {history.length > 0 ? history.map(session => (
+                            {filteredHistory.length > 0 ? filteredHistory.map(session => (
                                 <SidebarMenuItem key={session.id}>
                                     <SidebarMenuButton 
                                         onClick={() => setActiveSessionId(session.id)}
@@ -353,7 +356,9 @@ export default function Home() {
                                     </SidebarMenuAction>
                                 </SidebarMenuItem>
                             )) : (
-                                <p className="p-4 text-sm text-muted-foreground text-center">No assessments yet.</p>
+                                <p className="p-4 text-sm text-muted-foreground text-center">
+                                    {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
+                                </p>
                             )}
                         </SidebarMenu>
                     </SidebarContent>
@@ -385,11 +390,14 @@ export default function Home() {
                         
                         {isJdLoading && <div className="p-8"><ProgressLoader title="Analyzing Job Description..." /></div>}
                         
-                        {activeSession && (
+                        {activeSession && editedJd && (
                             <>
                                 <JdAnalysis
-                                    analysis={activeSession.analyzedJd}
+                                    analysis={editedJd}
+                                    originalAnalysis={originalJd}
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
+                                    isDirty={jdIsDirty}
+                                    onSaveChanges={handleSaveChanges}
                                 />
 
                                 <Separator />
@@ -468,22 +476,6 @@ export default function Home() {
                 </SidebarInset>
             </div>
         </SidebarProvider>
-
-        <AlertDialog open={isReassessmentDialogOpen} onOpenChange={setIsReassessmentDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Re-assess Candidates?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        You've changed the job requirements. Would you like to re-assess the existing {activeSession?.candidates.length} candidate(s) with these new criteria? This will replace their current assessments.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setPendingJdChange(null)}>Cancel</AlertDialogCancel>
-                    <Button variant="outline" onClick={handleDeclineReassessment}>Update JD Only</Button>
-                    <AlertDialogAction onClick={handleConfirmReassessment}>Update and Re-assess</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
     </div>
   );
 }
