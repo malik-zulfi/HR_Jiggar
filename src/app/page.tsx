@@ -95,9 +95,6 @@ export default function Home() {
   useEffect(() => {
     const session = history.find(s => s.id === activeSessionId);
     setJdIsDirty(false);
-    if (activeSessionId && session?.id !== activeSessionId) {
-        setIsJdAnalysisOpen(false); // Collapse when session changes only if it's a new session
-    }
     if (session) {
       const originalData = session.originalAnalyzedJd ?? session.analyzedJd; // Fallback for old data
       const editedData = session.analyzedJd;
@@ -114,6 +111,7 @@ export default function Home() {
   const handleNewSession = () => {
     setActiveSessionId(null);
     setJdFile(null);
+    setIsJdAnalysisOpen(false);
   };
 
   const handleDeleteSession = (sessionId: string) => {
@@ -163,6 +161,7 @@ export default function Home() {
       };
       setHistory(prev => [newSession, ...prev]);
       setActiveSessionId(newSession.id);
+      setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });
     } catch (error) {
       console.error("Error analyzing JD:", error);
@@ -183,7 +182,7 @@ export default function Home() {
         const updatedCandidates: CandidateRecord[] = [];
         for (let i = 0; i < session.candidates.length; i++) {
             const oldCandidate = session.candidates[i];
-            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName });
+            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName || oldCandidate.cvName });
             const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent });
             updatedCandidates.push({
                 ...oldCandidate,
@@ -243,6 +242,7 @@ export default function Home() {
     }
     
     setJdIsDirty(false);
+    setIsJdAnalysisOpen(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -262,6 +262,7 @@ export default function Home() {
 
       for (let i = 0; i < cvs.length; i++) {
         const cv = cvs[i];
+        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
         const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
         setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: result.candidateName || cv.name });
         newCandidates.push({

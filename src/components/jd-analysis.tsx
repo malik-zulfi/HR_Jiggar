@@ -67,7 +67,6 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
               <div 
                 className="flex items-center space-x-2 shrink-0"
                 onClick={(e) => {
-                    // Stop the li's onClick from firing when we interact with the switch directly
                     e.stopPropagation(); 
                 }}
               >
@@ -79,7 +78,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                           onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
                   />
-                  <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
+                  <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-primary cursor-pointer">Must Have</Label>
               </div>
             </li>
           );
@@ -96,7 +95,6 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
       setIsSaving(true);
       await onSaveChanges();
       setIsSaving(false);
-      onOpenChange(false);
   };
 
   const categorySections = [
