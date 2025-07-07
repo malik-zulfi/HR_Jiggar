@@ -32,6 +32,15 @@ CV Text:
 `,
 });
 
+function toTitleCase(str: string): string {
+    if (!str) return '';
+    return str
+        .toLowerCase()
+        .split(/[\s-]+/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
 const extractCandidateNameFlow = ai.defineFlow(
   {
     name: 'extractCandidateNameFlow',
@@ -40,6 +49,11 @@ const extractCandidateNameFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (output) {
+        return {
+            candidateName: toTitleCase(output.candidateName)
+        };
+    }
+    return { candidateName: '' };
   }
 );
