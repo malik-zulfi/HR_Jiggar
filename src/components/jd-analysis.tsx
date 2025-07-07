@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -20,26 +20,21 @@ import {
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   originalAnalysis: ExtractJDCriteriaOutput | null;
-  onRequirementPriorityChange: (
-    requirement: Requirement,
-    categoryKey: keyof ExtractJDCriteriaOutput,
-    newPriority: Requirement['priority']
-  ) => void;
-  isDirty: boolean;
-  onSaveChanges: () => void;
+  onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => void;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }
 
-const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementPriorityChange }: { 
+const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementChange }: { 
   title: string; 
   requirements: Requirement[]; 
   icon: React.ReactNode;
   categoryKey: keyof ExtractJDCriteriaOutput;
   originalRequirements: Requirement[] | undefined;
-  onRequirementPriorityChange: JdAnalysisProps['onRequirementPriorityChange'];
+  onRequirementChange: (categoryKey: keyof ExtractJDCriteriaOutput, index: number, newPriority: Requirement['priority']) => void;
 }) => {
   if (!requirements || requirements.length === 0) return null;
+
   return (
     <div className="break-inside-avoid">
       <h3 className="text-lg font-semibold mb-3 flex items-center text-primary">
@@ -60,7 +55,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                 )}
                 onClick={() => {
                     const newPriority = req.priority === 'MUST-HAVE' ? 'NICE-TO-HAVE' : 'MUST-HAVE';
-                    onRequirementPriorityChange(req, categoryKey, newPriority);
+                    onRequirementChange(categoryKey, index, newPriority);
                 }}
             >
               <p className="flex-1 text-sm text-foreground">{req.description}</p>
@@ -75,7 +70,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                       id={`p-switch-${categoryKey}-${index}`}
                       checked={req.priority === 'MUST-HAVE'}
                       onCheckedChange={(checked) => {
-                          onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
+                          onRequirementChange(categoryKey, index, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
                   />
                   <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
@@ -88,14 +83,34 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
   );
 };
 
-export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPriorityChange, isDirty, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
+  const [editedJd, setEditedJd] = useState(analysis);
   const [isSaving, setIsSaving] = useState(false);
+
+  const isDirty = useMemo(() => {
+    return JSON.stringify(analysis) !== JSON.stringify(editedJd);
+  }, [analysis, editedJd]);
+
+  const handleRequirementChange = (
+    categoryKey: keyof ExtractJDCriteriaOutput,
+    index: number,
+    newPriority: Requirement['priority']
+  ) => {
+    setEditedJd(prevJd => {
+        const newAnalyzedJd = { ...prevJd };
+        const category = [...(newAnalyzedJd[categoryKey] as Requirement[])];
+        category[index] = { ...category[index], priority: newPriority };
+        return { ...newAnalyzedJd, [categoryKey]: category };
+    });
+  };
 
   const handleSaveClick = () => {
       setIsSaving(true);
-      onSaveChanges();
+      onSaveChanges(editedJd);
+      // The parent component will handle closing the collapsible and resetting the saving state.
+      // We set isSaving to true to disable the button immediately.
   };
-
+  
   const categorySections = [
     { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
     { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
@@ -142,11 +157,11 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
                           <RequirementList
                             key={section.key}
                             title={section.title}
-                            requirements={analysis[section.key as keyof ExtractJDCriteriaOutput]}
+                            requirements={editedJd[section.key as keyof ExtractJDCriteriaOutput]}
                             originalRequirements={originalAnalysis?.[section.key as keyof ExtractJDCriteriaOutput]}
                             icon={section.icon}
                             categoryKey={section.key as keyof ExtractJDCriteriaOutput}
-                            onRequirementPriorityChange={onRequirementPriorityChange}
+                            onRequirementChange={handleRequirementChange}
                           />
                         ))}
                     </div>
@@ -164,5 +179,3 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
     </Collapsible>
   );
 }
-
-    

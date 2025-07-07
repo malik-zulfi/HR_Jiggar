@@ -40,13 +40,13 @@ export default function Home() {
   const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
-  const [jdIsDirty, setJdIsDirty] = useState(false);
-  const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
-  const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   
-  const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
+  const [analysisSteps, setAnalysisSteps] = useState<string[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
+  const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
+  
   const filteredHistory = useMemo(() => {
     if (!searchQuery.trim()) {
         return history;
@@ -62,14 +62,12 @@ export default function Home() {
       if (savedStateJSON) {
         let savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
-          
           savedHistory = savedHistory.map(session => {
             if (!session.originalAnalyzedJd) {
               return { ...session, originalAnalyzedJd: JSON.parse(JSON.stringify(session.analyzedJd)) };
             }
             return session;
           });
-
           const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setHistory(sortedHistory);
           setActiveSessionId(sortedHistory[0]?.id);
@@ -92,22 +90,6 @@ export default function Home() {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [history]);
-
-  useEffect(() => {
-    const session = history.find(s => s.id === activeSessionId);
-    setJdIsDirty(false);
-    if (session) {
-      const originalData = session.originalAnalyzedJd ?? session.analyzedJd; // Fallback for old data
-      const editedData = session.analyzedJd;
-
-      setOriginalJd(JSON.parse(JSON.stringify(originalData)));
-      setEditedJd(JSON.parse(JSON.stringify(editedData)));
-    } else {
-      setOriginalJd(null);
-      setEditedJd(null);
-    }
-  }, [activeSessionId, history]);
-
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -173,20 +155,48 @@ export default function Home() {
       setIsJdLoading(false);
     }
   };
+  
+  const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
+    const allReqs = [
+      ...jd.technicalSkills,
+      ...jd.softSkills,
+      ...jd.experience,
+      ...jd.education,
+      ...jd.certifications,
+      ...jd.responsibilities
+    ];
+    return allReqs.map(req => req.description);
+  };
 
   const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
       const session = history.find(s => s.id === activeSessionId);
       if (!session || session.candidates.length === 0) return;
 
+      const steps = getRequirementsAsSteps(jd);
+      setAnalysisSteps(steps);
       setReassessProgress({ current: 0, total: session.candidates.length, name: "Preparing..."});
+      let simulationInterval: NodeJS.Timeout | null = null;
+      
       try {
         toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
         
         const updatedCandidates: CandidateRecord[] = [];
         for (let i = 0; i < session.candidates.length; i++) {
             const oldCandidate = session.candidates[i];
+
+            setCurrentStepIndex(0);
             setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName || oldCandidate.cvName });
+            
+            simulationInterval = setInterval(() => {
+                setCurrentStepIndex(prev => Math.min(prev + 1, steps.length - 1));
+            }, 300);
+
             const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent });
+            
+            if(simulationInterval) clearInterval(simulationInterval);
+            simulationInterval = null;
+            setCurrentStepIndex(steps.length);
+
             updatedCandidates.push({
                 ...oldCandidate,
                 analysis: result
@@ -205,29 +215,14 @@ export default function Home() {
         console.error("Error re-assessing CVs:", error);
         toast({ variant: "destructive", title: "Error", description: "Failed to re-assess one or more candidates. The process has been stopped." });
       } finally {
+        if(simulationInterval) clearInterval(simulationInterval);
         setReassessProgress(null);
+        setAnalysisSteps([]);
       }
     };
   
-  const handleJdRequirementPriorityChange = (
-    requirement: Requirement,
-    categoryKey: keyof ExtractJDCriteriaOutput,
-    newPriority: Requirement['priority']
-  ) => {
-    setEditedJd(prevJd => {
-        if (!prevJd) return null;
-        const newAnalyzedJd = { ...prevJd };
-        const category = newAnalyzedJd[categoryKey] as Requirement[];
-        const newList = category.map(req =>
-            req.description === requirement.description ? { ...req, priority: newPriority } : req
-        );
-        return { ...newAnalyzedJd, [categoryKey]: newList };
-    });
-    setJdIsDirty(true);
-  };
-
-  const handleSaveChanges = async () => {
-    if (!editedJd || !activeSessionId) return;
+  const handleSaveChanges = async (editedJd: ExtractJDCriteriaOutput) => {
+    if (!activeSessionId) return;
 
     const candidatesToReassess = activeSession?.candidates.length > 0;
 
@@ -244,7 +239,6 @@ export default function Home() {
         toast({ description: "Job Description changes have been saved." });
     }
     
-    setJdIsDirty(false);
     setIsJdAnalysisOpen(false);
   };
 
@@ -257,20 +251,33 @@ export default function Home() {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
+    
+    const steps = getRequirementsAsSteps(activeSession.analyzedJd);
+    setAnalysisSteps(steps);
     setNewCvAnalysisProgress({ current: 0, total: cvs.length, name: "Preparing..." });
+    let simulationInterval: NodeJS.Timeout | null = null;
+    
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
       const newCandidates: CandidateRecord[] = [];
-      let allAnalyses: AnalyzedCandidate[] = [];
-
-
+      
       for (let i = 0; i < cvs.length; i++) {
         const cv = cvs[i];
+        
+        setCurrentStepIndex(0);
         setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
+
+        simulationInterval = setInterval(() => {
+            setCurrentStepIndex(prev => Math.min(prev + 1, steps.length - 1));
+        }, 300); 
+
         const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
-        allAnalyses.push(result);
-        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: result.candidateName || cv.name });
+        
+        if(simulationInterval) clearInterval(simulationInterval);
+        simulationInterval = null;
+        setCurrentStepIndex(steps.length);
+        
         newCandidates.push({
             cvName: cv.name,
             cvContent: cv.content,
@@ -299,7 +306,9 @@ export default function Home() {
       console.error("Error analyzing CVs:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to analyze one or more CVs. The process has been stopped." });
     } finally {
+      if(simulationInterval) clearInterval(simulationInterval);
       setNewCvAnalysisProgress(null);
+      setAnalysisSteps([]);
     }
   };
   
@@ -403,13 +412,11 @@ export default function Home() {
                         
                         {isJdLoading && <div className="p-8"><ProgressLoader title="Analyzing Job Description..." /></div>}
                         
-                        {activeSession && editedJd && (
+                        {activeSession && (
                             <>
                                 <JdAnalysis
-                                    analysis={editedJd}
-                                    originalAnalysis={originalJd}
-                                    onRequirementPriorityChange={handleJdRequirementPriorityChange}
-                                    isDirty={jdIsDirty}
+                                    analysis={activeSession.analyzedJd}
+                                    originalAnalysis={activeSession.originalAnalyzedJd}
                                     onSaveChanges={handleSaveChanges}
                                     isOpen={isJdAnalysisOpen}
                                     onOpenChange={setIsJdAnalysisOpen}
@@ -439,6 +446,8 @@ export default function Home() {
                                                 current={newCvAnalysisProgress.current}
                                                 total={newCvAnalysisProgress.total}
                                                 itemName={newCvAnalysisProgress.name}
+                                                steps={analysisSteps}
+                                                currentStepIndex={currentStepIndex}
                                             />
                                         ) : (
                                             <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
@@ -463,6 +472,8 @@ export default function Home() {
                                                     current={reassessProgress.current}
                                                     total={reassessProgress.total}
                                                     itemName={reassessProgress.name}
+                                                    steps={analysisSteps}
+                                                    currentStepIndex={currentStepIndex}
                                                 />
                                             ) : (
                                                 <Accordion type="single" collapsible className="w-full">
@@ -504,5 +515,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
