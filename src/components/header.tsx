@@ -14,12 +14,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-export function Header() {
-  const handleNewSession = () => {
-    localStorage.removeItem('jiggar-session');
-    window.location.reload();
-  };
-
+export function Header({ onNewSession }: { onNewSession: () => void }) {
   return (
     <header className="p-4 border-b bg-card">
       <div className="container mx-auto flex items-center justify-between">
@@ -34,20 +29,20 @@ export function Header() {
           <AlertDialogTrigger asChild>
             <Button variant="outline">
               <PlusSquare className="mr-2 h-4 w-4" />
-              New Session
+              New Assessment
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle>Start a new assessment?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will clear all current data, including the job description, candidate assessments, and summary. This action cannot be undone.
+                This will clear your current view to start a new assessment. Your past work will be saved in the history.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleNewSession}>
-                Start New Session
+              <AlertDialogAction onClick={onNewSession}>
+                Start New
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

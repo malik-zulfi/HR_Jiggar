@@ -88,3 +88,14 @@ export const OcrOutputSchema = z.object({
   text: z.string().describe('The extracted text from the image.'),
 });
 export type OcrOutput = z.infer<typeof OcrOutputSchema>;
+
+// For session history
+export const AssessmentSessionSchema = z.object({
+    id: z.string(),
+    jdName: z.string(),
+    analyzedJd: ExtractJDCriteriaOutputSchema,
+    candidates: z.array(AnalyzeCVAgainstJDOutputSchema),
+    summary: CandidateSummaryOutputSchema.nullable(),
+    createdAt: z.string().datetime(),
+});
+export type AssessmentSession = z.infer<typeof AssessmentSessionSchema>;
