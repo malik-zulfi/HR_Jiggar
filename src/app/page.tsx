@@ -43,6 +43,7 @@ export default function Home() {
   const [jdIsDirty, setJdIsDirty] = useState(false);
   const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
   const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
+  const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -95,6 +96,7 @@ export default function Home() {
   useEffect(() => {
     const session = history.find(s => s.id === activeSessionId);
     setJdIsDirty(false);
+    setIsJdAnalysisOpen(false); // Collapse when session changes
     if (session) {
       const originalData = session.originalAnalyzedJd ?? session.analyzedJd; // Fallback for old data
       const editedData = session.analyzedJd;
@@ -239,6 +241,7 @@ export default function Home() {
     }
     
     setJdIsDirty(false);
+    setIsJdAnalysisOpen(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -398,6 +401,8 @@ export default function Home() {
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
                                     isDirty={jdIsDirty}
                                     onSaveChanges={handleSaveChanges}
+                                    isOpen={isJdAnalysisOpen}
+                                    onOpenChange={setIsJdAnalysisOpen}
                                 />
 
                                 <Separator />
