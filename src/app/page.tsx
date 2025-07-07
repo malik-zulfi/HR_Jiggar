@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -37,8 +38,10 @@ export default function Home() {
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [isReassessing, setIsReassessing] = useState(false);
+
   const [jdIsDirty, setJdIsDirty] = useState(false);
   const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
+  const [editedJd, setEditedJd] = useState<ExtractJDCriteriaOutput | null>(null);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -50,7 +53,6 @@ export default function Home() {
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
           const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setHistory(sortedHistory);
-          // Load the most recent session
           setActiveSessionId(sortedHistory[0]?.id);
         }
       }
@@ -73,14 +75,15 @@ export default function Home() {
   }, [history]);
 
   useEffect(() => {
-    // When switching sessions, reset the dirty flag and store the original JD
-    setJdIsDirty(false);
     const session = history.find(s => s.id === activeSessionId);
+    setJdIsDirty(false);
     if (session?.analyzedJd) {
-        // Deep copy to prevent mutations from affecting the original state
-        setOriginalJd(JSON.parse(JSON.stringify(session.analyzedJd)));
+        const deepCopy = JSON.parse(JSON.stringify(session.analyzedJd));
+        setOriginalJd(deepCopy);
+        setEditedJd(deepCopy);
     } else {
         setOriginalJd(null);
+        setEditedJd(null);
     }
   }, [activeSessionId, history]);
 
@@ -143,24 +146,6 @@ export default function Home() {
       setIsJdLoading(false);
     }
   };
-  
-  const applyJdChange = (change: { requirement: Requirement; categoryKey: keyof ExtractJDCriteriaOutput; newPriority: Requirement['priority']; }) => {
-     const { requirement, categoryKey, newPriority } = change;
-      setHistory(prevHistory =>
-        prevHistory.map(session => {
-          if (session.id === activeSessionId && session.analyzedJd) {
-            const newAnalyzedJd = { ...session.analyzedJd };
-            const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
-            const newList = oldList.map(req =>
-              req.description === requirement.description ? { ...req, priority: newPriority } : req
-            );
-            return { ...session, analyzedJd: { ...newAnalyzedJd, [categoryKey]: newList }, summary: null }; // Invalidate summary
-          }
-          return session;
-        })
-      );
-      toast({ description: `Requirement priority updated to ${newPriority.replace('-', ' ')}.` });
-  };
 
   const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
       const session = history.find(s => s.id === activeSessionId);
@@ -201,20 +186,36 @@ export default function Home() {
     categoryKey: keyof ExtractJDCriteriaOutput,
     newPriority: Requirement['priority']
   ) => {
-    applyJdChange({ requirement, categoryKey, newPriority });
+    setEditedJd(prevJd => {
+        if (!prevJd) return null;
+        const newAnalyzedJd = { ...prevJd };
+        const category = newAnalyzedJd[categoryKey] as Requirement[];
+        const newList = category.map(req =>
+            req.description === requirement.description ? { ...req, priority: newPriority } : req
+        );
+        return { ...newAnalyzedJd, [categoryKey]: newList };
+    });
     setJdIsDirty(true);
   };
 
   const handleSaveChanges = async () => {
-    if (!activeSession?.analyzedJd) return;
-    
-    // Only re-assess if there are candidates
-    if (activeSession.candidates.length > 0) {
-        await reAssessCandidates(activeSession.analyzedJd);
+    if (!editedJd || !activeSessionId) return;
+
+    const candidatesToReassess = activeSession?.candidates.length > 0;
+
+    setHistory(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+            return { ...s, analyzedJd: editedJd, summary: null };
+        }
+        return s;
+    }));
+
+    if (candidatesToReassess) {
+        await reAssessCandidates(editedJd);
     } else {
-        // If no candidates, just show a toast that changes are saved.
         toast({ description: "Job Description changes have been saved." });
     }
+    
     setJdIsDirty(false);
   };
 
@@ -360,10 +361,10 @@ export default function Home() {
                         
                         {isJdLoading && <div className="p-8"><ProgressLoader title="Analyzing Job Description..." /></div>}
                         
-                        {activeSession && (
+                        {activeSession && editedJd && (
                             <>
                                 <JdAnalysis
-                                    analysis={activeSession.analyzedJd}
+                                    analysis={editedJd}
                                     originalAnalysis={originalJd}
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
                                     isDirty={jdIsDirty}
