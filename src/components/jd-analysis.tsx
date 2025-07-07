@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -60,7 +61,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                           onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                       }}
                       className={cn(
-                        hasChanged && "data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-amber-500/30"
+                        hasChanged && "ring-2 ring-accent"
                       )}
                   />
                   <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
