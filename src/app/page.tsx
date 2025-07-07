@@ -19,6 +19,7 @@ import JdAnalysis from "@/components/jd-analysis";
 import CandidateCard from "@/components/candidate-card";
 import SummaryDisplay from "@/components/summary-display";
 import FileUploader from "@/components/file-uploader";
+import ProgressLoader from "@/components/progress-loader";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 
@@ -262,7 +263,7 @@ export default function Home() {
                             </Card>
                         )}
                         
-                        {isJdLoading && <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+                        {isJdLoading && <div className="p-8"><ProgressLoader title="Analyzing Job Description..." /></div>}
                         
                         {activeSession && (
                             <>
@@ -286,10 +287,13 @@ export default function Home() {
                                             onFileClear={handleCvClear}
                                             multiple={true}
                                         />
-                                        <Button onClick={handleAnalyzeCvs} disabled={isCvLoading || cvs.length === 0}>
-                                        {isCvLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Add and Assess Candidate(s)
-                                        </Button>
+                                        {isCvLoading ? (
+                                            <ProgressLoader title={`Assessing ${cvs.length} candidate(s)...`} />
+                                        ) : (
+                                            <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
+                                                Add and Assess Candidate(s)
+                                            </Button>
+                                        )}
                                     </div>
                                     </CardContent>
                                 </Card>
@@ -318,17 +322,19 @@ export default function Home() {
                                                 <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                                <Button onClick={handleGenerateSummary} disabled={isSummaryLoading}>
-                                                    {isSummaryLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                    Generate Summary
-                                                </Button>
+                                                {isSummaryLoading ? (
+                                                    <ProgressLoader title="Generating Summary..." />
+                                                ) : (
+                                                    <Button onClick={handleGenerateSummary}>
+                                                        Generate Summary
+                                                    </Button>
+                                                )}
                                             </CardContent>
                                         </Card>
                                     </>
                                 )}
-
-                                {isSummaryLoading && <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-                                {activeSession.summary && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates} analyzedJd={activeSession.analyzedJd} />}
+                                
+                                {activeSession.summary && !isSummaryLoading && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates} analyzedJd={activeSession.analyzedJd} />}
                             </>
                         )}
                     </div>
