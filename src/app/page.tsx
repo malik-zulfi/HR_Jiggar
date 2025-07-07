@@ -38,6 +38,7 @@ export default function Home() {
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [isReassessing, setIsReassessing] = useState(false);
   const [jdIsDirty, setJdIsDirty] = useState(false);
+  const [originalJd, setOriginalJd] = useState<ExtractJDCriteriaOutput | null>(null);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -72,9 +73,16 @@ export default function Home() {
   }, [history]);
 
   useEffect(() => {
-    // When switching sessions, reset the dirty flag
+    // When switching sessions, reset the dirty flag and store the original JD
     setJdIsDirty(false);
-  }, [activeSessionId]);
+    const session = history.find(s => s.id === activeSessionId);
+    if (session?.analyzedJd) {
+        // Deep copy to prevent mutations from affecting the original state
+        setOriginalJd(JSON.parse(JSON.stringify(session.analyzedJd)));
+    } else {
+        setOriginalJd(null);
+    }
+  }, [activeSessionId, history]);
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -198,11 +206,10 @@ export default function Home() {
   };
 
   const handleSaveChanges = async () => {
-    if (!activeSession) return;
+    if (!activeSession?.analyzedJd) return;
     
     // Only re-assess if there are candidates
     if (activeSession.candidates.length > 0) {
-        if (!activeSession.analyzedJd) return;
         await reAssessCandidates(activeSession.analyzedJd);
     } else {
         // If no candidates, just show a toast that changes are saved.
@@ -357,6 +364,7 @@ export default function Home() {
                             <>
                                 <JdAnalysis
                                     analysis={activeSession.analyzedJd}
+                                    originalAnalysis={originalJd}
                                     onRequirementPriorityChange={handleJdRequirementPriorityChange}
                                     isDirty={jdIsDirty}
                                     onSaveChanges={handleSaveChanges}
