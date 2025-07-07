@@ -2,39 +2,28 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
-  onRequirementChange: (
+  onRequirementPriorityChange: (
     requirement: Requirement,
-    fromCategoryKey: keyof ExtractJDCriteriaOutput,
-    toCategoryKey: keyof ExtractJDCriteriaOutput
+    categoryKey: keyof ExtractJDCriteriaOutput,
+    newPriority: Requirement['priority']
   ) => void;
 }
 
-const categoryDisplayNames: Record<string, string> = {
-    technicalSkills: 'Technical Skills',
-    softSkills: 'Soft Skills',
-    experience: 'Experience',
-    education: 'Education',
-    certifications: 'Certifications',
-    responsibilities: 'Responsibilities'
-};
-const categoryKeys = Object.keys(categoryDisplayNames) as (keyof ExtractJDCriteriaOutput)[];
-
-
-const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementChange }: { 
+const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementPriorityChange }: { 
   title: string; 
   requirements: Requirement[]; 
   icon: React.ReactNode;
   categoryKey: keyof ExtractJDCriteriaOutput;
-  onRequirementChange: JdAnalysisProps['onRequirementChange'];
+  onRequirementPriorityChange: JdAnalysisProps['onRequirementPriorityChange'];
 }) => {
   if (!requirements || requirements.length === 0) return null;
   return (
@@ -45,29 +34,18 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
       </h3>
       <ul className="space-y-2">
         {requirements.map((req, index) => (
-          <li key={index} className="flex items-start justify-between gap-2 p-3 rounded-lg border bg-secondary/30">
+          <li key={index} className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30">
             <p className="flex-1 text-sm text-foreground">{req.description}</p>
-            <div className="flex flex-col items-end gap-2 shrink-0 w-[150px]">
-                <Badge variant={req.priority === 'MUST-HAVE' ? 'destructive' : 'secondary'} className="whitespace-nowrap self-end">
-                  {req.priority.replace('-', ' ')}
-                </Badge>
-                <Select
-                    value={categoryKey}
-                    onValueChange={(newCategory) => {
-                        onRequirementChange(req, categoryKey, newCategory as keyof ExtractJDCriteriaOutput);
+            <div className="flex items-center space-x-2 shrink-0">
+                <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
+                <Switch
+                    id={`p-switch-${categoryKey}-${index}`}
+                    checked={req.priority === 'MUST-HAVE'}
+                    onCheckedChange={(checked) => {
+                        onRequirementPriorityChange(req, categoryKey, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                     }}
-                >
-                    <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Change category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {categoryKeys.map((key) => (
-                            <SelectItem key={key} value={key}>
-                                {categoryDisplayNames[key]}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                />
+                <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-foreground cursor-pointer">Must Have</Label>
             </div>
           </li>
         ))}
@@ -76,7 +54,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
   );
 };
 
-export default function JdAnalysis({ analysis, onRequirementChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, onRequirementPriorityChange }: JdAnalysisProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   const categorySections = [
@@ -99,7 +77,7 @@ export default function JdAnalysis({ analysis, onRequirementChange }: JdAnalysis
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                         <CardTitle>Job Description Breakdown</CardTitle>
-                        <CardDescription>The JD has been deconstructed. You can re-categorize requirements below.</CardDescription>
+                        <CardDescription>The JD has been deconstructed. You can change the priority of requirements below.</CardDescription>
                     </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="flex-shrink-0 w-8 h-8 -mt-1 -mr-2">
@@ -119,7 +97,7 @@ export default function JdAnalysis({ analysis, onRequirementChange }: JdAnalysis
                             requirements={analysis[section.key as keyof ExtractJDCriteriaOutput]}
                             icon={section.icon}
                             categoryKey={section.key as keyof ExtractJDCriteriaOutput}
-                            onRequirementChange={onRequirementChange}
+                            onRequirementPriorityChange={onRequirementPriorityChange}
                           />
                         ))}
                     </div>

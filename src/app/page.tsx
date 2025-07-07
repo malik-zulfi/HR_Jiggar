@@ -129,35 +129,36 @@ export default function Home() {
     }
   };
   
-  const handleJdRequirementChange = (
+  const handleJdRequirementPriorityChange = (
     requirement: Requirement,
-    fromCategoryKey: keyof ExtractJDCriteriaOutput,
-    toCategoryKey: keyof ExtractJDCriteriaOutput
+    categoryKey: keyof ExtractJDCriteriaOutput,
+    newPriority: Requirement['priority']
   ) => {
-    if (fromCategoryKey === toCategoryKey) return;
-
-    setHistory(prevHistory => 
-        prevHistory.map(session => {
-            if (session.id === activeSessionId && session.analyzedJd) {
-                const newAnalyzedJd = { ...session.analyzedJd };
-
-                const fromList = (newAnalyzedJd[fromCategoryKey] || []) as Requirement[];
-                newAnalyzedJd[fromCategoryKey] = fromList.filter(
-                    req => req.description !== requirement.description
-                );
-
-                const toList = (newAnalyzedJd[toCategoryKey] || []) as Requirement[];
-                newAnalyzedJd[toCategoryKey] = [...toList, requirement];
-
-                return {
-                    ...session,
-                    analyzedJd: newAnalyzedJd,
-                };
-            }
-            return session;
-        })
+    setHistory(prevHistory =>
+      prevHistory.map(session => {
+        if (session.id === activeSessionId && session.analyzedJd) {
+          const newAnalyzedJd = { ...session.analyzedJd };
+          
+          const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
+          
+          const newList = oldList.map(req =>
+            req.description === requirement.description
+              ? { ...req, priority: newPriority }
+              : req
+          );
+          
+          return {
+            ...session,
+            analyzedJd: {
+              ...newAnalyzedJd,
+              [categoryKey]: newList,
+            },
+          };
+        }
+        return session;
+      })
     );
-    toast({ description: `Requirement category updated.` });
+    toast({ description: `Requirement priority updated to ${newPriority.replace('-', ' ')}.` });
   };
 
   const handleAnalyzeCvs = async () => {
@@ -300,7 +301,7 @@ export default function Home() {
                             <>
                                 <JdAnalysis
                                     analysis={activeSession.analyzedJd}
-                                    onRequirementChange={handleJdRequirementChange}
+                                    onRequirementPriorityChange={handleJdRequirementPriorityChange}
                                 />
 
                                 <Separator />
