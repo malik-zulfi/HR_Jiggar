@@ -90,11 +90,18 @@ export const OcrOutputSchema = z.object({
 export type OcrOutput = z.infer<typeof OcrOutputSchema>;
 
 // For session history
+export const CandidateRecordSchema = z.object({
+    cvName: z.string(),
+    cvContent: z.string(),
+    analysis: AnalyzeCVAgainstJDOutputSchema,
+});
+export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
+
 export const AssessmentSessionSchema = z.object({
     id: z.string(),
     jdName: z.string(),
     analyzedJd: ExtractJDCriteriaOutputSchema,
-    candidates: z.array(AnalyzeCVAgainstJDOutputSchema),
+    candidates: z.array(CandidateRecordSchema),
     summary: CandidateSummaryOutputSchema.nullable(),
     createdAt: z.string().datetime(),
 });

@@ -8,8 +8,19 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction } from "@/components/ui/sidebar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement } from "@/lib/types";
+
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
@@ -36,6 +47,14 @@ export default function Home() {
   const [isJdLoading, setIsJdLoading] = useState(false);
   const [isCvLoading, setIsCvLoading] = useState(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [isReassessing, setIsReassessing] = useState(false);
+  
+  const [isReassessmentDialogOpen, setIsReassessmentDialogOpen] = useState(false);
+  const [pendingJdChange, setPendingJdChange] = useState<{
+    requirement: Requirement;
+    categoryKey: keyof ExtractJDCriteriaOutput;
+    newPriority: Requirement['priority'];
+  } | null>(null);
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
 
@@ -129,36 +148,99 @@ export default function Home() {
     }
   };
   
+  const applyJdChange = (change: { requirement: Requirement; categoryKey: keyof ExtractJDCriteriaOutput; newPriority: Requirement['priority']; }) => {
+     const { requirement, categoryKey, newPriority } = change;
+      setHistory(prevHistory =>
+        prevHistory.map(session => {
+          if (session.id === activeSessionId && session.analyzedJd) {
+            const newAnalyzedJd = { ...session.analyzedJd };
+            const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
+            const newList = oldList.map(req =>
+              req.description === requirement.description ? { ...req, priority: newPriority } : req
+            );
+            return { ...session, analyzedJd: { ...newAnalyzedJd, [categoryKey]: newList }, summary: null }; // Invalidate summary
+          }
+          return session;
+        })
+      );
+      toast({ description: `Requirement priority updated to ${newPriority.replace('-', ' ')}.` });
+  };
+
+  const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
+      const session = history.find(s => s.id === activeSessionId);
+      if (!session || session.candidates.length === 0) return;
+
+      setIsReassessing(true);
+      try {
+        toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
+        
+        const analysisPromises = session.candidates.map(c => 
+          analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: c.cvContent })
+        );
+        
+        const results = await Promise.all(analysisPromises);
+        
+        setHistory(prev => prev.map(s => {
+          if (s.id === activeSessionId) {
+            const updatedCandidates = s.candidates.map((oldCandidate, index) => ({
+              ...oldCandidate,
+              analysis: results[index]
+            }));
+            return { ...s, candidates: updatedCandidates, summary: null }; // Invalidate summary
+          }
+          return s;
+        }));
+
+        toast({ description: "All candidates have been re-assessed." });
+      } catch (error) {
+        console.error("Error re-assessing CVs:", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to re-assess one or more candidates." });
+      } finally {
+        setIsReassessing(false);
+      }
+    };
+  
   const handleJdRequirementPriorityChange = (
     requirement: Requirement,
     categoryKey: keyof ExtractJDCriteriaOutput,
     newPriority: Requirement['priority']
   ) => {
-    setHistory(prevHistory =>
-      prevHistory.map(session => {
-        if (session.id === activeSessionId && session.analyzedJd) {
-          const newAnalyzedJd = { ...session.analyzedJd };
-          
-          const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
-          
-          const newList = oldList.map(req =>
-            req.description === requirement.description
-              ? { ...req, priority: newPriority }
-              : req
-          );
-          
-          return {
-            ...session,
-            analyzedJd: {
-              ...newAnalyzedJd,
-              [categoryKey]: newList,
-            },
-          };
-        }
-        return session;
-      })
+    const change = { requirement, categoryKey, newPriority };
+    if (activeSession && activeSession.candidates.length > 0) {
+      setPendingJdChange(change);
+      setIsReassessmentDialogOpen(true);
+    } else {
+      applyJdChange(change);
+    }
+  };
+
+  const handleConfirmReassessment = async () => {
+    if (!pendingJdChange || !activeSessionId) return;
+    setIsReassessmentDialogOpen(false);
+    
+    // 1. Calculate the future state of the JD
+    const sessionToUpdate = history.find(s => s.id === activeSessionId);
+    if (!sessionToUpdate || !sessionToUpdate.analyzedJd) return;
+    
+    const { requirement, categoryKey, newPriority } = pendingJdChange;
+    const newAnalyzedJd = { ...sessionToUpdate.analyzedJd };
+    const oldList = (newAnalyzedJd[categoryKey] || []) as Requirement[];
+    const newList = oldList.map(req =>
+      req.description === requirement.description ? { ...req, priority: newPriority } : req
     );
-    toast({ description: `Requirement priority updated to ${newPriority.replace('-', ' ')}.` });
+    newAnalyzedJd[categoryKey] = newList;
+    
+    // 2. Apply the change and start re-assessment
+    applyJdChange(pendingJdChange);
+    await reAssessCandidates(newAnalyzedJd);
+    setPendingJdChange(null);
+  };
+  
+  const handleDeclineReassessment = () => {
+    if (!pendingJdChange) return;
+    applyJdChange(pendingJdChange);
+    setIsReassessmentDialogOpen(false);
+    setPendingJdChange(null);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -179,14 +261,20 @@ export default function Home() {
       );
       
       const results = await Promise.all(analysisPromises);
+      const newCandidates: CandidateRecord[] = results.map((res, i) => ({
+        cvName: cvs[i].name,
+        cvContent: cvs[i].content,
+        analysis: res,
+      }));
       
       setHistory(prev => prev.map(session => {
         if (session.id === activeSessionId) {
-          const existingNames = new Set(session.candidates.map(c => c.candidateName));
-          const newCandidates = results.filter(r => !existingNames.has(r.candidateName));
+          const existingNames = new Set(session.candidates.map(c => c.cvName));
+          const newCandidatesToAdd = newCandidates.filter(nc => !existingNames.has(nc.cvName));
           return {
             ...session,
-            candidates: [...session.candidates, ...newCandidates],
+            candidates: [...session.candidates, ...newCandidatesToAdd],
+            summary: null, // Invalidate summary
           };
         }
         return session;
@@ -209,11 +297,11 @@ export default function Home() {
     setIsSummaryLoading(true);
     try {
       const candidateAssessments = activeSession.candidates.map(c => ({
-        candidateName: c.candidateName,
-        recommendation: c.recommendation,
-        strengths: c.strengths,
-        weaknesses: c.weaknesses,
-        interviewProbes: c.interviewProbes,
+        candidateName: c.analysis.candidateName,
+        recommendation: c.analysis.recommendation,
+        strengths: c.analysis.strengths,
+        weaknesses: c.analysis.weaknesses,
+        interviewProbes: c.analysis.interviewProbes,
       }));
       const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescriptionCriteria: activeSession.analyzedJd });
       
@@ -341,11 +429,15 @@ export default function Home() {
                                                 <CardDescription>Here are the assessments for the submitted candidates. When you're done, generate a final summary.</CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                            <Accordion type="single" collapsible className="w-full">
-                                                {activeSession.candidates.map((c, i) => (
-                                                <CandidateCard key={`${c.candidateName}-${i}`} candidate={c} />
-                                                ))}
-                                            </Accordion>
+                                            {isReassessing ? (
+                                                <ProgressLoader title={`Re-assessing ${activeSession.candidates.length} candidate(s)...`} />
+                                            ) : (
+                                                <Accordion type="single" collapsible className="w-full">
+                                                    {activeSession.candidates.map((c, i) => (
+                                                        <CandidateCard key={`${c.analysis.candidateName}-${i}`} candidate={c.analysis} />
+                                                    ))}
+                                                </Accordion>
+                                            )}
                                             </CardContent>
                                         </Card>
 
@@ -369,13 +461,29 @@ export default function Home() {
                                     </>
                                 )}
                                 
-                                {activeSession.summary && !isSummaryLoading && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates} analyzedJd={activeSession.analyzedJd} />}
+                                {activeSession.summary && !isSummaryLoading && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
                             </>
                         )}
                     </div>
                 </SidebarInset>
             </div>
         </SidebarProvider>
+
+        <AlertDialog open={isReassessmentDialogOpen} onOpenChange={setIsReassessmentDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Re-assess Candidates?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You've changed the job requirements. Would you like to re-assess the existing {activeSession?.candidates.length} candidate(s) with these new criteria? This will replace their current assessments.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setPendingJdChange(null)}>Cancel</AlertDialogCancel>
+                    <Button variant="outline" onClick={handleDeclineReassessment}>Update JD Only</Button>
+                    <AlertDialogAction onClick={handleConfirmReassessment}>Update and Re-assess</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
