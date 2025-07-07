@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -244,7 +243,6 @@ export default function Home() {
     }
     
     setJdIsDirty(false);
-    setIsJdAnalysisOpen(false);
   };
 
   const handleAnalyzeCvs = async () => {
@@ -264,8 +262,8 @@ export default function Home() {
 
       for (let i = 0; i < cvs.length; i++) {
         const cv = cvs[i];
-        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.name });
         const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
+        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: result.candidateName || cv.name });
         newCandidates.push({
             cvName: cv.name,
             cvContent: cv.content,

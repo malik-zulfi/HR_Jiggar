@@ -96,6 +96,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onRequirementPr
       setIsSaving(true);
       await onSaveChanges();
       setIsSaving(false);
+      onOpenChange(false);
   };
 
   const categorySections = [
