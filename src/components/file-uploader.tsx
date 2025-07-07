@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { performOcr } from '@/ai/flows/ocr';
 
 interface FileUploaderProps {
   onFileUpload: (files: { name: string; content: string }[]) => void;
@@ -47,6 +48,41 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                 const textContent = await page.getTextContent();
                 content += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
             }
+
+            if (content.trim().length < 100) { 
+                toast({ 
+                    title: "Scanning Document",
+                    description: `"${file.name}" appears to be image-based. Performing OCR, this may take a few moments...`
+                });
+
+                let ocrContent = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    if (context) {
+                        const renderContext = {
+                            canvasContext: context,
+                            viewport: viewport,
+                        };
+                        await page.render(renderContext).promise;
+                        
+                        const imageDataUri = canvas.toDataURL('image/png');
+                        const ocrResult = await performOcr({ image: imageDataUri });
+                        
+                        if (ocrResult?.text) {
+                            ocrContent += ocrResult.text + '\n\n';
+                        }
+                    }
+                }
+                content = ocrContent;
+            }
+
         } else if (fileExtension === 'docx') {
             const mammoth = await import('mammoth');
             const arrayBuffer = await file.arrayBuffer();
@@ -62,12 +98,12 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
         if (content.trim()) {
           return { name: file.name, content };
         } else {
-          toast({ variant: "destructive", title: "Empty File", description: `The uploaded file "${file.name}" appears to be empty.` });
+          toast({ variant: "destructive", title: "Empty File", description: `The uploaded file "${file.name}" appears to be empty or could not be read.` });
           return null;
         }
     } catch (error) {
         console.error(`Error parsing file ${file.name}:`, error);
-        toast({ variant: "destructive", title: "Error", description: `Failed to parse file "${file.name}".` });
+        toast({ variant: "destructive", title: "Error", description: `Failed to parse file "${file.name}". It might be corrupted.` });
         return null;
     }
   };

@@ -77,3 +77,14 @@ export const CandidateSummaryOutputSchema = z.object({
   interviewStrategy: z.string().describe('A suggested interview strategy.'),
 });
 export type CandidateSummaryOutput = z.infer<typeof CandidateSummaryOutputSchema>;
+
+// For OCR
+export const OcrInputSchema = z.object({
+  image: z.string().describe("The image to perform OCR on, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
+});
+export type OcrInput = z.infer<typeof OcrInputSchema>;
+
+export const OcrOutputSchema = z.object({
+  text: z.string().describe('The extracted text from the image.'),
+});
+export type OcrOutput = z.infer<typeof OcrOutputSchema>;
