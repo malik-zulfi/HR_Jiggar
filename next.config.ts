@@ -2,17 +2,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  webpack: (config, { isServer }) => {
-    // Fixes npm packages that depend on `fs` module
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-      };
-    }
-    config.externals.push('canvas');
-    return config;
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -27,6 +16,11 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+    ],
+  },
+  experimental: {
+    allowedDevOrigins: [
+      'https://6000-firebase-studio-1751798318395.cluster-3gc7bglotjgwuxlqpiut7yyqt4.cloudworkstations.dev',
     ],
   },
 };
