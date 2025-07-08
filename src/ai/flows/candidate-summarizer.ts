@@ -10,11 +10,13 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {z} from 'zod';
 import {
     CandidateSummaryInputSchema,
     CandidateSummaryOutputSchema,
     type CandidateSummaryInput,
-    type CandidateSummaryOutput
+    type CandidateSummaryOutput,
+    type Requirement
 } from '@/lib/types';
 
 
@@ -24,31 +26,19 @@ export async function summarizeCandidateAssessments(input: CandidateSummaryInput
   return summarizeCandidateAssessmentsFlow(input);
 }
 
+const DynamicSummaryPromptInputSchema = z.object({
+    formattedCriteria: z.string().describe('The dynamically ordered, formatted list of job description criteria.'),
+    candidateAssessments: CandidateSummaryInputSchema.shape.candidateAssessments,
+});
+
 const prompt = ai.definePrompt({
   name: 'summarizeCandidateAssessmentsPrompt',
-  input: {schema: CandidateSummaryInputSchema},
+  input: {schema: DynamicSummaryPromptInputSchema},
   output: {schema: CandidateSummaryOutputSchema},
   prompt: `You are a hiring manager summarizing candidate assessments for a job.
 
   Job Description Criteria:
-  {{#each jobDescriptionCriteria.education}}
-  - Education ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.experience}}
-  - Experience ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.technicalSkills}}
-  - Technical Skill ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.softSkills}}
-  - Soft Skill ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.responsibilities}}
-  - Responsibility ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.certifications}}
-  - Certification ({{this.priority}}): {{{this.description}}}
-  {{/each}}
+  {{{formattedCriteria}}}
 
   Candidate Assessments:
   {{#each candidateAssessments}}
@@ -74,7 +64,33 @@ const summarizeCandidateAssessmentsFlow = ai.defineFlow(
     outputSchema: CandidateSummaryOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const { jobDescriptionCriteria, candidateAssessments } = input;
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jobDescriptionCriteria;
+
+    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
+
+    const formatSection = (title: string, items: Requirement[] | undefined) => {
+        if (!items || items.length === 0) return '';
+        return items.map(item => `- ${title} (${item.priority.replace('-', ' ')}): ${item.description}`).join('\n') + '\n';
+    };
+
+    let formattedCriteria = '';
+    formattedCriteria += formatSection('Education', education);
+    formattedCriteria += formatSection('Experience', experience);
+    if (hasMustHaveCert) {
+        formattedCriteria += formatSection('Certification', certifications);
+    }
+    formattedCriteria += formatSection('Technical Skill', technicalSkills);
+    formattedCriteria += formatSection('Soft Skill', softSkills);
+    if (!hasMustHaveCert) {
+        formattedCriteria += formatSection('Certification', certifications);
+    }
+    formattedCriteria += formatSection('Responsibility', responsibilities);
+
+    const {output} = await prompt({
+        formattedCriteria,
+        candidateAssessments
+    });
     return output!;
   }
 );

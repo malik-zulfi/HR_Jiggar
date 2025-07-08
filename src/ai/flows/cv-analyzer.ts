@@ -15,6 +15,7 @@ import {
   ExtractJDCriteriaOutputSchema,
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
+  type Requirement,
 } from '@/lib/types';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
@@ -29,10 +30,15 @@ export async function analyzeCVAgainstJD(input: AnalyzeCVAgainstJDInput): Promis
   return analyzeCVAgainstJDFlow(input);
 }
 
+const DynamicCriteriaPromptInputSchema = z.object({
+    formattedCriteria: z.string().describe('The dynamically ordered, formatted list of job description criteria.'),
+    cv: z.string().describe('The CV to analyze.'),
+});
+
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
   name: 'analyzeCVAgainstJDPrompt',
   input: {
-    schema: AnalyzeCVAgainstJDInputSchema,
+    schema: DynamicCriteriaPromptInputSchema,
   },
   output: {
     schema: AnalyzeCVAgainstJDOutputSchema,
@@ -50,24 +56,7 @@ CRITICAL RULE: If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' 
 Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
 
 Job Description Criteria:
-{{#each jobDescriptionCriteria.education}}
-- Education ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.experience}}
-- Experience ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.technicalSkills}}
-- Technical Skill ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.softSkills}}
-- Soft Skill ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.responsibilities}}
-- Responsibility ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.certifications}}
-- Certification ({{this.priority}}): {{{this.description}}}
-{{/each}}
+{{{formattedCriteria}}}
 
 CV:
 {{{cv}}}
@@ -95,7 +84,35 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     outputSchema: AnalyzeCVAgainstJDOutputSchema,
   },
   async input => {
-    const {output} = await analyzeCVAgainstJDPrompt(input);
+    const { jobDescriptionCriteria, cv } = input;
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jobDescriptionCriteria;
+    
+    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
+
+    const formatSection = (title: string, items: Requirement[] | undefined) => {
+        if (!items || items.length === 0) return '';
+        return items.map(item => `- ${title} (${item.priority.replace('-', ' ')}): ${item.description}`).join('\n') + '\n';
+    };
+
+    let formattedCriteria = '';
+    formattedCriteria += formatSection('Education', education);
+    formattedCriteria += formatSection('Experience', experience);
+    if (hasMustHaveCert) {
+        formattedCriteria += formatSection('Certification', certifications);
+    }
+    formattedCriteria += formatSection('Technical Skill', technicalSkills);
+    formattedCriteria += formatSection('Soft Skill', softSkills);
+    if (!hasMustHaveCert) {
+        formattedCriteria += formatSection('Certification', certifications);
+    }
+    formattedCriteria += formatSection('Responsibility', responsibilities);
+
+
+    const {output} = await analyzeCVAgainstJDPrompt({
+        formattedCriteria,
+        cv
+    });
+
     if (output) {
       output.candidateName = toTitleCase(output.candidateName);
 

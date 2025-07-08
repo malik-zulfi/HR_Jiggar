@@ -1,4 +1,4 @@
-import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AlignmentDetail } from "@/lib/types";
+import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AlignmentDetail, Requirement } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ReportProps {
@@ -7,7 +7,7 @@ interface ReportProps {
   analyzedJd: ExtractJDCriteriaOutput;
 }
 
-const RequirementList = ({ title, requirements }: { title: string; requirements: any[] }) => {
+const RequirementList = ({ title, requirements }: { title: string; requirements: Requirement[] | undefined }) => {
   if (!requirements || requirements.length === 0) return null;
   return (
     <div className="mb-4 break-inside-avoid">
@@ -72,6 +72,8 @@ const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => (
 
 
 export default function Report({ summary, candidates, analyzedJd }: ReportProps) {
+  const hasMustHaveCert = analyzedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
+
   return (
     <div id="pdf-report" className="p-8 bg-white text-black font-sans" style={{ width: '800px' }}>
       <style>{`
@@ -96,10 +98,11 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
         <div className="columns-2 gap-8">
             <RequirementList title="Education" requirements={analyzedJd.education} />
             <RequirementList title="Experience" requirements={analyzedJd.experience} />
+            {hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications} />}
             <RequirementList title="Technical Skills" requirements={analyzedJd.technicalSkills} />
             <RequirementList title="Soft Skills" requirements={analyzedJd.softSkills} />
+            {!hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications} />}
             <RequirementList title="Responsibilities" requirements={analyzedJd.responsibilities} />
-            <RequirementList title="Certifications" requirements={analyzedJd.certifications} />
         </div>
       </div>
       

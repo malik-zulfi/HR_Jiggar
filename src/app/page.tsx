@@ -189,15 +189,27 @@ export default function Home() {
   };
   
   const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
-    const allReqs = [
-      ...jd.education,
-      ...jd.experience,
-      ...jd.technicalSkills,
-      ...jd.softSkills,
-      ...jd.responsibilities,
-      ...jd.certifications,
-    ];
-    return allReqs.map(req => req.description);
+    const hasMustHaveCert = jd.certifications?.some(c => c.priority === 'MUST-HAVE');
+
+    const educationSteps = jd.education.map(req => req.description);
+    const experienceSteps = jd.experience.map(req => req.description);
+    const techSteps = jd.technicalSkills.map(req => req.description);
+    const softSteps = jd.softSkills.map(req => req.description);
+    const certSteps = jd.certifications.map(req => req.description);
+    const respSteps = jd.responsibilities.map(req => req.description);
+
+    let allSteps: string[] = [];
+    allSteps.push(...educationSteps, ...experienceSteps);
+    if (hasMustHaveCert) {
+        allSteps.push(...certSteps);
+    }
+    allSteps.push(...techSteps, ...softSteps);
+    if (!hasMustHaveCert) {
+        allSteps.push(...certSteps);
+    }
+    allSteps.push(...respSteps);
+
+    return allSteps;
   };
 
   const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {

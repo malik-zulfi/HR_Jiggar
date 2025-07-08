@@ -92,6 +92,10 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     return JSON.stringify(analysis) !== JSON.stringify(editedJd);
   }, [analysis, editedJd]);
 
+  useMemo(() => {
+    setEditedJd(analysis);
+  }, [analysis]);
+
   const handleRequirementChange = (
     categoryKey: keyof ExtractJDCriteriaOutput,
     index: number,
@@ -114,15 +118,34 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     }
   };
   
+  const hasMustHaveCert = editedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
+
+  const allSections = {
+      education: { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
+      experience: { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
+      technicalSkills: { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
+      softSkills: { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
+      responsibilities: { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
+      certifications: { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
+  };
+
   const categorySections = [
-    { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
-    { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
-    { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
-    { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
-    { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
-    { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
+      allSections.education,
+      allSections.experience
   ];
+
+  if (hasMustHaveCert) {
+      categorySections.push(allSections.certifications);
+  }
+
+  categorySections.push(allSections.technicalSkills, allSections.softSkills);
+
+  if (!hasMustHaveCert) {
+      categorySections.push(allSections.certifications);
+  }
   
+  categorySections.push(allSections.responsibilities);
+
   const buttonText = hasCandidates ? 'Save Changes & Re-assess' : 'Save Changes';
 
   return (
