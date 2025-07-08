@@ -51,6 +51,8 @@ Then, for each requirement in the job description criteria, assess the candidate
 Determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
 Provide a brief justification for your assessment for each requirement, citing evidence from the CV where possible.
 
+IMPORTANT: If a requirement contains multiple options (e.g., 'degree in A or B', 'experience with X or Y'), meeting ANY ONE of the options means the candidate is 'Aligned' with that requirement. Do not mark it as 'Partially Aligned' if only one option is met.
+
 CRITICAL RULE: If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' requirement from the 'Experience' or 'Education' categories, they are automatically disqualified. In this case, you MUST set the overall recommendation to 'Not Recommended', regardless of any other strengths.
 
 Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
