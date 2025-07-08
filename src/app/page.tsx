@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
@@ -495,89 +495,100 @@ function HomePageContent() {
                       <>
                           <div className="flex items-center justify-between w-full">
                               <h2 className="text-lg font-semibold flex items-center gap-2">
-                                  <History className="w-5 h-5"/>
-                                  Assessments
+                                  <SlidersHorizontal className="w-5 h-5"/>
+                                  Miscellaneous
                               </h2>
                               <PanelLeftClose className="w-5 h-5 text-muted-foreground"/>
                           </div>
+                      </>
+                  ) : (
+                      <h2 className="[writing-mode:vertical-rl] rotate-180 font-semibold whitespace-nowrap flex items-center gap-2">
+                          <SlidersHorizontal className="w-5 h-5"/>
+                          Miscellaneous
+                      </h2>
+                  )}
+              </SidebarHeader>
+
+              <SidebarContent className={cn("flex flex-col p-0", !isExpanded && "hidden")}>
+                  {activeSession && (
+                    <div className="p-4 border-b border-sidebar-border space-y-4">
+                        <FileUploader
+                            key={cvResetKey}
+                            id="cv-uploader"
+                            label="Upload CVs to assess"
+                            acceptedFileTypes={acceptedFileTypes}
+                            onFileUpload={handleCvUpload}
+                            onFileClear={handleCvClear}
+                            multiple={true}
+                        />
+                        {newCvAnalysisProgress ? (
+                            <ProgressLoader
+                                title="Assessing Candidate(s)"
+                                current={newCvAnalysisProgress.current}
+                                total={newCvAnalysisProgress.total}
+                                itemName={newCvAnalysisProgress.name}
+                                steps={analysisSteps}
+                                currentStepIndex={currentStepIndex}
+                            />
+                        ) : (
+                            <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
+                                <FileText className="mr-2" />
+                                Add and Assess Candidate(s)
+                            </Button>
+                        )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col flex-1 min-h-0">
+                      <div className="p-4 space-y-2 border-b border-sidebar-border">
+                          <h3 className="font-semibold flex items-center gap-2">
+                              <History className="w-5 h-5"/>
+                              Assessments
+                          </h3>
                           <SidebarInput
                               placeholder="Search assessments..."
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
                               onClick={(e) => e.stopPropagation()}
                           />
-                      </>
-                  ) : (
-                      <h2 className="[writing-mode:vertical-rl] rotate-180 font-semibold whitespace-nowrap flex items-center gap-2">
-                          <History className="w-5 h-5"/>
-                          Assessments
-                      </h2>
-                  )}
-              </SidebarHeader>
-
-              {activeSession && isExpanded && (
-                <div className="p-4 border-b border-sidebar-border space-y-4">
-                    <FileUploader
-                        key={cvResetKey}
-                        id="cv-uploader"
-                        label="Upload CVs to assess"
-                        acceptedFileTypes={acceptedFileTypes}
-                        onFileUpload={handleCvUpload}
-                        onFileClear={handleCvClear}
-                        multiple={true}
-                    />
-                    {newCvAnalysisProgress ? (
-                        <ProgressLoader
-                            title="Assessing Candidate(s)"
-                            current={newCvAnalysisProgress.current}
-                            total={newCvAnalysisProgress.total}
-                            itemName={newCvAnalysisProgress.name}
-                            steps={analysisSteps}
-                            currentStepIndex={currentStepIndex}
-                        />
-                    ) : (
-                        <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
-                            <FileText className="mr-2" />
-                            Add and Assess Candidate(s)
-                        </Button>
-                    )}
-                </div>
-              )}
-
-              <SidebarContent className={cn(!isExpanded && "hidden")}>
-                  <SidebarMenu>
-                      {filteredHistory.length > 0 ? filteredHistory.map(session => {
-                          if (!session || !session.analyzedJd) return null;
-                          return (
-                              <SidebarMenuItem key={session.id}>
-                                  <SidebarMenuButton
-                                      onClick={() => setActiveSessionId(session.id)}
-                                      isActive={session.id === activeSessionId}
-                                      className="h-auto py-2"
-                                  >
-                                      <div className="flex flex-col items-start w-full overflow-hidden">
-                                          <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
-                                              {session.analyzedJd.jobTitle || session.jdName}
-                                          </span>
-                                          {session.analyzedJd.jobTitle && (
-                                              <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
-                                          )}
-                                      </div>
-                                  </SidebarMenuButton>
-                                  <SidebarMenuAction
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                                      className="opacity-50 hover:opacity-100"
-                                  >
-                                      <Trash2/>
-                                  </SidebarMenuAction>
-                              </SidebarMenuItem>
-                          );
-                      }) : (
-                          <p className="p-4 text-sm text-muted-foreground text-center">
-                              {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
-                          </p>
-                      )}
-                  </SidebarMenu>
+                      </div>
+                      
+                      <div className="flex-1 overflow-y-auto">
+                          <SidebarMenu>
+                              {filteredHistory.length > 0 ? filteredHistory.map(session => {
+                                  if (!session || !session.analyzedJd) return null;
+                                  return (
+                                      <SidebarMenuItem key={session.id}>
+                                          <SidebarMenuButton
+                                              onClick={() => setActiveSessionId(session.id)}
+                                              isActive={session.id === activeSessionId}
+                                              className="h-auto py-2"
+                                          >
+                                              <div className="flex flex-col items-start w-full overflow-hidden">
+                                                  <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
+                                                      {session.analyzedJd.jobTitle || session.jdName}
+                                                  </span>
+                                                  {session.analyzedJd.jobTitle && (
+                                                      <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
+                                                  )}
+                                              </div>
+                                          </SidebarMenuButton>
+                                          <SidebarMenuAction
+                                              onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                                              className="opacity-50 hover:opacity-100"
+                                          >
+                                              <Trash2/>
+                                          </SidebarMenuAction>
+                                      </SidebarMenuItem>
+                                  );
+                              }) : (
+                                  <p className="p-4 text-sm text-muted-foreground text-center">
+                                      {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
+                                  </p>
+                              )}
+                          </SidebarMenu>
+                      </div>
+                  </div>
               </SidebarContent>
           </Sidebar>
           <SidebarInset className="overflow-y-auto">
