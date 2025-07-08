@@ -1,10 +1,12 @@
+
 "use client";
 
-import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { AccordionContent, AccordionItem } from "@/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2 } from "lucide-react";
+import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
@@ -40,32 +42,29 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
 
   return (
     <AccordionItem value={candidate.candidateName}>
-      <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-accent/10 [&>svg]:hidden">
-        <div className="flex items-center justify-between w-full gap-4">
-          <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
-          <div className="flex items-center gap-2">
-            <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
-              <div className="flex items-center gap-2">
-                {recommendationInfo.icon}
-                {candidate.recommendation}
-              </div>
-            </Badge>
+        <AccordionPrimitive.Header className="flex w-full items-center p-0">
+            <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between p-4 font-medium transition-all hover:no-underline data-[state=open]:bg-accent/10">
+                <div className="flex items-center gap-4">
+                    <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
+                    <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
+                        <div className="flex items-center gap-2">
+                            {recommendationInfo.icon}
+                            {candidate.recommendation}
+                        </div>
+                    </Badge>
+                </div>
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 data-[state=open]:rotate-180" />
+            </AccordionPrimitive.Trigger>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onDelete();
-              }}
-              aria-label="Remove candidate"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive mr-4"
+                onClick={onDelete}
+                aria-label="Remove candidate"
             >
-              <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
             </Button>
-          </div>
-        </div>
-      </AccordionTrigger>
+        </AccordionPrimitive.Header>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
           <div>
