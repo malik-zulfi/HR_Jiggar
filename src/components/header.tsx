@@ -13,7 +13,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ThemeToggle } from "./theme-toggle";
 
 export function Header({ onNewSession }: { onNewSession: () => void }) {
   return (
@@ -49,7 +48,6 @@ export function Header({ onNewSession }: { onNewSession: () => void }) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <ThemeToggle />
         </div>
 
       </div>
