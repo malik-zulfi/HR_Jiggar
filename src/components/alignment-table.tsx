@@ -11,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import React from "react";
 
 const statusInfo: Record<AlignmentDetail['status'], { icon: React.ReactNode; label: string }> = {
   'Aligned': { icon: <CheckCircle2 className="h-5 w-5 text-chart-2" />, label: 'Aligned' },
@@ -82,66 +83,68 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
     <TooltipProvider>
       <div className="rounded-lg border bg-card">
         <Legend />
-        <div className="space-y-6 p-4">
-            {categoriesInOrder.map((category) => {
-                const items = groupedDetails[category];
-                if (!items || items.length === 0) return null;
+        <div className="overflow-x-auto border-t">
+            <Table className="table-fixed w-full">
+                <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[35%] p-4">Requirement</TableHead>
+                        <TableHead className="w-[50%] p-4">Justification</TableHead>
+                        <TableHead className="w-[15%] text-center p-4">Status</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {categoriesInOrder.map((category) => {
+                        const items = groupedDetails[category];
+                        if (!items || items.length === 0) return null;
 
-                return (
-                    <div key={category}>
-                        <h3 className="text-lg font-semibold mb-2 text-primary">{category}</h3>
-                        <div className="overflow-x-auto border rounded-md">
-                            <Table className="table-fixed w-full">
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[35%]">Requirement</TableHead>
-                                        <TableHead className="w-[50%]">Justification</TableHead>
-                                        <TableHead className="w-[15%] text-center">Status</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {items.map((item, index) => {
-                                        const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
-                                        return (
-                                            <TableRow key={index}>
-                                                <TableCell className="align-top break-words">
-                                                    <div className="flex items-start gap-3">
-                                                        <Tooltip>
-                                                            <TooltipTrigger className="mt-1">
-                                                                <div className={cn(
-                                                                    "h-3 w-3 rounded-full shrink-0", 
-                                                                    item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
-                                                                )} />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>{item.priority.replace('-', ' ')}</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                        <span className="font-medium">{item.requirement}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-muted-foreground text-sm align-top break-words">{item.justification}</TableCell>
-                                                <TableCell className="align-top">
-                                                    <div className="flex items-center justify-center">
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                {info.icon}
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>{info.label}</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                );
-            })}
+                        return (
+                            <React.Fragment key={category}>
+                                <TableRow className="border-none bg-muted/30 hover:bg-muted/30">
+                                    <TableCell colSpan={3} className="py-2 px-4 font-semibold text-primary">
+                                        {category}
+                                    </TableCell>
+                                </TableRow>
+                                {items.map((item, index) => {
+                                    const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
+                                    return (
+                                        <TableRow key={index} className="border-t">
+                                            <TableCell className="align-top break-words">
+                                                <div className="flex items-start gap-3">
+                                                    <Tooltip>
+                                                        <TooltipTrigger className="mt-1">
+                                                            <div className={cn(
+                                                                "h-3 w-3 rounded-full shrink-0", 
+                                                                item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
+                                                            )} />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{item.priority.replace('-', ' ')}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                    <span className="font-medium">{item.requirement}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-sm align-top break-words">{item.justification}</TableCell>
+                                            <TableCell className="align-top">
+                                                <div className="flex items-center justify-center">
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            {info.icon}
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{info.label}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
+                    })}
+                </TableBody>
+            </Table>
         </div>
       </div>
     </TooltipProvider>
