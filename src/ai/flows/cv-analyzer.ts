@@ -42,8 +42,10 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 First, extract the candidate's full name from the CV. Format the name in Title Case (e.g., "John Doe").
 
 Then, for each requirement in the job description criteria, assess the candidate's CV.
-Determine if the candidate is 'Aligned', 'Partially Aligned', or 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
+Determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
 Provide a brief justification for your assessment for each requirement, citing evidence from the CV where possible.
+
+CRITICAL RULE: If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' requirement from the 'Experience' or 'Education' categories, they are automatically disqualified. In this case, you MUST set the overall recommendation to 'Not Recommended', regardless of any other strengths.
 
 Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
 
@@ -96,6 +98,21 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     const {output} = await analyzeCVAgainstJDPrompt(input);
     if (output) {
       output.candidateName = toTitleCase(output.candidateName);
+
+      // Enforce the disqualification rule programmatically as a safeguard
+      const isDisqualified = output.alignmentDetails.some(detail =>
+          (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&
+          detail.priority === 'MUST-HAVE' &&
+          detail.status === 'Not Aligned'
+      );
+
+      if (isDisqualified) {
+        output.recommendation = 'Not Recommended';
+        const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement in Education or Experience.';
+        if (!output.weaknesses.includes(disqualificationReason)) {
+             output.weaknesses.push(disqualificationReason);
+        }
+      }
     }
     return output!;
   }
