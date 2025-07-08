@@ -47,9 +47,6 @@ function HomePageContent() {
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
-  
-  const [analysisSteps, setAnalysisSteps] = useState<string[]>([]);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -204,68 +201,37 @@ function HomePageContent() {
   const handleCvClear = () => {
     setCvs([]);
   }
-  
-  const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
-    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jd;
-    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
-
-    const educationSteps = education.map(req => req.description);
-    const experienceSteps = experience.map(req => req.description);
-    const techSteps = technicalSkills.map(req => req.description);
-    const softSteps = softSkills.map(req => req.description);
-    const certSteps = certifications.map(req => req.description);
-    const respSteps = responsibilities.map(req => req.description);
-
-    let allSteps: string[] = [];
-    allSteps.push(...educationSteps);
-    allSteps.push(...experienceSteps);
-    if (hasMustHaveCert) {
-        allSteps.push(...certSteps);
-    }
-    allSteps.push(...techSteps);
-    allSteps.push(...softSteps);
-    if (!hasMustHaveCert) {
-        allSteps.push(...certSteps);
-    }
-    allSteps.push(...respSteps);
-
-    return allSteps;
-  };
 
   const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
       const session = history.find(s => s.id === activeSessionId);
       if (!session || session.candidates.length === 0) return;
 
-      const steps = getRequirementsAsSteps(jd);
-      setAnalysisSteps(steps);
       setReassessProgress({ current: 0, total: session.candidates.length, name: "Preparing..."});
-      let simulationInterval: NodeJS.Timeout | null = null;
       
       try {
         toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
         
-        const updatedCandidates: CandidateRecord[] = [];
-        for (let i = 0; i < session.candidates.length; i++) {
-            const oldCandidate = session.candidates[i];
-
-            setCurrentStepIndex(0);
-            setReassessProgress({ current: i + 1, total: session.candidates.length, name: oldCandidate.analysis.candidateName || oldCandidate.cvName });
-            
-            simulationInterval = setInterval(() => {
-                setCurrentStepIndex(prev => Math.min(prev + 1, steps.length - 1));
-            }, 300);
-
-            const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent });
-            
-            if(simulationInterval) clearInterval(simulationInterval);
-            simulationInterval = null;
-            setCurrentStepIndex(steps.length);
-
-            updatedCandidates.push({
+        let assessedCount = 0;
+        const analysisPromises = session.candidates.map(oldCandidate =>
+          analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
+            .then(result => {
+              assessedCount++;
+              setReassessProgress({ current: assessedCount, total: session.candidates.length, name: `Re-assessed: ${result.candidateName}`});
+              return {
                 ...oldCandidate,
                 analysis: result
-            });
-        }
+              };
+            })
+            .catch(error => {
+              assessedCount++;
+              setReassessProgress({ current: assessedCount, total: session.candidates.length, name: `Failed: ${oldCandidate.analysis.candidateName}`});
+              console.error("Error re-assessing CV:", error);
+              toast({ variant: "destructive", title: `Re-assessment Error for ${oldCandidate.analysis.candidateName}`, description: error.message || "Failed to re-assess." });
+              return oldCandidate; // Keep the old data on failure
+            })
+        );
+        
+        const updatedCandidates = await Promise.all(analysisPromises);
         
         updatedCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
 
@@ -281,9 +247,7 @@ function HomePageContent() {
         console.error("Error re-assessing CVs:", error);
         toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "Failed to re-assess one or more candidates. The process has been stopped." });
       } finally {
-        if(simulationInterval) clearInterval(simulationInterval);
         setReassessProgress(null);
-        setAnalysisSteps([]);
       }
     };
 
@@ -322,65 +286,70 @@ function HomePageContent() {
         return;
     }
     
-    const steps = getRequirementsAsSteps(activeSession.analyzedJd);
-    setAnalysisSteps(steps);
     setNewCvAnalysisProgress({ current: 0, total: cvs.length, name: "Preparing..." });
-    let simulationInterval: NodeJS.Timeout | null = null;
     
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
+      let assessedCount = 0;
       const newCandidates: CandidateRecord[] = [];
+
+      const analysisPromises = cvs.map(cv =>
+        analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession!.analyzedJd, cv: cv.content })
+          .then(analysis => {
+            assessedCount++;
+            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length, name: `Assessed: ${analysis.candidateName}` });
+            const candidateRecord = {
+              cvName: cv.fileName,
+              cvContent: cv.content,
+              analysis
+            };
+            newCandidates.push(candidateRecord);
+            return candidateRecord;
+          })
+          .catch(error => {
+            assessedCount++;
+            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length, name: `Failed: ${cv.candidateName}` });
+            console.error(`Error analyzing CV for ${cv.fileName}:`, error);
+            toast({
+              variant: "destructive",
+              title: `Analysis Failed for ${cv.fileName}`,
+              description: error.message || "An unexpected error occurred.",
+            });
+            return null;
+          })
+      );
       
-      for (let i = 0; i < cvs.length; i++) {
-        const cv = cvs[i];
-        
-        setCurrentStepIndex(0);
-        setNewCvAnalysisProgress({ current: i + 1, total: cvs.length, name: cv.candidateName });
-
-        simulationInterval = setInterval(() => {
-            setCurrentStepIndex(prev => Math.min(prev + 1, steps.length - 1));
-        }, 300); 
-
-        const result = await analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession.analyzedJd, cv: cv.content });
-        
-        if(simulationInterval) clearInterval(simulationInterval);
-        simulationInterval = null;
-        setCurrentStepIndex(steps.length);
-        
-        newCandidates.push({
-            cvName: cv.fileName,
-            cvContent: cv.content,
-            analysis: result
-        });
+      await Promise.all(analysisPromises);
+      
+      if (newCandidates.length > 0) {
+        setHistory(prev => prev.map(session => {
+          if (session.id === activeSessionId) {
+            const existingNames = new Set(session.candidates.map(c => c.cvName));
+            const newCandidatesToAdd = newCandidates.filter(nc => !existingNames.has(nc.cvName));
+            const allCandidates = [...session.candidates, ...newCandidatesToAdd];
+            allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+            return {
+              ...session,
+              candidates: allCandidates,
+              summary: null,
+            };
+          }
+          return session;
+        }));
       }
       
-      setHistory(prev => prev.map(session => {
-        if (session.id === activeSessionId) {
-          const existingNames = new Set(session.candidates.map(c => c.cvName));
-          const newCandidatesToAdd = newCandidates.filter(nc => !existingNames.has(nc.cvName));
-          const allCandidates = [...session.candidates, ...newCandidatesToAdd];
-          allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-          return {
-            ...session,
-            candidates: allCandidates,
-            summary: null, // Invalidate summary
-          };
-        }
-        return session;
-      }));
+      if (newCandidates.length > 0) {
+        toast({ description: `${newCandidates.length} candidate(s) have been successfully assessed.` });
+      }
 
-      toast({ description: `${newCandidates.length} candidate(s) have been successfully assessed.` });
-      
       setCvs([]);
       setCvResetKey(key => key + 1);
     } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "Failed to analyze one or more CVs. The process has been stopped." });
+      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An error occurred during the assessment process." });
     } finally {
-      if(simulationInterval) clearInterval(simulationInterval);
       setNewCvAnalysisProgress(null);
-      setAnalysisSteps([]);
     }
   };
   
@@ -527,8 +496,6 @@ function HomePageContent() {
                                 current={newCvAnalysisProgress.current}
                                 total={newCvAnalysisProgress.total}
                                 itemName={newCvAnalysisProgress.name}
-                                steps={analysisSteps}
-                                currentStepIndex={currentStepIndex}
                             />
                         ) : (
                             <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
@@ -661,8 +628,6 @@ function HomePageContent() {
                                               current={reassessProgress.current}
                                               total={reassessProgress.total}
                                               itemName={reassessProgress.name}
-                                              steps={analysisSteps}
-                                              currentStepIndex={currentStepIndex}
                                           />
                                       ) : (
                                           <Accordion type="single" collapsible className="w-full">
