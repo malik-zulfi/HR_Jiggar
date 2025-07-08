@@ -110,29 +110,11 @@ export default function Home() {
     toast({ description: "Assessment deleted." });
   };
 
-  const handleJdUpload = (files: { name: string, content: string }[]) => {
-    if(files.length > 0) {
-        setJdFile(files[0]);
-    }
-  };
-  
-  const handleJdClear = () => {
-    setJdFile(null);
-  }
-
-  const handleCvUpload = (files: CvFile[]) => {
-    setCvs(files);
-  };
-  
-  const handleCvClear = () => {
-    setCvs([]);
-  }
-
-  const handleAnalyzeJd = async () => {
-    if (!jdFile) {
-      toast({ variant: "destructive", description: "Please upload a Job Description file." });
-      return;
-    }
+  const handleJdUpload = async (files: { name: string, content: string }[]) => {
+    if(files.length === 0) return;
+    
+    const jdFile = files[0];
+    setJdFile(jdFile);
     
     const steps = [
       "Initializing analysis engine...",
@@ -187,6 +169,18 @@ export default function Home() {
       setJdAnalysisProgress(null);
     }
   };
+  
+  const handleJdClear = () => {
+    setJdFile(null);
+  }
+
+  const handleCvUpload = (files: CvFile[]) => {
+    setCvs(files);
+  };
+  
+  const handleCvClear = () => {
+    setCvs([]);
+  }
   
   const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
     const hasMustHaveCert = jd.certifications?.some(c => c.priority === 'MUST-HAVE');
@@ -500,9 +494,6 @@ export default function Home() {
                                     onFileUpload={handleJdUpload}
                                     onFileClear={handleJdClear}
                                     />
-                                    <Button onClick={handleAnalyzeJd} disabled={!jdFile}>
-                                        Analyze Job Description
-                                    </Button>
                                 </div>
                                 </CardContent>
                             </Card>
