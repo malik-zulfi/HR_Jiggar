@@ -10,13 +10,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
+import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, PlusCircle } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
@@ -86,6 +89,16 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
 
 export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
   const [editedJd, setEditedJd] = useState(analysis);
+  const [isAddPopoverOpen, setIsAddPopoverOpen] = useState(false);
+  const [newRequirement, setNewRequirement] = useState<{
+      category: keyof ExtractJDCriteriaOutput;
+      description: string;
+      priority: Requirement['priority'];
+  }>({
+    category: 'technicalSkills',
+    description: '',
+    priority: 'NICE-TO-HAVE',
+  });
 
   const isDirty = useMemo(() => {
     return JSON.stringify(analysis) !== JSON.stringify(editedJd);
@@ -94,6 +107,32 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   useMemo(() => {
     setEditedJd(analysis);
   }, [analysis]);
+  
+  const handleAddRequirement = () => {
+    if (!newRequirement.description.trim()) {
+        return;
+    }
+
+    setEditedJd(prevJd => {
+        const newJd = JSON.parse(JSON.stringify(prevJd));
+        const categoryKey = newRequirement.category;
+        
+        if (Array.isArray(newJd[categoryKey])) {
+            (newJd[categoryKey] as Requirement[]).push({
+                description: newRequirement.description,
+                priority: newRequirement.priority,
+            });
+        }
+        return newJd;
+    });
+
+    setNewRequirement({
+        category: 'technicalSkills',
+        description: '',
+        priority: 'NICE-TO-HAVE',
+    });
+    setIsAddPopoverOpen(false);
+  };
 
   const handleRequirementChange = (
     categoryKey: keyof ExtractJDCriteriaOutput,
@@ -125,6 +164,11 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
       softSkills: { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
       responsibilities: { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
   };
+
+  const categoryOptions = Object.entries(allSections).map(([key, value]) => ({
+      value: key as keyof ExtractJDCriteriaOutput,
+      label: value.title,
+  }));
 
   const categorySections = [
       allSections.education,
@@ -195,13 +239,78 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                         ))}
                     </div>
                 </CardContent>
-                {isDirty && (
-                    <CardFooter className="flex justify-end p-4 border-t">
+                <CardFooter className="flex justify-between items-center p-4 border-t">
+                    <Popover open={isAddPopoverOpen} onOpenChange={setIsAddPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Add Requirement
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Add New Requirement</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        Add a custom requirement to the job analysis.
+                                    </p>
+                                </div>
+                                <div className="grid gap-3">
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <Label htmlFor="category">Category</Label>
+                                        <Select
+                                            value={newRequirement.category}
+                                            onValueChange={(value) => setNewRequirement(prev => ({ ...prev, category: value as keyof ExtractJDCriteriaOutput }))}
+                                        >
+                                            <SelectTrigger id="category" className="col-span-2 h-8">
+                                                <SelectValue placeholder="Select category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {categoryOptions.map(option => (
+                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-3 items-start gap-4">
+                                        <Label htmlFor="description">Description</Label>
+                                        <Textarea
+                                            id="description"
+                                            value={newRequirement.description}
+                                            onChange={(e) => setNewRequirement(prev => ({ ...prev, description: e.target.value }))}
+                                            className="col-span-2 h-24"
+                                            placeholder="e.g., 5+ years of React experience"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <Label>Priority</Label>
+                                        <div className="col-span-2 flex items-center space-x-2">
+                                            <Label htmlFor="p-switch-new" className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
+                                            <Switch
+                                                id="p-switch-new"
+                                                checked={newRequirement.priority === 'MUST-HAVE'}
+                                                onCheckedChange={(checked) => {
+                                                    setNewRequirement(prev => ({ ...prev, priority: checked ? 'MUST-HAVE' : 'NICE-TO-HAVE' }));
+                                                }}
+                                            />
+                                            <Label htmlFor="p-switch-new" className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="ghost" size="sm" onClick={() => setIsAddPopoverOpen(false)}>Cancel</Button>
+                                    <Button size="sm" onClick={handleAddRequirement}>Add</Button>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                    
+                    {isDirty && (
                         <Button onClick={handleSaveClick}>
                             Save Changes
                         </Button>
-                    </CardFooter>
-                )}
+                    )}
+                </CardFooter>
             </CollapsibleContent>
         </Card>
     </Collapsible>
