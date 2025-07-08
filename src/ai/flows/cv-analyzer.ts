@@ -34,6 +34,7 @@ export async function analyzeCVAgainstJD(input: AnalyzeCVAgainstJDInput): Promis
 const DynamicCriteriaPromptInputSchema = z.object({
     formattedCriteria: z.string().describe('The dynamically ordered, formatted list of job description criteria.'),
     cv: z.string().describe('The CV to analyze.'),
+    currentDate: z.string().describe("The current date, to be used as the end date for currently held positions."),
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -57,6 +58,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Important Reasoning Rules:**
 
+*   **Calculate Experience for Current Roles:** When a candidate's experience is listed as "Present", "Current", or "To Date", you must use today's date ({{{currentDate}}}) as the end date for that role when calculating their total years of experience.
 *   **Handle Equivalencies:** Recognize and correctly interpret common abbreviations and equivalent terms. For example, 'B.Sc.' is a 'Bachelor of Science' and fully meets a 'Bachelor's degree' requirement. 'MS' is a 'Master's degree'.
 *   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
 *   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning. If the requirement is 'Bachelor’s degree in Civil / Structural Engineering' and the CV lists 'B.Sc. in Civil Engineering', that is a clear 'Aligned' match.
@@ -115,10 +117,11 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     }
     formattedCriteria += formatSection('Responsibility', responsibilities);
 
-
+    const currentDate = new Date().toDateString();
     const {output} = await analyzeCVAgainstJDPrompt({
         formattedCriteria,
-        cv
+        cv,
+        currentDate
     });
 
     if (output) {
