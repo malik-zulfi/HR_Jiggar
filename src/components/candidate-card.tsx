@@ -1,14 +1,17 @@
 "use client";
 
-import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { AccordionContent, AccordionItem } from "@/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
 interface CandidateCardProps {
   candidate: AnalyzedCandidate;
+  onDelete: () => void;
 }
 
 const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation']) => {
@@ -33,22 +36,50 @@ const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation
     }
 };
 
-export default function CandidateCard({ candidate }: CandidateCardProps) {
+const getScoreBadgeClass = (score: number) => {
+    if (score >= 75) {
+        return "bg-green-100 text-green-800 border-green-200 hover:bg-green-100/80";
+    }
+    if (score >= 40) {
+        return "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-100/80";
+    }
+    return "bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80";
+};
+
+export default function CandidateCard({ candidate, onDelete }: CandidateCardProps) {
   const recommendationInfo = getRecommendationInfo(candidate.recommendation);
 
   return (
     <AccordionItem value={candidate.candidateName}>
-      <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-accent/10 [&>svg]:hidden">
-        <div className="flex items-center justify-between w-full gap-4">
-          <span className="font-semibold text-foreground truncate">{candidate.candidateName}</span>
-          <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
-            <div className="flex items-center gap-2">
-              {recommendationInfo.icon}
-              {candidate.recommendation}
-            </div>
-          </Badge>
-        </div>
-      </AccordionTrigger>
+        <AccordionPrimitive.Header className="flex w-full items-center p-0">
+            <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between p-4 font-medium transition-all hover:no-underline data-[state=open]:bg-accent/10">
+                <div className="flex items-center gap-3">
+                    <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
+                     <Badge className={cn("whitespace-nowrap font-bold", getScoreBadgeClass(candidate.alignmentScore))}>
+                        <div className="flex items-center gap-1">
+                            <TrendingUp className="h-4 w-4" />
+                            {candidate.alignmentScore}%
+                        </div>
+                    </Badge>
+                    <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
+                        <div className="flex items-center gap-2">
+                            {recommendationInfo.icon}
+                            {candidate.recommendation}
+                        </div>
+                    </Badge>
+                </div>
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 data-[state=open]:rotate-180" />
+            </AccordionPrimitive.Trigger>
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive mr-4"
+                onClick={onDelete}
+                aria-label="Remove candidate"
+            >
+                <Trash2 className="h-4 w-4" />
+            </Button>
+        </AccordionPrimitive.Header>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
           <div>
@@ -60,20 +91,20 @@ export default function CandidateCard({ candidate }: CandidateCardProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold mb-2 flex items-center"><ThumbsUp className="w-4 h-4 mr-2 text-primary"/> Strengths</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <ul className="list-disc list-outside pl-5 space-y-1 text-sm text-muted-foreground">
                 {candidate.strengths.map((s, i) => <li key={`strength-${i}`} className="text-foreground">{s}</li>)}
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-2 flex items-center"><ThumbsDown className="w-4 h-4 mr-2 text-destructive"/> Weaknesses</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <ul className="list-disc list-outside pl-5 space-y-1 text-sm text-muted-foreground">
                 {candidate.weaknesses.map((w, i) => <li key={`weakness-${i}`} className="text-foreground">{w}</li>)}
               </ul>
             </div>
           </div>
           <div>
             <h4 className="font-semibold mb-2 flex items-center"><Lightbulb className="w-4 h-4 mr-2 text-accent"/> Interview Probes</h4>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+            <ul className="list-disc list-outside pl-5 space-y-1 text-sm text-muted-foreground">
               {candidate.interviewProbes.map((p, i) => <li key={`probe-${i}`} className="text-foreground">{p}</li>)}
             </ul>
           </div>

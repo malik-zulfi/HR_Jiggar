@@ -10,6 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { ExtractJDCriteriaOutputSchema, type ExtractJDCriteriaOutput } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 const ExtractJDCriteriaInputSchema = z.object({
   jobDescription: z.string().describe('The Job Description to analyze.'),
@@ -26,8 +27,12 @@ const prompt = ai.definePrompt({
   name: 'extractJDCriteriaPrompt',
   input: {schema: ExtractJDCriteriaInputSchema},
   output: {schema: ExtractJDCriteriaOutputSchema},
-  prompt: `You are an expert recruiter. Please analyze the following job description and extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
+  config: { temperature: 0.0 },
+  prompt: `You are an expert recruiter. Please analyze the following job description.
 
+First, extract the job title and the position/requisition number (if available).
+
+Then, extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
 For each requirement, indicate whether it is a MUST-HAVE or NICE-TO-HAVE.
 
 Job Description:
@@ -43,7 +48,7 @@ const extractJDCriteriaFlow = ai.defineFlow(
     outputSchema: ExtractJDCriteriaOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     return output!;
   }
 );

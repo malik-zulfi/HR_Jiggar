@@ -9,6 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import { OcrInputSchema, OcrOutputSchema, type OcrInput, type OcrOutput } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 export type { OcrInput, OcrOutput };
 
@@ -20,6 +21,7 @@ const prompt = ai.definePrompt({
   name: 'ocrPrompt',
   input: {schema: OcrInputSchema},
   output: {schema: OcrOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are an Optical Character Recognition (OCR) expert. Extract all text from the following image. Preserve formatting like paragraphs and line breaks as much as possible.
 
 Image:
@@ -33,7 +35,7 @@ const performOcrFlow = ai.defineFlow(
     outputSchema: OcrOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     return output!;
   }
 );

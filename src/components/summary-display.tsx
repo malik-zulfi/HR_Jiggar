@@ -125,13 +125,13 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="font-semibold mb-2 text-lg">Common Strengths</h4>
-                <ul className="list-disc list-inside space-y-2 text-sm">
+                <ul className="list-disc list-outside pl-5 space-y-2 text-sm">
                   {summary.commonStrengths.map((s, i) => <li key={`strength-${i}`}>{s}</li>)}
                 </ul>
               </div>
               <div>
                 <h4 className="font-semibold mb-2 text-lg">Common Gaps</h4>
-                <ul className="list-disc list-inside space-y-2 text-sm">
+                <ul className="list-disc list-outside pl-5 space-y-2 text-sm">
                   {summary.commonGaps.map((g, i) => <li key={`gap-${i}`}>{g}</li>)}
                 </ul>
               </div>

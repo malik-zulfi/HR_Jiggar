@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // For JD Analyzer
@@ -8,6 +9,8 @@ export const RequirementSchema = z.object({
 export type Requirement = z.infer<typeof RequirementSchema>;
 
 export const ExtractJDCriteriaOutputSchema = z.object({
+  jobTitle: z.string().optional().describe('The title of the job position.'),
+  positionNumber: z.string().optional().describe('The position or requisition number, if available.'),
   technicalSkills: z.array(RequirementSchema).describe('Technical skills requirements.'),
   softSkills: z.array(RequirementSchema).describe('Soft skills requirements.'),
   experience: z.array(RequirementSchema).describe('Experience requirements.'),
@@ -30,6 +33,7 @@ export type AlignmentDetail = z.infer<typeof AlignmentDetailSchema>;
 
 export const AnalyzeCVAgainstJDOutputSchema = z.object({
   candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
+  alignmentScore: z.number().describe('The overall alignment score of the candidate, from 0 to 100.'),
   alignmentSummary: z
     .string()
     .describe("A summary of the candidate's alignment with the job description requirements."),
@@ -52,6 +56,7 @@ export type AnalyzedCandidate = AnalyzeCVAgainstJDOutput;
 // For Candidate Summarizer
 const CandidateAssessmentSchema = z.object({
   candidateName: z.string().describe('The name of the candidate.'),
+  alignmentScore: z.number().describe('The alignment score of the candidate.'),
   recommendation: z
     .enum(['Strongly Recommended', 'Recommended with Reservations', 'Not Recommended'])
     .describe('The overall recommendation for the candidate.'),

@@ -14,6 +14,7 @@ import {
     type ExtractCandidateNameInput,
     type ExtractCandidateNameOutput
 } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 export type { ExtractCandidateNameInput, ExtractCandidateNameOutput };
 
@@ -25,6 +26,7 @@ const prompt = ai.definePrompt({
   name: 'extractCandidateNamePrompt',
   input: {schema: ExtractCandidateNameInputSchema},
   output: {schema: ExtractCandidateNameOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are an expert CV parser. Your sole task is to extract the full name of the candidate from the following CV text. Format the name in Title Case (e.g., "John Doe"). Return only the name and nothing else. If you cannot determine the name, return an empty string.
 
 CV Text:
@@ -48,7 +50,7 @@ const extractCandidateNameFlow = ai.defineFlow(
     outputSchema: ExtractCandidateNameOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     if (output) {
         return {
             candidateName: toTitleCase(output.candidateName)
