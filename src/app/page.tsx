@@ -11,6 +11,7 @@ import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, Refres
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
+import { AssessmentSessionSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
@@ -44,7 +45,7 @@ const DesktopSidebarToggle = () => {
     )
 };
 
-export default function Home() {
+function HomePageContent() {
   const { toast } = useToast();
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
@@ -73,8 +74,11 @@ export default function Home() {
     }
     const lowerCaseQuery = searchQuery.toLowerCase().trim();
     return history.filter(session => {
-        const titleMatch = !!session.analyzedJd.jobTitle && session.analyzedJd.jobTitle.toLowerCase().includes(lowerCaseQuery);
-        const nameMatch = session.jdName.toLowerCase().includes(lowerCaseQuery);
+        if (!session || !session.analyzedJd) return false;
+        
+        const jd = session.analyzedJd;
+        const titleMatch = jd.jobTitle ? jd.jobTitle.toLowerCase().includes(lowerCaseQuery) : false;
+        const nameMatch = session.jdName ? session.jdName.toLowerCase().includes(lowerCaseQuery) : false;
         return nameMatch || titleMatch;
     });
   }, [history, searchQuery]);
@@ -83,17 +87,28 @@ export default function Home() {
     try {
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedStateJSON) {
-        let savedHistory: AssessmentSession[] = JSON.parse(savedStateJSON);
-        if (Array.isArray(savedHistory) && savedHistory.length > 0) {
-          savedHistory = savedHistory.map(session => {
-            if (!session.originalAnalyzedJd) {
-              return { ...session, originalAnalyzedJd: JSON.parse(JSON.stringify(session.analyzedJd)) };
+        const parsedJSON = JSON.parse(savedStateJSON);
+        if (Array.isArray(parsedJSON) && parsedJSON.length > 0) {
+          // Filter out invalid sessions and add back-compat for originalAnalyzedJd
+          const validHistory = parsedJSON.map(sessionData => {
+            const result = AssessmentSessionSchema.safeParse(sessionData);
+            if (result.success) {
+                if (!result.data.originalAnalyzedJd) {
+                    result.data.originalAnalyzedJd = JSON.parse(JSON.stringify(result.data.analyzedJd));
+                }
+                return result.data;
             }
-            return session;
-          });
-          const sortedHistory = savedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setHistory(sortedHistory);
-          setActiveSessionId(sortedHistory[0]?.id);
+            console.warn("Found and skipped invalid session data from localStorage:", result.error);
+            return null;
+          }).filter((s): s is AssessmentSession => s !== null);
+
+          if (validHistory.length > 0) {
+            const sortedHistory = validHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setHistory(sortedHistory);
+            setActiveSessionId(sortedHistory[0]?.id);
+          } else {
+             localStorage.removeItem(LOCAL_STORAGE_KEY);
+          }
         }
       }
     } catch (error) {
@@ -467,216 +482,226 @@ export default function Home() {
   };
 
   return (
-    <SidebarProvider>
-      <div className="flex flex-col min-h-screen">
-        <Header onNewSession={handleNewSession} />
-        <div 
-            className="group/sidebar-wrapper flex flex-1 w-full has-[[data-variant=inset]]:bg-sidebar"
-            style={
-              {
-                "--sidebar-width": "16rem",
-                "--sidebar-width-icon": "3rem",
-              } as React.CSSProperties
-            }
-        >
-            <Sidebar side="left" className="h-full">
-                <SidebarHeader>
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <History className="w-5 h-5"/>
-                        Assessments
-                    </h2>
-                    <SidebarInput
-                        placeholder="Search assessments..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </SidebarHeader>
-                <SidebarContent>
-                    <SidebarMenu>
-                        {filteredHistory.length > 0 ? filteredHistory.map(session => (
-                            <SidebarMenuItem key={session.id}>
-                                <SidebarMenuButton
-                                    onClick={() => setActiveSessionId(session.id)}
-                                    isActive={session.id === activeSessionId}
-                                    className="h-auto py-2"
-                                >
-                                    <div className="flex flex-col items-start w-full overflow-hidden">
-                                        <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
-                                            {session.analyzedJd.jobTitle || session.jdName}
-                                        </span>
-                                        {session.analyzedJd.jobTitle && (
-                                            <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
-                                        )}
-                                    </div>
-                                </SidebarMenuButton>
-                                <SidebarMenuAction
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                                    className="opacity-50 hover:opacity-100"
-                                >
-                                    <Trash2/>
-                                </SidebarMenuAction>
-                            </SidebarMenuItem>
-                        )) : (
-                            <p className="p-4 text-sm text-muted-foreground text-center">
-                                {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
-                            </p>
-                        )}
-                    </SidebarMenu>
-                </SidebarContent>
-            </Sidebar>
-            <SidebarInset className="overflow-y-auto">
-                <DesktopSidebarToggle />
-                <div className="space-y-8 p-4 md:p-8">
-                    {!activeSession && !jdAnalysisProgress && (
-                        <Card>
-                            <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
-                            <CardDescription>Upload or drop a Job Description (JD) file below to begin analysis.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                            <div className="space-y-4">
-                                <FileUploader
-                                id="jd-uploader"
-                                label="Job Description"
-                                acceptedFileTypes={acceptedFileTypes}
-                                onFileUpload={handleAutoAnalyze}
-                                onFileClear={handleJdClear}
-                                />
-                            </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                    
-                    {jdAnalysisProgress && (
-                        <div className="p-8">
-                            <ProgressLoader
-                                title="Analyzing Job Description..."
-                                steps={jdAnalysisProgress.steps}
-                                currentStepIndex={jdAnalysisProgress.currentStepIndex}
-                            />
-                        </div>
-                    )}
-                    
-                    {activeSession && (
-                        <>
-                            <JdAnalysis
-                                analysis={activeSession.analyzedJd}
-                                originalAnalysis={activeSession.originalAnalyzedJd}
-                                onSaveChanges={handleSaveChanges}
-                                isOpen={isJdAnalysisOpen}
-                                onOpenChange={setIsJdAnalysisOpen}
-                            />
+    <div className="flex flex-col min-h-screen">
+      <Header onNewSession={handleNewSession} />
+      <div 
+          className="flex flex-1 w-full"
+          style={
+            {
+              "--sidebar-width": "16rem",
+              "--sidebar-width-icon": "3rem",
+            } as React.CSSProperties
+          }
+      >
+          <Sidebar side="left" className="h-full">
+              <SidebarHeader>
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <History className="w-5 h-5"/>
+                      Assessments
+                  </h2>
+                  <SidebarInput
+                      placeholder="Search assessments..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+              </SidebarHeader>
+              <SidebarContent>
+                  <SidebarMenu>
+                      {filteredHistory.length > 0 ? filteredHistory.map(session => {
+                          if (!session || !session.analyzedJd) return null;
+                          return (
+                              <SidebarMenuItem key={session.id}>
+                                  <SidebarMenuButton
+                                      onClick={() => setActiveSessionId(session.id)}
+                                      isActive={session.id === activeSessionId}
+                                      className="h-auto py-2"
+                                  >
+                                      <div className="flex flex-col items-start w-full overflow-hidden">
+                                          <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
+                                              {session.analyzedJd.jobTitle || session.jdName}
+                                          </span>
+                                          {session.analyzedJd.jobTitle && (
+                                              <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
+                                          )}
+                                      </div>
+                                  </SidebarMenuButton>
+                                  <SidebarMenuAction
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                                      className="opacity-50 hover:opacity-100"
+                                  >
+                                      <Trash2/>
+                                  </SidebarMenuAction>
+                              </SidebarMenuItem>
+                          );
+                      }) : (
+                          <p className="p-4 text-sm text-muted-foreground text-center">
+                              {history.length > 0 ? "No matching assessments found." : "No assessments yet."}
+                          </p>
+                      )}
+                  </SidebarMenu>
+              </SidebarContent>
+          </Sidebar>
+          <SidebarInset className="overflow-y-auto">
+              <DesktopSidebarToggle />
+              <div className="space-y-8 p-4 md:p-8">
+                  {!activeSession && !jdAnalysisProgress && (
+                      <Card>
+                          <CardHeader>
+                          <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
+                          <CardDescription>Upload or drop a Job Description (JD) file below to begin analysis.</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                          <div className="space-y-4">
+                              <FileUploader
+                              id="jd-uploader"
+                              label="Job Description"
+                              acceptedFileTypes={acceptedFileTypes}
+                              onFileUpload={handleAutoAnalyze}
+                              onFileClear={handleJdClear}
+                              />
+                          </div>
+                          </CardContent>
+                      </Card>
+                  )}
+                  
+                  {jdAnalysisProgress && (
+                      <div className="p-8">
+                          <ProgressLoader
+                              title="Analyzing Job Description..."
+                              steps={jdAnalysisProgress.steps}
+                              currentStepIndex={jdAnalysisProgress.currentStepIndex}
+                          />
+                      </div>
+                  )}
+                  
+                  {activeSession && (
+                      <>
+                          <JdAnalysis
+                              analysis={activeSession.analyzedJd}
+                              originalAnalysis={activeSession.originalAnalyzedJd}
+                              onSaveChanges={handleSaveChanges}
+                              isOpen={isJdAnalysisOpen}
+                              onOpenChange={setIsJdAnalysisOpen}
+                          />
 
-                            <Separator />
+                          <Separator />
 
-                            <Card>
-                                <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
-                                <CardDescription>Upload one or more CVs to get an assessment against the JD.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                <div className="space-y-4">
-                                    <FileUploader
-                                        key={cvResetKey}
-                                        id="cv-uploader"
-                                        label="Candidate CV(s)"
-                                        acceptedFileTypes={acceptedFileTypes}
-                                        onFileUpload={handleCvUpload}
-                                        onFileClear={handleCvClear}
-                                        multiple={true}
-                                    />
-                                    {newCvAnalysisProgress ? (
-                                        <ProgressLoader
-                                            title="Assessing Candidate(s)"
-                                            current={newCvAnalysisProgress.current}
-                                            total={newCvAnalysisProgress.total}
-                                            itemName={newCvAnalysisProgress.name}
-                                            steps={analysisSteps}
-                                            currentStepIndex={currentStepIndex}
-                                        />
-                                    ) : (
-                                        <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
-                                            Add and Assess Candidate(s)
-                                        </Button>
-                                    )}
-                                </div>
-                                </CardContent>
-                            </Card>
+                          <Card>
+                              <CardHeader>
+                              <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
+                              <CardDescription>Upload one or more CVs to get an assessment against the JD.</CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                              <div className="space-y-4">
+                                  <FileUploader
+                                      key={cvResetKey}
+                                      id="cv-uploader"
+                                      label="Candidate CV(s)"
+                                      acceptedFileTypes={acceptedFileTypes}
+                                      onFileUpload={handleCvUpload}
+                                      onFileClear={handleCvClear}
+                                      multiple={true}
+                                  />
+                                  {newCvAnalysisProgress ? (
+                                      <ProgressLoader
+                                          title="Assessing Candidate(s)"
+                                          current={newCvAnalysisProgress.current}
+                                          total={newCvAnalysisProgress.total}
+                                          itemName={newCvAnalysisProgress.name}
+                                          steps={analysisSteps}
+                                          currentStepIndex={currentStepIndex}
+                                      />
+                                  ) : (
+                                      <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
+                                          Add and Assess Candidate(s)
+                                      </Button>
+                                  )}
+                              </div>
+                              </CardContent>
+                          </Card>
 
-                            {activeSession.candidates.length > 0 && (
-                                <>
-                                    <Card>
-                                        <CardHeader>
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
-                                                    <CardDescription>Review assessments or re-assess all candidates with the current JD.</CardDescription>
-                                                </div>
-                                                <Button 
-                                                    variant="outline" 
-                                                    onClick={handleReassessClick}
-                                                    disabled={reassessProgress !== null || !activeSession || activeSession.candidates.length === 0}
-                                                >
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    Re-assess All
-                                                </Button>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent>
-                                        {reassessProgress ? (
-                                            <ProgressLoader
-                                                title="Re-assessing Candidate(s)"
-                                                current={reassessProgress.current}
-                                                total={reassessProgress.total}
-                                                itemName={reassessProgress.name}
-                                                steps={analysisSteps}
-                                                currentStepIndex={currentStepIndex}
-                                            />
-                                        ) : (
-                                            <Accordion type="single" collapsible className="w-full">
-                                                {activeSession.candidates.map((c, i) => (
-                                                    <CandidateCard 
-                                                        key={`${c.analysis.candidateName}-${i}`} 
-                                                        candidate={c.analysis}
-                                                        onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
-                                                    />
-                                                ))}
-                                            </Accordion>
-                                        )}
-                                        </CardContent>
-                                    </Card>
+                          {activeSession.candidates.length > 0 && (
+                              <>
+                                  <Card>
+                                      <CardHeader>
+                                          <div className="flex items-center justify-between gap-4">
+                                              <div>
+                                                  <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
+                                                  <CardDescription>Review assessments or re-assess all candidates with the current JD.</CardDescription>
+                                              </div>
+                                              <Button 
+                                                  variant="outline" 
+                                                  onClick={handleReassessClick}
+                                                  disabled={reassessProgress !== null || !activeSession || activeSession.candidates.length === 0}
+                                              >
+                                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                                  Re-assess All
+                                              </Button>
+                                          </div>
+                                      </CardHeader>
+                                      <CardContent>
+                                      {reassessProgress ? (
+                                          <ProgressLoader
+                                              title="Re-assessing Candidate(s)"
+                                              current={reassessProgress.current}
+                                              total={reassessProgress.total}
+                                              itemName={reassessProgress.name}
+                                              steps={analysisSteps}
+                                              currentStepIndex={currentStepIndex}
+                                          />
+                                      ) : (
+                                          <Accordion type="single" collapsible className="w-full">
+                                              {activeSession.candidates.map((c, i) => (
+                                                  <CandidateCard 
+                                                      key={`${c.analysis.candidateName}-${i}`} 
+                                                      candidate={c.analysis}
+                                                      onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                  />
+                                              ))}
+                                          </Accordion>
+                                      )}
+                                      </CardContent>
+                                  </Card>
 
-                                    <Separator />
+                                  <Separator />
 
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 4: Generate Summary</CardTitle>
-                                            <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            {summaryProgress ? (
-                                                <ProgressLoader
-                                                    title="Generating Summary..."
-                                                    steps={summaryProgress.steps}
-                                                    currentStepIndex={summaryProgress.currentStepIndex}
-                                                />
-                                            ) : (
-                                                <Button onClick={handleGenerateSummary}>
-                                                    Generate Summary
-                                                </Button>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </>
-                            )}
-                            
-                            {activeSession.summary && !summaryProgress && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
-                        </>
-                    )}
-                </div>
-            </SidebarInset>
-        </div>
+                                  <Card>
+                                      <CardHeader>
+                                          <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 4: Generate Summary</CardTitle>
+                                          <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
+                                      </CardHeader>
+                                      <CardContent>
+                                          {summaryProgress ? (
+                                              <ProgressLoader
+                                                  title="Generating Summary..."
+                                                  steps={summaryProgress.steps}
+                                                  currentStepIndex={summaryProgress.currentStepIndex}
+                                              />
+                                          ) : (
+                                              <Button onClick={handleGenerateSummary}>
+                                                  Generate Summary
+                                              </Button>
+                                          )}
+                                      </CardContent>
+                                  </Card>
+                              </>
+                          )}
+                          
+                          {activeSession.summary && !summaryProgress && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
+                      </>
+                  )}
+              </div>
+          </SidebarInset>
       </div>
-    </SidebarProvider>
+    </div>
   );
+}
+
+
+export default function Home() {
+    return (
+        <SidebarProvider>
+            <HomePageContent />
+        </SidebarProvider>
+    )
 }
