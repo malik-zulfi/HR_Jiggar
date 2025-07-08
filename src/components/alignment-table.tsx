@@ -1,4 +1,6 @@
 
+"use client";
+
 import type { AlignmentDetail } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, AlertTriangle, HelpCircle } from "lucide-react";
@@ -52,6 +54,9 @@ const Legend = () => (
     </div>
 );
 
+interface AlignmentTableProps {
+  details: AlignmentDetail[];
+}
 
 export default function AlignmentTable({ details }: AlignmentTableProps) {
   if (!details || details.length === 0) {
@@ -62,60 +67,81 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
     );
   }
 
+  const groupedDetails = details.reduce((acc, item) => {
+    const category = item.category;
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(item);
+    return acc;
+  }, {} as Record<string, AlignmentDetail[]>);
+  
+  const categoriesInOrder = [...new Set(details.map(d => d.category))];
+
   return (
     <TooltipProvider>
-      <div className="rounded-lg border overflow-hidden bg-card">
+      <div className="rounded-lg border bg-card">
         <Legend />
-        <div className="overflow-x-auto">
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead className="w-[150px]">Category</TableHead>
-                <TableHead>Requirement</TableHead>
-                <TableHead className="w-[80px] text-center">Status</TableHead>
-                <TableHead>Justification</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {details.map((item, index) => {
-                const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
+        <div className="space-y-6 p-4">
+            {categoriesInOrder.map((category) => {
+                const items = groupedDetails[category];
+                if (!items || items.length === 0) return null;
+
                 return (
-                    <TableRow key={index}>
-                    <TableCell className="font-medium text-muted-foreground align-top">{item.category}</TableCell>
-                    <TableCell className="align-top">
-                        <div className="flex items-start gap-3">
-                            <Tooltip>
-                                <TooltipTrigger className="mt-1">
-                                    <div className={cn(
-                                        "h-3 w-3 rounded-full shrink-0", 
-                                        item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
-                                    )} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{item.priority.replace('-', ' ')}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        <span className="font-medium">{item.requirement}</span>
+                    <div key={category}>
+                        <h3 className="text-lg font-semibold mb-2 text-primary">{category}</h3>
+                        <div className="overflow-x-auto border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Requirement</TableHead>
+                                        <TableHead>Justification</TableHead>
+                                        <TableHead className="w-[80px] text-center">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {items.map((item, index) => {
+                                        const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
+                                        return (
+                                            <TableRow key={index}>
+                                                <TableCell className="align-top">
+                                                    <div className="flex items-start gap-3">
+                                                        <Tooltip>
+                                                            <TooltipTrigger className="mt-1">
+                                                                <div className={cn(
+                                                                    "h-3 w-3 rounded-full shrink-0", 
+                                                                    item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
+                                                                )} />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>{item.priority.replace('-', ' ')}</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                        <span className="font-medium">{item.requirement}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground text-sm align-top">{item.justification}</TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex items-center justify-center">
+                                                        <Tooltip>
+                                                            <TooltipTrigger>
+                                                                {info.icon}
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>{info.label}</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
                         </div>
-                    </TableCell>
-                    <TableCell className="align-top">
-                        <div className="flex items-center justify-center">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    {info.icon}
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{info.label}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm align-top">{item.justification}</TableCell>
-                    </TableRow>
+                    </div>
                 );
-                })}
-            </TableBody>
-            </Table>
+            })}
         </div>
       </div>
     </TooltipProvider>
