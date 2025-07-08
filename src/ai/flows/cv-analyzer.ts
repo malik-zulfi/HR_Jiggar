@@ -37,13 +37,19 @@ const DynamicCriteriaPromptInputSchema = z.object({
     currentDate: z.string().describe("The current date, to be used as the end date for currently held positions."),
 });
 
+// The prompt will only return the analysis part. Score and recommendation are calculated programmatically.
+const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({
+    alignmentScore: true,
+    recommendation: true,
+});
+
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
   name: 'analyzeCVAgainstJDPrompt',
   input: {
     schema: DynamicCriteriaPromptInputSchema,
   },
   output: {
-    schema: AnalyzeCVAgainstJDOutputSchema,
+    schema: AnalyzeCVAgainstJDPromptOutputSchema,
   },
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
@@ -65,11 +71,8 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 *   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning. If the requirement is 'Bachelor’s degree in Civil / Structural Engineering' and the CV lists 'B.Sc. in Civil Engineering', that is a clear 'Aligned' match.
 *   **Handle "Or" Conditions:** If a requirement contains multiple options (e.g., 'degree in A or B', 'experience with X or Y'), meeting ANY ONE of the options means the candidate is 'Aligned' with that requirement. Do not mark it as 'Partially Aligned' if only one option is met.
 
-**Critical Disqualification Rule:**
-If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' requirement from the 'Experience' or 'Education' categories, they are automatically disqualified. In this case, you MUST set the overall recommendation to 'Not Recommended', regardless of any other strengths.
-
 **Final Output:**
-Provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas. The final output must be a valid JSON object matching the provided schema.
+Based on your detailed analysis, provide an overall alignment summary, a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas. Do NOT provide a numeric score or a final recommendation like "Recommended". The final output must be a valid JSON object matching the provided schema.
 
 Job Description Criteria:
 {{{formattedCriteria}}}
@@ -119,71 +122,88 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     formattedCriteria += formatSection('Responsibility', responsibilities);
 
     const currentDate = new Date().toDateString();
-    const {output} = await withRetry(() => analyzeCVAgainstJDPrompt({
+    const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
         formattedCriteria,
         cv,
         currentDate
     }));
 
-    if (output) {
-      output.candidateName = toTitleCase(output.candidateName);
-
-      // Programmatic Score Calculation
-      let maxScore = 0;
-      const calculateMaxScore = (reqs: Requirement[] | undefined, isResponsibility = false) => {
-        if (!reqs) return;
-        reqs.forEach(req => {
-            if (req.priority === 'MUST-HAVE') {
-                maxScore += isResponsibility ? 5 : 10;
-            } else { // NICE-TO-HAVE
-                maxScore += 5;
-            }
-        });
-      };
-
-      calculateMaxScore(jobDescriptionCriteria.education);
-      calculateMaxScore(jobDescriptionCriteria.experience);
-      calculateMaxScore(jobDescriptionCriteria.technicalSkills);
-      calculateMaxScore(jobDescriptionCriteria.softSkills);
-      calculateMaxScore(jobDescriptionCriteria.certifications);
-      calculateMaxScore(jobDescriptionCriteria.responsibilities, true);
-
-      let candidateScore = 0;
-      output.alignmentDetails.forEach(detail => {
-        const isResponsibility = detail.category.toLowerCase().includes('responsibility');
-        if (detail.status === 'Aligned') {
-            if (detail.priority === 'MUST-HAVE') {
-                candidateScore += isResponsibility ? 5 : 10;
-            } else { // NICE-TO-HAVE
-                candidateScore += 5;
-            }
-        } else if (detail.status === 'Partially Aligned') {
-            if (detail.priority === 'MUST-HAVE') {
-                candidateScore += isResponsibility ? 1 : 3;
-            } else { // NICE-TO-HAVE
-                candidateScore += 1;
-            }
-        }
-      });
-      
-      output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
-
-
-      // Enforce the disqualification rule programmatically as a safeguard
-      const isDisqualified = output.alignmentDetails.some(detail =>
-          (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&
-          detail.priority === 'MUST-HAVE' &&
-          detail.status === 'Not Aligned'
-      );
-
-      if (isDisqualified) {
-        output.recommendation = 'Not Recommended';
-        const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement in Education or Experience.';
-        if (!output.weaknesses.includes(disqualificationReason)) {
-             output.weaknesses.push(disqualificationReason);
-        }
-      }
+    if (!partialOutput) {
+        throw new Error("CV analysis failed to return an output.");
     }
-    return output!;
+    
+    const output: AnalyzeCVAgainstJDOutput = {
+        ...partialOutput,
+        candidateName: toTitleCase(partialOutput.candidateName),
+        alignmentScore: 0, // Will be calculated next
+        recommendation: 'Not Recommended', // Will be calculated next
+    };
+
+
+    // Programmatic Score Calculation
+    let maxScore = 0;
+    const calculateMaxScore = (reqs: Requirement[] | undefined, isResponsibility = false) => {
+      if (!reqs) return;
+      reqs.forEach(req => {
+          if (req.priority === 'MUST-HAVE') {
+              maxScore += isResponsibility ? 5 : 10;
+          } else { // NICE-TO-HAVE
+              maxScore += 5;
+          }
+      });
+    };
+
+    calculateMaxScore(jobDescriptionCriteria.education);
+    calculateMaxScore(jobDescriptionCriteria.experience);
+    calculateMaxScore(jobDescriptionCriteria.technicalSkills);
+    calculateMaxScore(jobDescriptionCriteria.softSkills);
+    calculateMaxScore(jobDescriptionCriteria.certifications);
+    calculateMaxScore(jobDescriptionCriteria.responsibilities, true);
+
+    let candidateScore = 0;
+    output.alignmentDetails.forEach(detail => {
+      const isResponsibility = detail.category.toLowerCase().includes('responsibility');
+      if (detail.status === 'Aligned') {
+          if (detail.priority === 'MUST-HAVE') {
+              candidateScore += isResponsibility ? 5 : 10;
+          } else { // NICE-TO-HAVE
+              candidateScore += 5;
+          }
+      } else if (detail.status === 'Partially Aligned') {
+          if (detail.priority === 'MUST-HAVE') {
+              candidateScore += isResponsibility ? 1 : 3;
+          } else { // NICE-TO-HAVE
+              candidateScore += 1;
+          }
+      }
+    });
+    
+    output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
+
+
+    // Programmatic Recommendation and Disqualification
+    const isDisqualified = output.alignmentDetails.some(detail =>
+        (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&
+        detail.priority === 'MUST-HAVE' &&
+        detail.status === 'Not Aligned'
+    );
+
+    if (isDisqualified) {
+      output.recommendation = 'Not Recommended';
+      const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement in Education or Experience.';
+      if (!output.weaknesses.includes(disqualificationReason)) {
+           output.weaknesses.push(disqualificationReason);
+      }
+    } else {
+        if (output.alignmentScore >= 75) {
+            output.recommendation = 'Strongly Recommended';
+        } else if (output.alignmentScore >= 40) {
+            output.recommendation = 'Recommended with Reservations';
+        } else {
+            output.recommendation = 'Not Recommended';
+        }
+    }
+    
+    return output;
   }
 );
