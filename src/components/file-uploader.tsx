@@ -114,9 +114,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
           toast({ variant: "destructive", title: "Empty File", description: `The uploaded file "${file.name}" appears to be empty or could not be read.` });
           return null;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error(`Error parsing file ${file.name}:`, error);
-        toast({ variant: "destructive", title: "Error", description: `Failed to parse file "${file.name}". It might be corrupted.` });
+        toast({ variant: "destructive", title: "Parsing Error", description: `Failed to parse file "${file.name}". ${error.message}` });
         return null;
     }
   };
@@ -185,9 +185,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                             content: file.content,
                             candidateName: result.candidateName || file.name,
                         };
-                    } catch (e) {
+                    } catch (e: any) {
                         console.error(`Failed to extract name for ${file.name}`, e);
-                        toast({ variant: "destructive", title: "Name Extraction Failed", description: `Could not extract name from ${file.name}. Using filename.` });
+                        toast({ variant: "destructive", title: `Error with ${file.name}`, description: e.message || "Could not extract name." });
                         return {
                             fileName: file.name,
                             content: file.content,
@@ -202,9 +202,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
             onFileUpload(parsedFiles);
             setFileDisplayNames(parsedFiles.map(f => f.name));
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error processing files:", error);
-        toast({ variant: "destructive", title: "Processing Error", description: "An error occurred while processing files."});
+        toast({ variant: "destructive", title: "Processing Error", description: error.message || "An error occurred while processing files."});
     } finally {
         if (simulationInterval) clearInterval(simulationInterval);
         setProcessingProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);

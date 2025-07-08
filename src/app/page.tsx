@@ -183,9 +183,9 @@ function HomePageContent() {
       setActiveSessionId(newSession.id);
       setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to analyze Job Description." });
+      toast({ variant: "destructive", title: "Analysis Error", description: error.message || "Failed to analyze Job Description." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -274,9 +274,9 @@ function HomePageContent() {
         }));
 
         toast({ description: "All candidates have been re-assessed." });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to re-assess one or more candidates. The process has been stopped." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "Failed to re-assess one or more candidates. The process has been stopped." });
       } finally {
         if(simulationInterval) clearInterval(simulationInterval);
         setReassessProgress(null);
@@ -369,9 +369,9 @@ function HomePageContent() {
       
       setCvs([]);
       setCvResetKey(key => key + 1);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to analyze one or more CVs. The process has been stopped." });
+      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "Failed to analyze one or more CVs. The process has been stopped." });
     } finally {
       if(simulationInterval) clearInterval(simulationInterval);
       setNewCvAnalysisProgress(null);
@@ -429,9 +429,9 @@ function HomePageContent() {
       }));
 
       toast({ description: "Candidate summary generated." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to generate summary." });
+      toast({ variant: "destructive", title: "Summary Error", description: error.message || "Failed to generate summary." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
