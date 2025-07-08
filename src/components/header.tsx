@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ThemeToggle } from "./theme-toggle";
 
 export function Header({ onNewSession }: { onNewSession: () => void }) {
   return (
@@ -25,28 +26,31 @@ export function Header({ onNewSession }: { onNewSession: () => void }) {
             <h1 className="text-xl font-bold text-foreground">Jiggar Assessment</h1>
         </div>
         
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline">
-              <PlusSquare className="mr-2 h-4 w-4" />
-              New Assessment
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Start a new assessment?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will clear your current view to start a new assessment. Your past work will be saved in the history.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onNewSession}>
-                Start New
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  <PlusSquare className="mr-2 h-4 w-4" />
+                  New Assessment
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Start a new assessment?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will clear your current view to start a new assessment. Your past work will be saved in the history.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onNewSession}>
+                    Start New
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <ThemeToggle />
+        </div>
 
       </div>
     </header>
