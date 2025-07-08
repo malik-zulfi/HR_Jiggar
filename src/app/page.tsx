@@ -183,7 +183,7 @@ function HomePageContent() {
       toast({ description: "Job Description analyzed successfully." });
     } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: "An error occurred while analyzing the Job Description. Please try again." });
+      toast({ variant: "destructive", title: "Analysis Error", description: error?.message || "An unexpected error occurred. Please try again." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -229,7 +229,7 @@ function HomePageContent() {
               toast({
                   variant: "destructive",
                   title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
-                  description: "An unexpected error occurred. Please try again.",
+                  description: error?.message || "An unexpected error occurred. Please try again.",
               });
               return oldCandidate; // Keep the old data on failure
             })
@@ -249,7 +249,7 @@ function HomePageContent() {
         toast({ description: "All candidates have been re-assessed." });
       } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected error occurred during re-assessment. Please try again." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: error?.message || "An unexpected error occurred during re-assessment. Please try again." });
       } finally {
         setReassessProgress(null);
       }
@@ -318,7 +318,7 @@ function HomePageContent() {
             toast({
               variant: "destructive",
               title: `Analysis Failed for ${cv.fileName}`,
-              description: "An unexpected error occurred. Please try again.",
+              description: error?.message || "An unexpected error occurred. Please try again.",
             });
             return null;
           })
@@ -351,7 +351,7 @@ function HomePageContent() {
       setCvResetKey(key => key + 1);
     } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred during the assessment process. Please try again." });
+      toast({ variant: "destructive", title: "Assessment Error", description: error?.message || "An unexpected error occurred during the assessment process. Please try again." });
     } finally {
       setNewCvAnalysisProgress(null);
     }
@@ -409,7 +409,7 @@ function HomePageContent() {
       toast({ description: "Candidate summary generated." });
     } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: "An error occurred while generating the summary. Please try again." });
+      toast({ variant: "destructive", title: "Summary Error", description: error?.message || "An unexpected error occurred. Please try again." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
@@ -636,22 +636,29 @@ function HomePageContent() {
                                             current={reassessProgress.current}
                                             total={reassessProgress.total}
                                         />
-                                    ) : newCvAnalysisProgress ? (
-                                        <ProgressLoader
-                                            title="Assessing New Candidate(s)"
-                                            current={newCvAnalysisProgress.current}
-                                            total={newCvAnalysisProgress.total}
-                                        />
                                     ) : (
-                                        <Accordion type="single" collapsible className="w-full">
-                                            {activeSession.candidates.map((c, i) => (
-                                                <CandidateCard 
-                                                    key={`${c.analysis.candidateName}-${i}`} 
-                                                    candidate={c.analysis}
-                                                    onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
-                                                />
-                                            ))}
-                                        </Accordion>
+                                        <>
+                                            {newCvAnalysisProgress && (
+                                                <div className="mb-4">
+                                                    <ProgressLoader
+                                                        title="Assessing New Candidate(s)"
+                                                        current={newCvAnalysisProgress.current}
+                                                        total={newCvAnalysisProgress.total}
+                                                    />
+                                                </div>
+                                            )}
+                                            {activeSession.candidates.length > 0 && (
+                                                <Accordion type="single" collapsible className="w-full">
+                                                    {activeSession.candidates.map((c, i) => (
+                                                        <CandidateCard 
+                                                            key={`${c.analysis.candidateName}-${i}`} 
+                                                            candidate={c.analysis}
+                                                            onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                        />
+                                                    ))}
+                                                </Accordion>
+                                            )}
+                                        </>
                                     )}
                                   </CardContent>
                               </Card>
@@ -701,5 +708,7 @@ export default function Home() {
         </SidebarProvider>
     )
 }
+
+    
 
     
