@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, Loader2 } from "lucide-react";
+import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -20,10 +20,9 @@ import {
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   originalAnalysis: ExtractJDCriteriaOutput | null;
-  onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => Promise<void>;
+  onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => void;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  hasCandidates: boolean;
 }
 
 const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementChange }: { 
@@ -84,9 +83,8 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
   );
 };
 
-export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange, hasCandidates }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
   const [editedJd, setEditedJd] = useState(analysis);
-  const [isSaving, setIsSaving] = useState(false);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(analysis) !== JSON.stringify(editedJd);
@@ -109,13 +107,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     });
   };
 
-  const handleSaveClick = async () => {
-    setIsSaving(true);
-    try {
-      await onSaveChanges(editedJd);
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSaveClick = () => {
+    onSaveChanges(editedJd);
   };
   
   const hasMustHaveCert = editedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
@@ -123,10 +116,10 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   const allSections = {
       education: { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
       experience: { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
+      certifications: { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
       technicalSkills: { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
       softSkills: { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
       responsibilities: { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
-      certifications: { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
   };
 
   const categorySections = [
@@ -145,8 +138,6 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   }
   
   categorySections.push(allSections.responsibilities);
-
-  const buttonText = hasCandidates ? 'Save Changes & Re-assess' : 'Save Changes';
 
   return (
     <Collapsible
@@ -196,9 +187,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                 </CardContent>
                 {isDirty && (
                     <CardFooter className="flex justify-end p-4 border-t">
-                        <Button onClick={handleSaveClick} disabled={isSaving}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {buttonText}
+                        <Button onClick={handleSaveClick}>
+                            Save Changes
                         </Button>
                     </CardFooter>
                 )}

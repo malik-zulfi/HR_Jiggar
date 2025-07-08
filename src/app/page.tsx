@@ -274,25 +274,22 @@ export default function Home() {
     await reAssessCandidates(activeSession.analyzedJd);
   };
   
-  const handleSaveChanges = async (editedJd: ExtractJDCriteriaOutput) => {
+  const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
-  
-    const wasDirty = JSON.stringify(activeSession?.analyzedJd) !== JSON.stringify(editedJd);
-  
-    setHistory(prev => prev.map(s => {
-        if (s.id === activeSessionId) {
-            return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
-        }
-        return s;
-    }));
-  
-    if (wasDirty) {
-      const candidatesToReassess = activeSession?.candidates.length > 0;
-      if (candidatesToReassess) {
-        await reAssessCandidates(editedJd);
-      } else {
-        toast({ description: "Job Description changes have been saved." });
-      }
+
+    const sessionBeforeUpdate = history.find(s => s.id === activeSessionId);
+    if (!sessionBeforeUpdate) return;
+    
+    const isDirty = JSON.stringify(sessionBeforeUpdate.analyzedJd) !== JSON.stringify(editedJd);
+
+    if (isDirty) {
+      setHistory(prev => prev.map(s => {
+          if (s.id === activeSessionId) {
+              return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
+          }
+          return s;
+      }));
+      toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
     }
     
     setIsJdAnalysisOpen(false);
@@ -451,6 +448,10 @@ export default function Home() {
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
 
+  const handleAutoAnalyze = (files: { name: string, content: string }[]) => {
+    handleJdUpload(files);
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header onNewSession={handleNewSession} />
@@ -499,7 +500,7 @@ export default function Home() {
                             <Card>
                                 <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
-                                <CardDescription>Upload or drop a Job Description (JD) file below to begin.</CardDescription>
+                                <CardDescription>Upload or drop a Job Description (JD) file below to begin analysis.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                 <div className="space-y-4">
@@ -507,7 +508,7 @@ export default function Home() {
                                     id="jd-uploader"
                                     label="Job Description"
                                     acceptedFileTypes={acceptedFileTypes}
-                                    onFileUpload={handleJdUpload}
+                                    onFileUpload={handleAutoAnalyze}
                                     onFileClear={handleJdClear}
                                     />
                                 </div>
@@ -533,7 +534,6 @@ export default function Home() {
                                     onSaveChanges={handleSaveChanges}
                                     isOpen={isJdAnalysisOpen}
                                     onOpenChange={setIsJdAnalysisOpen}
-                                    hasCandidates={activeSession.candidates.length > 0}
                                 />
 
                                 <Separator />
