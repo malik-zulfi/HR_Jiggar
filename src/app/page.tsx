@@ -21,6 +21,7 @@ import CandidateCard from "@/components/candidate-card";
 import SummaryDisplay from "@/components/summary-display";
 import FileUploader from "@/components/file-uploader";
 import ProgressLoader from "@/components/progress-loader";
+import { Badge } from "@/components/ui/badge";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
@@ -52,8 +53,10 @@ export default function Home() {
     if (!searchQuery.trim()) {
         return history;
     }
+    const lowerCaseQuery = searchQuery.toLowerCase().trim();
     return history.filter(session =>
-        session.jdName.toLowerCase().includes(searchQuery.toLowerCase().trim())
+        session.jdName.toLowerCase().includes(lowerCaseQuery) ||
+        session.analyzedJd.jobTitle?.toLowerCase().includes(lowerCaseQuery)
     );
   }, [history, searchQuery]);
 
@@ -277,21 +280,13 @@ export default function Home() {
   const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
 
-    const sessionBeforeUpdate = history.find(s => s.id === activeSessionId);
-    if (!sessionBeforeUpdate) return;
-    
-    const isDirty = JSON.stringify(sessionBeforeUpdate.analyzedJd) !== JSON.stringify(editedJd);
-
-    if (isDirty) {
-      setHistory(prev => prev.map(s => {
-          if (s.id === activeSessionId) {
-              return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
-          }
-          return s;
-      }));
-      toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
-    }
-    
+    setHistory(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+            return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
+        }
+        return s;
+    }));
+    toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
     setIsJdAnalysisOpen(false);
   };
 
@@ -473,11 +468,19 @@ export default function Home() {
                         <SidebarMenu>
                             {filteredHistory.length > 0 ? filteredHistory.map(session => (
                                 <SidebarMenuItem key={session.id}>
-                                    <SidebarMenuButton 
+                                    <SidebarMenuButton
                                         onClick={() => setActiveSessionId(session.id)}
                                         isActive={session.id === activeSessionId}
+                                        className="h-auto py-2"
                                     >
-                                        <span className="truncate" title={session.jdName}>{session.jdName}</span>
+                                        <div className="flex flex-col items-start w-full overflow-hidden">
+                                            <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
+                                                {session.analyzedJd.jobTitle || session.jdName}
+                                            </span>
+                                            {session.analyzedJd.jobTitle && (
+                                                <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
+                                            )}
+                                        </div>
                                     </SidebarMenuButton>
                                     <SidebarMenuAction
                                         onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
