@@ -2,13 +2,15 @@
 
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
 interface CandidateCardProps {
   candidate: AnalyzedCandidate;
+  onDelete: () => void;
 }
 
 const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation']) => {
@@ -33,20 +35,35 @@ const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation
     }
 };
 
-export default function CandidateCard({ candidate }: CandidateCardProps) {
+export default function CandidateCard({ candidate, onDelete }: CandidateCardProps) {
   const recommendationInfo = getRecommendationInfo(candidate.recommendation);
 
   return (
     <AccordionItem value={candidate.candidateName}>
       <AccordionTrigger className="hover:no-underline px-4 py-3 data-[state=open]:bg-accent/10 [&>svg]:hidden">
         <div className="flex items-center justify-between w-full gap-4">
-          <span className="font-semibold text-foreground truncate">{candidate.candidateName}</span>
-          <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
-            <div className="flex items-center gap-2">
-              {recommendationInfo.icon}
-              {candidate.recommendation}
-            </div>
-          </Badge>
+          <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
+          <div className="flex items-center gap-2">
+            <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
+              <div className="flex items-center gap-2">
+                {recommendationInfo.icon}
+                {candidate.recommendation}
+              </div>
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onDelete();
+              }}
+              aria-label="Remove candidate"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">

@@ -404,6 +404,28 @@ export default function Home() {
     }
   };
 
+  const handleDeleteCandidate = (candidateNameToDelete: string) => {
+    if (!activeSessionId) return;
+
+    setHistory(prev =>
+        prev.map(session => {
+            if (session.id === activeSessionId) {
+                const updatedCandidates = session.candidates.filter(
+                    c => c.analysis.candidateName !== candidateNameToDelete
+                );
+                return {
+                    ...session,
+                    candidates: updatedCandidates,
+                    summary: null, // Invalidate summary
+                };
+            }
+            return session;
+        })
+    );
+
+    toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
+  };
+  
   const acceptedFileTypes = ".pdf,.docx,.txt";
 
   return (
@@ -549,7 +571,11 @@ export default function Home() {
                                             ) : (
                                                 <Accordion type="single" collapsible className="w-full">
                                                     {activeSession.candidates.map((c, i) => (
-                                                        <CandidateCard key={`${c.analysis.candidateName}-${i}`} candidate={c.analysis} />
+                                                        <CandidateCard 
+                                                            key={`${c.analysis.candidateName}-${i}`} 
+                                                            candidate={c.analysis}
+                                                            onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                        />
                                                     ))}
                                                 </Accordion>
                                             )}
