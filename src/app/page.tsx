@@ -81,6 +81,7 @@ function HomePageContent() {
                 if (!result.data.originalAnalyzedJd) {
                     result.data.originalAnalyzedJd = JSON.parse(JSON.stringify(result.data.analyzedJd));
                 }
+                result.data.candidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
                 return result.data;
             }
             console.warn("Found and skipped invalid session data from localStorage:", result.error);
@@ -266,6 +267,8 @@ function HomePageContent() {
             });
         }
         
+        updatedCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+
         setHistory(prev => prev.map(s => {
           if (s.id === activeSessionId) {
             return { ...s, candidates: updatedCandidates, summary: null }; // Invalidate summary
@@ -356,9 +359,11 @@ function HomePageContent() {
         if (session.id === activeSessionId) {
           const existingNames = new Set(session.candidates.map(c => c.cvName));
           const newCandidatesToAdd = newCandidates.filter(nc => !existingNames.has(nc.cvName));
+          const allCandidates = [...session.candidates, ...newCandidatesToAdd];
+          allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
           return {
             ...session,
-            candidates: [...session.candidates, ...newCandidatesToAdd],
+            candidates: allCandidates,
             summary: null, // Invalidate summary
           };
         }
