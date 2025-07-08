@@ -181,9 +181,9 @@ function HomePageContent() {
       setActiveSessionId(newSession.id);
       setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: error?.message || "An unexpected error occurred. Please try again." });
+      toast({ variant: "destructive", title: "Analysis Error", description: "An unexpected response was received from the server." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -229,7 +229,7 @@ function HomePageContent() {
               toast({
                   variant: "destructive",
                   title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
-                  description: error?.message || "An unexpected error occurred. Please try again.",
+                  description: "An unexpected response was received from the server.",
               });
               return oldCandidate; // Keep the old data on failure
             })
@@ -247,9 +247,9 @@ function HomePageContent() {
         }));
 
         toast({ description: "All candidates have been re-assessed." });
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: error?.message || "An unexpected error occurred during re-assessment. Please try again." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected response was received from the server." });
       } finally {
         setReassessProgress(null);
       }
@@ -295,14 +295,11 @@ function HomePageContent() {
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
-      let assessedCount = 0;
       const newCandidates: CandidateRecord[] = [];
 
       const analysisPromises = cvs.map(cv =>
         analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession!.analyzedJd, cv: cv.content })
           .then(analysis => {
-            assessedCount++;
-            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length });
             const candidateRecord = {
               cvName: cv.fileName,
               cvContent: cv.content,
@@ -312,13 +309,11 @@ function HomePageContent() {
             return candidateRecord;
           })
           .catch(error => {
-            assessedCount++;
-            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length });
             console.error(`Error analyzing CV for ${cv.fileName}:`, error);
             toast({
               variant: "destructive",
               title: `Analysis Failed for ${cv.fileName}`,
-              description: error?.message || "An unexpected error occurred. Please try again.",
+              description: "An unexpected response was received from the server.",
             });
             return null;
           })
@@ -349,9 +344,9 @@ function HomePageContent() {
 
       setCvs([]);
       setCvResetKey(key => key + 1);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: error?.message || "An unexpected error occurred during the assessment process. Please try again." });
+      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected response was received from the server." });
     } finally {
       setNewCvAnalysisProgress(null);
     }
@@ -407,9 +402,9 @@ function HomePageContent() {
       }));
 
       toast({ description: "Candidate summary generated." });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: error?.message || "An unexpected error occurred. Please try again." });
+      toast({ variant: "destructive", title: "Summary Error", description: "An unexpected response was received from the server." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
