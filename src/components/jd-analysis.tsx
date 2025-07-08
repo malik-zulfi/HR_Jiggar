@@ -153,7 +153,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
             <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                        <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                        <CardTitle className="flex items-center gap-2">
                             <Briefcase className="h-5 w-5 text-primary"/>
                             <span>{analysis.jobTitle || 'Job Description Breakdown'}</span>
                             {analysis.positionNumber && <Badge variant="outline">#{analysis.positionNumber}</Badge>}

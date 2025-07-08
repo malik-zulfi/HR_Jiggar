@@ -13,12 +13,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { SidebarTrigger } from "./ui/sidebar";
 
 export function Header({ onNewSession }: { onNewSession: () => void }) {
   return (
     <header className="p-4 border-b bg-card">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
+            <SidebarTrigger />
             <div className="p-2 bg-primary/10 rounded-lg">
               <Bot className="w-6 h-6 text-primary" />
             </div>
