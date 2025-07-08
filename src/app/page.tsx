@@ -478,7 +478,7 @@ function HomePageContent() {
           className="flex flex-1 w-full"
           style={
             {
-              "--sidebar-width": "16rem",
+              "--sidebar-width": "18rem",
               "--sidebar-width-collapsed": "3.5rem",
             } as React.CSSProperties
           }
@@ -514,6 +514,36 @@ function HomePageContent() {
                       </h2>
                   )}
               </SidebarHeader>
+
+              {activeSession && isExpanded && (
+                <div className="p-4 border-b border-sidebar-border space-y-4">
+                    <FileUploader
+                        key={cvResetKey}
+                        id="cv-uploader"
+                        label="Upload CVs to assess"
+                        acceptedFileTypes={acceptedFileTypes}
+                        onFileUpload={handleCvUpload}
+                        onFileClear={handleCvClear}
+                        multiple={true}
+                    />
+                    {newCvAnalysisProgress ? (
+                        <ProgressLoader
+                            title="Assessing Candidate(s)"
+                            current={newCvAnalysisProgress.current}
+                            total={newCvAnalysisProgress.total}
+                            itemName={newCvAnalysisProgress.name}
+                            steps={analysisSteps}
+                            currentStepIndex={currentStepIndex}
+                        />
+                    ) : (
+                        <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
+                            <FileText className="mr-2" />
+                            Add and Assess Candidate(s)
+                        </Button>
+                    )}
+                </div>
+              )}
+
               <SidebarContent className={cn(!isExpanded && "hidden")}>
                   <SidebarMenu>
                       {filteredHistory.length > 0 ? filteredHistory.map(session => {
@@ -593,48 +623,14 @@ function HomePageContent() {
                           />
 
                           <Separator />
-
-                          <Card>
-                              <CardHeader>
-                              <CardTitle className="flex items-center gap-2"><FileText /> Step 2: Assess Candidate CVs</CardTitle>
-                              <CardDescription>Upload one or more CVs to get an assessment against the JD.</CardDescription>
-                              </CardHeader>
-                              <CardContent>
-                              <div className="space-y-4">
-                                  <FileUploader
-                                      key={cvResetKey}
-                                      id="cv-uploader"
-                                      label="Candidate CV(s)"
-                                      acceptedFileTypes={acceptedFileTypes}
-                                      onFileUpload={handleCvUpload}
-                                      onFileClear={handleCvClear}
-                                      multiple={true}
-                                  />
-                                  {newCvAnalysisProgress ? (
-                                      <ProgressLoader
-                                          title="Assessing Candidate(s)"
-                                          current={newCvAnalysisProgress.current}
-                                          total={newCvAnalysisProgress.total}
-                                          itemName={newCvAnalysisProgress.name}
-                                          steps={analysisSteps}
-                                          currentStepIndex={currentStepIndex}
-                                      />
-                                  ) : (
-                                      <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0}>
-                                          Add and Assess Candidate(s)
-                                      </Button>
-                                  )}
-                              </div>
-                              </CardContent>
-                          </Card>
-
+                          
                           {activeSession.candidates.length > 0 && (
                               <>
                                   <Card>
                                       <CardHeader>
                                           <div className="flex items-center justify-between gap-4">
                                               <div>
-                                                  <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
+                                                  <CardTitle className="flex items-center gap-2"><Users /> Step 2: Review Candidates</CardTitle>
                                                   <CardDescription>Review assessments or re-assess all candidates with the current JD.</CardDescription>
                                               </div>
                                               <Button 
@@ -675,7 +671,7 @@ function HomePageContent() {
 
                                   <Card>
                                       <CardHeader>
-                                          <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 4: Generate Summary</CardTitle>
+                                          <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 3: Generate Summary</CardTitle>
                                           <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
                                       </CardHeader>
                                       <CardContent>
