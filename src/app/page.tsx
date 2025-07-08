@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw } from "lucide-react";
-import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput } from "@/components/ui/sidebar";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
@@ -25,6 +25,23 @@ import { Badge } from "@/components/ui/badge";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
+
+const DesktopSidebarToggle = () => {
+    const { state, toggleSidebar } = useSidebar();
+    const isExpanded = state === 'expanded';
+
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="hidden md:flex absolute top-2 left-2 z-20 h-8 w-8"
+        >
+            {isExpanded ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
+            <span className="sr-only">Toggle sidebar</span>
+        </Button>
+    )
+};
 
 export default function Home() {
   const { toast } = useToast();
@@ -498,6 +515,7 @@ export default function Home() {
                 </SidebarContent>
             </Sidebar>
             <SidebarInset className="overflow-y-auto w-full">
+                <DesktopSidebarToggle />
                 <div className="space-y-8 p-4 md:p-8">
                     {!activeSession && !jdAnalysisProgress && (
                         <Card>
