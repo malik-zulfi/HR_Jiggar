@@ -16,8 +16,9 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (error: any) {
+      const errorMessage = error.message || '';
       // Check if the error message indicates a transient, retryable error
-      if (error.message && (error.message.includes('503') || error.message.toLowerCase().includes('overloaded'))) {
+      if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded') || errorMessage.includes('Schema validation failed')) {
         lastError = error;
         const delay = INITIAL_DELAY_MS * Math.pow(2, i);
         console.log(`Attempt ${i + 1} failed with a transient error. Retrying in ${delay}ms...`);
@@ -31,5 +32,5 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   
   // If all retries have been exhausted, throw the last captured error
   console.error("All retry attempts failed.", lastError);
-  throw new Error(`The service is currently unavailable after multiple retries. Please try again later. Last error: ${lastError.message}`);
+  throw new Error(`The AI service failed to respond correctly after multiple retries. Please try again later. Last error: ${lastError.message}`);
 }
