@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
@@ -28,25 +28,10 @@ import { cn } from "@/lib/utils";
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
 
-const DesktopSidebarToggle = () => {
-    const { state, toggleSidebar } = useSidebar();
-    const isExpanded = state === 'expanded';
-
-    return (
-        <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            className="hidden md:flex absolute top-2 left-2 z-20 h-8 w-8"
-        >
-            {isExpanded ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
-            <span className="sr-only">Toggle sidebar</span>
-        </Button>
-    )
-};
-
 function HomePageContent() {
   const { toast } = useToast();
+  const { state, toggleSidebar } = useSidebar();
+  const isExpanded = state === 'expanded';
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -489,23 +474,42 @@ function HomePageContent() {
           style={
             {
               "--sidebar-width": "16rem",
-              "--sidebar-width-icon": "3rem",
+              "--sidebar-width-collapsed": "3.5rem",
             } as React.CSSProperties
           }
       >
           <Sidebar side="left" className="h-full">
-              <SidebarHeader>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">
-                      <History className="w-5 h-5"/>
-                      Assessments
-                  </h2>
-                  <SidebarInput
-                      placeholder="Search assessments..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+              <SidebarHeader
+                onClick={toggleSidebar}
+                className={cn(
+                  "cursor-pointer transition-all",
+                  isExpanded ? "p-2 gap-2" : "p-2 items-center justify-center h-full"
+                )}
+              >
+                  {isExpanded ? (
+                      <>
+                          <div className="flex items-center justify-between w-full">
+                              <h2 className="text-lg font-semibold flex items-center gap-2">
+                                  <History className="w-5 h-5"/>
+                                  Assessments
+                              </h2>
+                              <PanelLeftClose className="w-5 h-5 text-muted-foreground"/>
+                          </div>
+                          <SidebarInput
+                              placeholder="Search assessments..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                          />
+                      </>
+                  ) : (
+                      <h2 className="[writing-mode:vertical-rl] rotate-180 font-semibold whitespace-nowrap flex items-center gap-2">
+                          <History className="w-5 h-5"/>
+                          Assessments
+                      </h2>
+                  )}
               </SidebarHeader>
-              <SidebarContent>
+              <SidebarContent className={cn(!isExpanded && "hidden")}>
                   <SidebarMenu>
                       {filteredHistory.length > 0 ? filteredHistory.map(session => {
                           if (!session || !session.analyzedJd) return null;
@@ -542,7 +546,6 @@ function HomePageContent() {
               </SidebarContent>
           </Sidebar>
           <SidebarInset className="overflow-y-auto">
-              <DesktopSidebarToggle />
               <div className="space-y-8 p-4 md:p-8">
                   {!activeSession && !jdAnalysisProgress && (
                       <Card>

@@ -22,9 +22,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContext = {
@@ -165,8 +163,8 @@ const Sidebar = React.forwardRef<
         data-state={state}
         className={cn(
             "hidden md:flex flex-col h-full bg-sidebar text-sidebar-foreground border-r",
-            "transition-all duration-200 ease-linear",
-            "w-[var(--sidebar-width)] data-[state=collapsed]:w-[var(--sidebar-width-icon)]",
+            "transition-all duration-300 ease-in-out",
+            "w-[var(--sidebar-width)] data-[state=collapsed]:w-[var(--sidebar-width-collapsed)]",
             className
         )}
         {...props}
@@ -208,11 +206,13 @@ const SidebarInset = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"main">
 >(({ className, ...props }, ref) => {
+  const { state } = useSidebar()
   return (
     <main
       ref={ref}
+      data-state={state}
       className={cn(
-        "relative flex flex-1 flex-col bg-background",
+        "transition-all duration-300 ease-in-out flex-1",
         className
       )}
       {...props}
@@ -248,7 +248,7 @@ const SidebarHeader = React.forwardRef<
         <div
             ref={ref}
             data-sidebar="header"
-            className={cn("flex flex-col gap-2 p-2 data-[state=collapsed]:p-1", className)}
+            className={cn("flex flex-col", className)}
             data-state={state}
             {...props}
         />
@@ -297,7 +297,7 @@ const SidebarContent = React.forwardRef<
       data-sidebar="content"
       data-state={state}
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto data-[state=collapsed]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto",
         className
       )}
       {...props}
