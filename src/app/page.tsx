@@ -514,7 +514,7 @@ export default function Home() {
                     </SidebarMenu>
                 </SidebarContent>
             </Sidebar>
-            <SidebarInset className="overflow-y-auto w-full">
+            <SidebarInset className="overflow-y-auto">
                 <DesktopSidebarToggle />
                 <div className="space-y-8 p-4 md:p-8">
                     {!activeSession && !jdAnalysisProgress && (
