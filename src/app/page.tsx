@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2 } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
@@ -183,21 +183,24 @@ export default function Home() {
   }
   
   const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
-    const hasMustHaveCert = jd.certifications?.some(c => c.priority === 'MUST-HAVE');
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jd;
+    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
 
-    const educationSteps = jd.education.map(req => req.description);
-    const experienceSteps = jd.experience.map(req => req.description);
-    const techSteps = jd.technicalSkills.map(req => req.description);
-    const softSteps = jd.softSkills.map(req => req.description);
-    const certSteps = jd.certifications.map(req => req.description);
-    const respSteps = jd.responsibilities.map(req => req.description);
+    const educationSteps = education.map(req => req.description);
+    const experienceSteps = experience.map(req => req.description);
+    const techSteps = technicalSkills.map(req => req.description);
+    const softSteps = softSkills.map(req => req.description);
+    const certSteps = certifications.map(req => req.description);
+    const respSteps = responsibilities.map(req => req.description);
 
     let allSteps: string[] = [];
-    allSteps.push(...educationSteps, ...experienceSteps);
+    allSteps.push(...educationSteps);
+    allSteps.push(...experienceSteps);
     if (hasMustHaveCert) {
         allSteps.push(...certSteps);
     }
-    allSteps.push(...techSteps, ...softSteps);
+    allSteps.push(...techSteps);
+    allSteps.push(...softSteps);
     if (!hasMustHaveCert) {
         allSteps.push(...certSteps);
     }
@@ -258,6 +261,18 @@ export default function Home() {
         setAnalysisSteps([]);
       }
     };
+
+  const handleReassessClick = async () => {
+    if (!activeSession || !activeSession.analyzedJd || activeSession.candidates.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Cannot Re-assess",
+            description: "There are no candidates in this session to re-assess.",
+        });
+        return;
+    }
+    await reAssessCandidates(activeSession.analyzedJd);
+  };
   
   const handleSaveChanges = async (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
@@ -561,8 +576,20 @@ export default function Home() {
                                     <>
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
-                                                <CardDescription>Here are the assessments for the submitted candidates. When you're done, generate a final summary.</CardDescription>
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div>
+                                                        <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
+                                                        <CardDescription>Review assessments or re-assess all candidates with the current JD.</CardDescription>
+                                                    </div>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        onClick={handleReassessClick}
+                                                        disabled={reassessProgress !== null || !activeSession || activeSession.candidates.length === 0}
+                                                    >
+                                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                                        Re-assess All
+                                                    </Button>
+                                                </div>
                                             </CardHeader>
                                             <CardContent>
                                             {reassessProgress ? (
