@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
 import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown } from "lucide-react";
@@ -101,9 +102,12 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   ) => {
     setEditedJd(prevJd => {
         const newAnalyzedJd = { ...prevJd };
-        const category = [...(newAnalyzedJd[categoryKey] as Requirement[])];
-        category[index] = { ...category[index], priority: newPriority };
-        return { ...newAnalyzedJd, [categoryKey]: category };
+        if (Array.isArray(newAnalyzedJd[categoryKey])) {
+            const category = [...(newAnalyzedJd[categoryKey] as Requirement[])];
+            category[index] = { ...category[index], priority: newPriority };
+            return { ...newAnalyzedJd, [categoryKey]: category };
+        }
+        return newAnalyzedJd;
     });
   };
 
@@ -149,7 +153,11 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
             <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                        <CardTitle>Job Description Breakdown</CardTitle>
+                        <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                            <Briefcase className="h-5 w-5 text-primary"/>
+                            <span>{analysis.jobTitle || 'Job Description Breakdown'}</span>
+                            {analysis.positionNumber && <Badge variant="outline">#{analysis.positionNumber}</Badge>}
+                        </CardTitle>
                         <CardDescription>The JD has been deconstructed. Expand to see details and adjust requirement priorities.</CardDescription>
                     </div>
                     <TooltipProvider>
@@ -176,8 +184,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                           <RequirementList
                             key={section.key}
                             title={section.title}
-                            requirements={editedJd[section.key as keyof ExtractJDCriteriaOutput]}
-                            originalRequirements={originalAnalysis?.[section.key as keyof ExtractJDCriteriaOutput]}
+                            requirements={editedJd[section.key as keyof ExtractJDCriteriaOutput] as Requirement[]}
+                            originalRequirements={originalAnalysis?.[section.key as keyof ExtractJDCriteriaOutput] as Requirement[]}
                             icon={section.icon}
                             categoryKey={section.key as keyof ExtractJDCriteriaOutput}
                             onRequirementChange={handleRequirementChange}

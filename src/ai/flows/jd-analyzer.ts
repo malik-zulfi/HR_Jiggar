@@ -26,8 +26,11 @@ const prompt = ai.definePrompt({
   name: 'extractJDCriteriaPrompt',
   input: {schema: ExtractJDCriteriaInputSchema},
   output: {schema: ExtractJDCriteriaOutputSchema},
-  prompt: `You are an expert recruiter. Please analyze the following job description and extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
+  prompt: `You are an expert recruiter. Please analyze the following job description.
 
+First, extract the job title and the position/requisition number (if available).
+
+Then, extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
 For each requirement, indicate whether it is a MUST-HAVE or NICE-TO-HAVE.
 
 Job Description:

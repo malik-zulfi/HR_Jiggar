@@ -100,7 +100,8 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
       </div>
 
       <div className="mb-8 p-4 border border-gray-200 rounded-lg break-inside-avoid">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">Job Description Breakdown</h2>
+        <h2 className="text-2xl font-bold mb-1 text-gray-800">{analyzedJd.jobTitle || 'Job Description Breakdown'}</h2>
+        {analyzedJd.positionNumber && <p className="text-md text-gray-600 mb-4">Position #{analyzedJd.positionNumber}</p>}
         <div className="columns-2 gap-8">
             <RequirementList title="Education" requirements={analyzedJd.education} />
             <RequirementList title="Experience" requirements={analyzedJd.experience} />
