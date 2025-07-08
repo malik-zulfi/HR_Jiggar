@@ -12,7 +12,7 @@ const RequirementList = ({ title, requirements }: { title: string; requirements:
   return (
     <div className="mb-4 break-inside-avoid">
       <h3 className="text-xl font-bold mb-2 text-gray-800">{title}</h3>
-      <ul className="list-disc list-inside space-y-1">
+      <ul className="list-disc list-outside pl-5 space-y-1">
         {requirements.map((req, index) => (
           <li key={index} className="text-gray-700">
             {req.description} <span className="text-sm font-semibold">({req.priority.replace('-', ' ')})</span>
@@ -135,13 +135,13 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
         <div className="grid grid-cols-2 gap-6 mb-4">
             <div>
                 <h3 className="text-xl font-bold mb-2 text-gray-800">Common Strengths</h3>
-                <ul className="list-disc list-inside text-gray-700">
+                <ul className="list-disc list-outside pl-5 text-gray-700">
                 {summary.commonStrengths.map((s, i) => <li key={`strength-${i}`}>{s}</li>)}
                 </ul>
             </div>
             <div>
                 <h3 className="text-xl font-bold mb-2 text-gray-800">Common Gaps</h3>
-                <ul className="list-disc list-inside text-gray-700">
+                <ul className="list-disc list-outside pl-5 text-gray-700">
                 {summary.commonGaps.map((g, i) => <li key={`gap-${i}`}>{g}</li>)}
                 </ul>
             </div>
@@ -178,13 +178,13 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
             <div className="grid grid-cols-2 gap-6 mb-4">
                 <div>
                     <h4 className="font-bold text-lg mb-1">Strengths</h4>
-                    <ul className="list-disc list-inside text-gray-700">
+                    <ul className="list-disc list-outside pl-5 text-gray-700">
                         {candidate.strengths.map((s, i) => <li key={`s-${i}`}>{s}</li>)}
                     </ul>
                 </div>
                  <div>
                     <h4 className="font-bold text-lg mb-1">Weaknesses</h4>
-                    <ul className="list-disc list-inside text-gray-700">
+                    <ul className="list-disc list-outside pl-5 text-gray-700">
                         {candidate.weaknesses.map((w, i) => <li key={`w-${i}`}>{w}</li>)}
                     </ul>
                 </div>
@@ -192,7 +192,7 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
 
             <div className="mb-4">
                 <h4 className="font-bold text-lg mb-1">Interview Probes</h4>
-                <ul className="list-disc list-inside text-gray-700">
+                <ul className="list-disc list-outside pl-5 text-gray-700">
                     {candidate.interviewProbes.map((p, i) => <li key={`p-${i}`}>{p}</li>)}
                 </ul>
             </div>
