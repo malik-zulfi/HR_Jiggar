@@ -118,6 +118,33 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     if (output) {
       output.candidateName = toTitleCase(output.candidateName);
 
+      // Programmatic Score Calculation
+      const allRequirements = [
+        ...jobDescriptionCriteria.education, 
+        ...jobDescriptionCriteria.experience, 
+        ...jobDescriptionCriteria.technicalSkills, 
+        ...jobDescriptionCriteria.softSkills, 
+        ...jobDescriptionCriteria.certifications, 
+        ...jobDescriptionCriteria.responsibilities
+      ];
+
+      let maxScore = 0;
+      allRequirements.forEach(req => {
+          maxScore += req.priority === 'MUST-HAVE' ? 10 : 5;
+      });
+
+      let candidateScore = 0;
+      output.alignmentDetails.forEach(detail => {
+        if (detail.status === 'Aligned') {
+            candidateScore += detail.priority === 'MUST-HAVE' ? 10 : 5;
+        } else if (detail.status === 'Partially Aligned') {
+            candidateScore += detail.priority === 'MUST-HAVE' ? 3 : 1;
+        }
+      });
+      
+      output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
+
+
       // Enforce the disqualification rule programmatically as a safeguard
       const isDisqualified = output.alignmentDetails.some(detail =>
           (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&

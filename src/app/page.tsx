@@ -383,6 +383,7 @@ export default function Home() {
     try {
       const candidateAssessments = activeSession.candidates.map(c => ({
         candidateName: c.analysis.candidateName,
+        alignmentScore: c.analysis.alignmentScore,
         recommendation: c.analysis.recommendation,
         strengths: c.analysis.strengths,
         weaknesses: c.analysis.weaknesses,

@@ -32,6 +32,12 @@ const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation
     }
 };
 
+const getScoreInfo = (score: number) => {
+    if (score >= 75) return 'bg-green-100 text-green-800';
+    if (score >= 40) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+};
+
 const statusInfo: Record<AlignmentDetail['status'], { text: string; className: string }> = {
   'Aligned': { text: '✔ Aligned', className: "text-green-700" },
   'Partially Aligned': { text: '! Partially Aligned', className: "text-yellow-700" },
@@ -151,11 +157,16 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
         <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Candidate Assessments</h2>
         {candidates.map((candidate, index) => (
           <div key={`${candidate.candidateName}-${index}`} className="mb-6 p-4 border border-gray-200 rounded-lg break-inside-avoid">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-start mb-4">
                 <h3 className="text-2xl font-bold">{candidate.candidateName}</h3>
-                <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getRecommendationInfo(candidate.recommendation)}`}>
-                    {candidate.recommendation}
-                </span>
+                <div className="flex flex-col items-end gap-2 text-right">
+                    <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getRecommendationInfo(candidate.recommendation)}`}>
+                        {candidate.recommendation}
+                    </span>
+                    <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getScoreInfo(candidate.alignmentScore)}`}>
+                        Alignment Score: {candidate.alignmentScore}%
+                    </span>
+                </div>
             </div>
             
             <div className="mb-4">

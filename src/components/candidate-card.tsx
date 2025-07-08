@@ -6,7 +6,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
@@ -37,6 +37,16 @@ const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation
     }
 };
 
+const getScoreBadgeClass = (score: number) => {
+    if (score >= 75) {
+        return "bg-green-100 text-green-800 border-green-200 hover:bg-green-100/80";
+    }
+    if (score >= 40) {
+        return "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-100/80";
+    }
+    return "bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80";
+};
+
 export default function CandidateCard({ candidate, onDelete }: CandidateCardProps) {
   const recommendationInfo = getRecommendationInfo(candidate.recommendation);
 
@@ -44,8 +54,14 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
     <AccordionItem value={candidate.candidateName}>
         <AccordionPrimitive.Header className="flex w-full items-center p-0">
             <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between p-4 font-medium transition-all hover:no-underline data-[state=open]:bg-accent/10">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
+                     <Badge className={cn("whitespace-nowrap font-bold", getScoreBadgeClass(candidate.alignmentScore))}>
+                        <div className="flex items-center gap-1">
+                            <TrendingUp className="h-4 w-4" />
+                            {candidate.alignmentScore}%
+                        </div>
+                    </Badge>
                     <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
                         <div className="flex items-center gap-2">
                             {recommendationInfo.icon}

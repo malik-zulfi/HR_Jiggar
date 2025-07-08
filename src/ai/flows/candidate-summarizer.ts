@@ -43,14 +43,15 @@ const prompt = ai.definePrompt({
   Candidate Assessments:
   {{#each candidateAssessments}}
   - Candidate Name: {{{candidateName}}}
+    Score: {{{alignmentScore}}}%
     Recommendation: {{{recommendation}}}
     Strengths: {{#each strengths}}{{{this}}}, {{/each}}
     Weaknesses: {{#each weaknesses}}{{{this}}}, {{/each}}
     Interview Probes: {{#each interviewProbes}}{{{this}}}, {{/each}}
   {{/each}}
 
-  Based on the job criteria and the candidate assessments you've been given:
-  1. Categorize candidates into one of three tiers: Top Tier, Mid Tier, or Not Suitable.
+  Based on the job criteria, scores, and the candidate assessments you've been given:
+  1. Categorize candidates into one of three tiers: Top Tier, Mid Tier, or Not Suitable. Use the alignment score as a primary factor when tiering.
   2. Highlight the most common strengths you observed across all candidates.
   3. Identify the most common gaps or weaknesses found in the candidate pool.
   4. Formulate and suggest a concise interview strategy that focuses on probing the identified common gaps to better evaluate future candidates.
