@@ -21,6 +21,7 @@ const prompt = ai.definePrompt({
   name: 'ocrPrompt',
   input: {schema: OcrInputSchema},
   output: {schema: OcrOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are an Optical Character Recognition (OCR) expert. Extract all text from the following image. Preserve formatting like paragraphs and line breaks as much as possible.
 
 Image:

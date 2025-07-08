@@ -51,6 +51,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   output: {
     schema: AnalyzeCVAgainstJDPromptOutputSchema,
   },
+  config: { temperature: 0.0 },
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
 **Analysis Steps:**

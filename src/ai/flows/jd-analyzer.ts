@@ -27,6 +27,7 @@ const prompt = ai.definePrompt({
   name: 'extractJDCriteriaPrompt',
   input: {schema: ExtractJDCriteriaInputSchema},
   output: {schema: ExtractJDCriteriaOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
 First, extract the job title and the position/requisition number (if available).

@@ -36,6 +36,7 @@ const prompt = ai.definePrompt({
   name: 'summarizeCandidateAssessmentsPrompt',
   input: {schema: DynamicSummaryPromptInputSchema},
   output: {schema: CandidateSummaryOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are a hiring manager summarizing candidate assessments for a job.
 
   Job Description Criteria:

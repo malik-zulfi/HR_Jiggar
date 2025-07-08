@@ -26,6 +26,7 @@ const prompt = ai.definePrompt({
   name: 'extractCandidateNamePrompt',
   input: {schema: ExtractCandidateNameInputSchema},
   output: {schema: ExtractCandidateNameOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are an expert CV parser. Your sole task is to extract the full name of the candidate from the following CV text. Format the name in Title Case (e.g., "John Doe"). Return only the name and nothing else. If you cannot determine the name, return an empty string.
 
 CV Text:
