@@ -129,26 +129,40 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
       output.candidateName = toTitleCase(output.candidateName);
 
       // Programmatic Score Calculation
-      const allRequirements = [
-        ...jobDescriptionCriteria.education, 
-        ...jobDescriptionCriteria.experience, 
-        ...jobDescriptionCriteria.technicalSkills, 
-        ...jobDescriptionCriteria.softSkills, 
-        ...jobDescriptionCriteria.certifications, 
-        ...jobDescriptionCriteria.responsibilities
-      ];
-
       let maxScore = 0;
-      allRequirements.forEach(req => {
-          maxScore += req.priority === 'MUST-HAVE' ? 10 : 5;
-      });
+      const calculateMaxScore = (reqs: Requirement[] | undefined, isResponsibility = false) => {
+        if (!reqs) return;
+        reqs.forEach(req => {
+            if (req.priority === 'MUST-HAVE') {
+                maxScore += isResponsibility ? 5 : 10;
+            } else { // NICE-TO-HAVE
+                maxScore += 5;
+            }
+        });
+      };
+
+      calculateMaxScore(jobDescriptionCriteria.education);
+      calculateMaxScore(jobDescriptionCriteria.experience);
+      calculateMaxScore(jobDescriptionCriteria.technicalSkills);
+      calculateMaxScore(jobDescriptionCriteria.softSkills);
+      calculateMaxScore(jobDescriptionCriteria.certifications);
+      calculateMaxScore(jobDescriptionCriteria.responsibilities, true);
 
       let candidateScore = 0;
       output.alignmentDetails.forEach(detail => {
+        const isResponsibility = detail.category.toLowerCase().includes('responsibility');
         if (detail.status === 'Aligned') {
-            candidateScore += detail.priority === 'MUST-HAVE' ? 10 : 5;
+            if (detail.priority === 'MUST-HAVE') {
+                candidateScore += isResponsibility ? 5 : 10;
+            } else { // NICE-TO-HAVE
+                candidateScore += 5;
+            }
         } else if (detail.status === 'Partially Aligned') {
-            candidateScore += detail.priority === 'MUST-HAVE' ? 3 : 1;
+            if (detail.priority === 'MUST-HAVE') {
+                candidateScore += isResponsibility ? 1 : 3;
+            } else { // NICE-TO-HAVE
+                candidateScore += 1;
+            }
         }
       });
       
