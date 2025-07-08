@@ -18,6 +18,7 @@ import {
     type CandidateSummaryOutput,
     type Requirement
 } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 
 export type { CandidateSummaryInput, CandidateSummaryOutput };
@@ -88,10 +89,10 @@ const summarizeCandidateAssessmentsFlow = ai.defineFlow(
     }
     formattedCriteria += formatSection('Responsibility', responsibilities);
 
-    const {output} = await prompt({
+    const {output} = await withRetry(() => prompt({
         formattedCriteria,
         candidateAssessments
-    });
+    }));
     return output!;
   }
 );

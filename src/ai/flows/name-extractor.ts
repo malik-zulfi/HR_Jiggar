@@ -14,6 +14,7 @@ import {
     type ExtractCandidateNameInput,
     type ExtractCandidateNameOutput
 } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 export type { ExtractCandidateNameInput, ExtractCandidateNameOutput };
 
@@ -48,7 +49,7 @@ const extractCandidateNameFlow = ai.defineFlow(
     outputSchema: ExtractCandidateNameOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     if (output) {
         return {
             candidateName: toTitleCase(output.candidateName)

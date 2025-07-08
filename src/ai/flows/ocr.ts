@@ -9,6 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import { OcrInputSchema, OcrOutputSchema, type OcrInput, type OcrOutput } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 export type { OcrInput, OcrOutput };
 
@@ -33,7 +34,7 @@ const performOcrFlow = ai.defineFlow(
     outputSchema: OcrOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     return output!;
   }
 );

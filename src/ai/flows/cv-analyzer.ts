@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -18,6 +17,7 @@ import {
   type AnalyzeCVAgainstJDOutput,
   type Requirement,
 } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
   jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
@@ -119,11 +119,11 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     formattedCriteria += formatSection('Responsibility', responsibilities);
 
     const currentDate = new Date().toDateString();
-    const {output} = await analyzeCVAgainstJDPrompt({
+    const {output} = await withRetry(() => analyzeCVAgainstJDPrompt({
         formattedCriteria,
         cv,
         currentDate
-    });
+    }));
 
     if (output) {
       output.candidateName = toTitleCase(output.candidateName);

@@ -10,6 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { ExtractJDCriteriaOutputSchema, type ExtractJDCriteriaOutput } from '@/lib/types';
+import { withRetry } from '@/lib/retry';
 
 const ExtractJDCriteriaInputSchema = z.object({
   jobDescription: z.string().describe('The Job Description to analyze.'),
@@ -46,7 +47,7 @@ const extractJDCriteriaFlow = ai.defineFlow(
     outputSchema: ExtractJDCriteriaOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await withRetry(() => prompt(input));
     return output!;
   }
 );
