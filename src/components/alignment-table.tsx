@@ -87,8 +87,8 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
             <Table className="table-fixed w-full">
                 <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-[35%] p-4">Requirement</TableHead>
-                        <TableHead className="w-[50%] p-4">Justification</TableHead>
+                        <TableHead className="w-[45%] p-4">Requirement</TableHead>
+                        <TableHead className="w-[40%] p-4">Justification</TableHead>
                         <TableHead className="w-[15%] text-center p-4">Status</TableHead>
                     </TableRow>
                 </TableHeader>
