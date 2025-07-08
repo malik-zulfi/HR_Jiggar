@@ -18,7 +18,7 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     } catch (error: any) {
       const errorMessage = error.message || '';
       // Check if the error message indicates a transient, retryable error
-      if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded') || errorMessage.includes('Schema validation failed')) {
+      if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded') || errorMessage.includes('Schema validation failed') || errorMessage.includes('fetch failed')) {
         lastError = error;
         const delay = INITIAL_DELAY_MS * Math.pow(2, i);
         console.log(`Attempt ${i + 1} failed with a transient error. Retrying in ${delay}ms...`);
