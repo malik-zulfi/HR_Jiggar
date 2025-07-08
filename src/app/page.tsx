@@ -42,8 +42,8 @@ function HomePageContent() {
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
-  const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
-  const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; name: string; } | null>(null);
+  const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; } | null>(null);
+  const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; } | null>(null);
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
@@ -183,7 +183,7 @@ function HomePageContent() {
       toast({ description: "Job Description analyzed successfully." });
     } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: error.message || "Failed to analyze Job Description." });
+      toast({ variant: "destructive", title: "Analysis Error", description: "An error occurred while analyzing the Job Description. Please try again." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -206,7 +206,7 @@ function HomePageContent() {
       const session = history.find(s => s.id === activeSessionId);
       if (!session || session.candidates.length === 0) return;
 
-      setReassessProgress({ current: 0, total: session.candidates.length, name: "Preparing..."});
+      setReassessProgress({ current: 0, total: session.candidates.length });
       
       try {
         toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
@@ -216,7 +216,7 @@ function HomePageContent() {
           analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
             .then(result => {
               assessedCount++;
-              setReassessProgress({ current: assessedCount, total: session.candidates.length, name: `Re-assessed: ${result.candidateName}`});
+              setReassessProgress({ current: assessedCount, total: session.candidates.length });
               return {
                 ...oldCandidate,
                 analysis: result
@@ -224,9 +224,9 @@ function HomePageContent() {
             })
             .catch(error => {
               assessedCount++;
-              setReassessProgress({ current: assessedCount, total: session.candidates.length, name: `Failed: ${oldCandidate.analysis.candidateName}`});
+              setReassessProgress({ current: assessedCount, total: session.candidates.length });
               console.error("Error re-assessing CV:", error);
-              toast({ variant: "destructive", title: `Re-assessment Error for ${oldCandidate.analysis.candidateName}`, description: error.message || "Failed to re-assess." });
+              toast({ variant: "destructive", title: `Re-assessment Error for ${oldCandidate.analysis.candidateName}`, description: "Failed to re-assess this candidate. Please try again." });
               return oldCandidate; // Keep the old data on failure
             })
         );
@@ -245,7 +245,7 @@ function HomePageContent() {
         toast({ description: "All candidates have been re-assessed." });
       } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "Failed to re-assess one or more candidates. The process has been stopped." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected error occurred during re-assessment. Please try again." });
       } finally {
         setReassessProgress(null);
       }
@@ -286,7 +286,7 @@ function HomePageContent() {
         return;
     }
     
-    setNewCvAnalysisProgress({ current: 0, total: cvs.length, name: "Preparing..." });
+    setNewCvAnalysisProgress({ current: 0, total: cvs.length });
     
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
@@ -298,7 +298,7 @@ function HomePageContent() {
         analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession!.analyzedJd, cv: cv.content })
           .then(analysis => {
             assessedCount++;
-            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length, name: `Assessed: ${analysis.candidateName}` });
+            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length });
             const candidateRecord = {
               cvName: cv.fileName,
               cvContent: cv.content,
@@ -309,12 +309,12 @@ function HomePageContent() {
           })
           .catch(error => {
             assessedCount++;
-            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length, name: `Failed: ${cv.candidateName}` });
+            setNewCvAnalysisProgress({ current: assessedCount, total: cvs.length });
             console.error(`Error analyzing CV for ${cv.fileName}:`, error);
             toast({
               variant: "destructive",
               title: `Analysis Failed for ${cv.fileName}`,
-              description: error.message || "An unexpected error occurred.",
+              description: "An unexpected error occurred. Please try again.",
             });
             return null;
           })
@@ -347,7 +347,7 @@ function HomePageContent() {
       setCvResetKey(key => key + 1);
     } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An error occurred during the assessment process." });
+      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred during the assessment process. Please try again." });
     } finally {
       setNewCvAnalysisProgress(null);
     }
@@ -405,7 +405,7 @@ function HomePageContent() {
       toast({ description: "Candidate summary generated." });
     } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: error.message || "Failed to generate summary." });
+      toast({ variant: "destructive", title: "Summary Error", description: "An error occurred while generating the summary. Please try again." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
@@ -495,7 +495,6 @@ function HomePageContent() {
                                 title="Assessing Candidate(s)"
                                 current={newCvAnalysisProgress.current}
                                 total={newCvAnalysisProgress.total}
-                                itemName={newCvAnalysisProgress.name}
                             />
                         ) : (
                             <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
@@ -627,7 +626,6 @@ function HomePageContent() {
                                               title="Re-assessing Candidate(s)"
                                               current={reassessProgress.current}
                                               total={reassessProgress.total}
-                                              itemName={reassessProgress.name}
                                           />
                                       ) : (
                                           <Accordion type="single" collapsible className="w-full">

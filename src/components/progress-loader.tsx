@@ -53,10 +53,8 @@ export default function ProgressLoader({
     return (
       <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50 text-xs">
         <div className="text-center font-sans text-sm font-medium text-foreground">
-            <p>{title} {hasRealProgress && `(${current} of ${total})`}</p>
-            {itemName && <p className="font-semibold text-accent">{itemName}</p>}
+            <p>{title}</p>
         </div>
-        <Progress value={progressValue} className="w-full h-2" />
         
         <div className='mt-4 p-3 bg-black/80 rounded-md text-white/90 h-40 overflow-hidden relative flex flex-col justify-end font-mono'>
           <div>
@@ -70,7 +68,7 @@ export default function ProgressLoader({
                     ) : (
                        <CheckCircle2 className="h-3 w-3 text-green-400" />
                     )}
-                    <span className={`truncate ${isCurrent ? 'text-white' : 'text-white/60'}`}>{isCurrent ? 'ASSESSING: ' : 'DONE: '}{step}</span>
+                    <span className={`truncate ${isCurrent ? 'text-white' : 'text-white/60'}`}>{isCurrent ? 'RUNNING: ' : 'DONE: '}{step}</span>
                   </div>
                 )
              })}
@@ -78,7 +76,7 @@ export default function ProgressLoader({
         </div>
         <div className="space-y-2">
             <p className="text-center font-sans text-muted-foreground">
-                Checking requirement {Math.min(currentStepIndex + 1, steps.length)} of {steps.length}...
+                Step {Math.min(currentStepIndex + 1, steps.length)} of {steps.length}...
             </p>
             <Progress value={stepProgress} className="w-full h-1" />
         </div>
@@ -90,8 +88,8 @@ export default function ProgressLoader({
   return (
     <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
        <div className="text-center text-sm font-medium text-foreground">
-            <p>{title} {hasRealProgress && `(${current} of ${total})`}</p>
-            {itemName && <p className="font-semibold text-accent">{itemName}</p>}
+            <p>{title}</p>
+            {hasRealProgress && <p className="font-semibold text-accent">{current} of {total} assessed</p>}
         </div>
       <Progress value={progressValue} className="w-full h-2" />
     </div>
