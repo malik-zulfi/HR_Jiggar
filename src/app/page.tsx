@@ -225,8 +225,12 @@ function HomePageContent() {
             .catch(error => {
               assessedCount++;
               setReassessProgress({ current: assessedCount, total: session.candidates.length });
-              console.error("Error re-assessing CV:", error);
-              toast({ variant: "destructive", title: `Re-assessment Error for ${oldCandidate.analysis.candidateName}`, description: "Failed to re-assess this candidate. Please try again." });
+              console.error(`Error re-assessing CV for ${oldCandidate.analysis.candidateName}:`, error);
+              toast({
+                  variant: "destructive",
+                  title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
+                  description: "An unexpected error occurred. Please try again.",
+              });
               return oldCandidate; // Keep the old data on failure
             })
         );
@@ -490,18 +494,18 @@ function HomePageContent() {
                             onFileClear={handleCvClear}
                             multiple={true}
                         />
-                        {newCvAnalysisProgress ? (
-                            <ProgressLoader
-                                title="Assessing Candidate(s)"
-                                current={newCvAnalysisProgress.current}
-                                total={newCvAnalysisProgress.total}
-                            />
-                        ) : (
-                            <Button onClick={handleAnalyzeCvs} disabled={cvs.length === 0} className="w-full">
-                                <FileText className="mr-2" />
-                                Add and Assess Candidate(s)
-                            </Button>
-                        )}
+                        <Button 
+                            onClick={handleAnalyzeCvs} 
+                            disabled={cvs.length === 0 || newCvAnalysisProgress !== null} 
+                            className="w-full"
+                        >
+                            {newCvAnalysisProgress ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                            )}
+                            {newCvAnalysisProgress ? 'Assessing...' : 'Add and Assess Candidate(s)'}
+                        </Button>
                     </div>
                   )}
 
@@ -601,68 +605,82 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {activeSession.candidates.length > 0 && (
-                              <>
-                                  <Card>
-                                      <CardHeader>
-                                          <div className="flex items-center justify-between gap-4">
-                                              <div>
-                                                  <CardTitle className="flex items-center gap-2"><Users /> Step 2: Review Candidates</CardTitle>
-                                                  <CardDescription>Review assessments or re-assess all candidates with the current JD.</CardDescription>
-                                              </div>
+                          {(activeSession.candidates.length > 0 || newCvAnalysisProgress) && (
+                              <Card>
+                                  <CardHeader>
+                                      <div className="flex items-center justify-between gap-4">
+                                          <div>
+                                              <CardTitle className="flex items-center gap-2"><Users /> Step 2: Review Candidates</CardTitle>
+                                              <CardDescription>
+                                                {newCvAnalysisProgress 
+                                                    ? 'Assessing new candidates...' 
+                                                    : 'Review assessments or re-assess all candidates with the current JD.'}
+                                              </CardDescription>
+                                          </div>
+                                           {activeSession.candidates.length > 0 && (
                                               <Button 
                                                   variant="outline" 
                                                   onClick={handleReassessClick}
-                                                  disabled={reassessProgress !== null || !activeSession || activeSession.candidates.length === 0}
+                                                  disabled={reassessProgress !== null || newCvAnalysisProgress !== null}
                                               >
                                                   <RefreshCw className="mr-2 h-4 w-4" />
                                                   Re-assess All
                                               </Button>
-                                          </div>
-                                      </CardHeader>
-                                      <CardContent>
-                                      {reassessProgress ? (
-                                          <ProgressLoader
-                                              title="Re-assessing Candidate(s)"
-                                              current={reassessProgress.current}
-                                              total={reassessProgress.total}
-                                          />
-                                      ) : (
-                                          <Accordion type="single" collapsible className="w-full">
-                                              {activeSession.candidates.map((c, i) => (
-                                                  <CandidateCard 
-                                                      key={`${c.analysis.candidateName}-${i}`} 
-                                                      candidate={c.analysis}
-                                                      onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
-                                                  />
-                                              ))}
-                                          </Accordion>
-                                      )}
-                                      </CardContent>
-                                  </Card>
+                                           )}
+                                      </div>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {reassessProgress ? (
+                                        <ProgressLoader
+                                            title="Re-assessing Candidate(s)"
+                                            current={reassessProgress.current}
+                                            total={reassessProgress.total}
+                                        />
+                                    ) : newCvAnalysisProgress ? (
+                                        <ProgressLoader
+                                            title="Assessing New Candidate(s)"
+                                            current={newCvAnalysisProgress.current}
+                                            total={newCvAnalysisProgress.total}
+                                        />
+                                    ) : (
+                                        <Accordion type="single" collapsible className="w-full">
+                                            {activeSession.candidates.map((c, i) => (
+                                                <CandidateCard 
+                                                    key={`${c.analysis.candidateName}-${i}`} 
+                                                    candidate={c.analysis}
+                                                    onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                />
+                                            ))}
+                                        </Accordion>
+                                    )}
+                                  </CardContent>
+                              </Card>
+                          )}
+                          
+                          {activeSession.candidates.length > 0 && (
+                            <>
+                                <Separator />
 
-                                  <Separator />
-
-                                  <Card>
-                                      <CardHeader>
-                                          <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 3: Generate Summary</CardTitle>
-                                          <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
-                                      </CardHeader>
-                                      <CardContent>
-                                          {summaryProgress ? (
-                                              <ProgressLoader
-                                                  title="Generating Summary..."
-                                                  steps={summaryProgress.steps}
-                                                  currentStepIndex={summaryProgress.currentStepIndex}
-                                              />
-                                          ) : (
-                                              <Button onClick={handleGenerateSummary}>
-                                                  Generate Summary
-                                              </Button>
-                                          )}
-                                      </CardContent>
-                                  </Card>
-                              </>
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 3: Generate Summary</CardTitle>
+                                        <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {summaryProgress ? (
+                                            <ProgressLoader
+                                                title="Generating Summary..."
+                                                steps={summaryProgress.steps}
+                                                currentStepIndex={summaryProgress.currentStepIndex}
+                                            />
+                                        ) : (
+                                            <Button onClick={handleGenerateSummary}>
+                                                Generate Summary
+                                            </Button>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </>
                           )}
                           
                           {activeSession.summary && !summaryProgress && <SummaryDisplay summary={activeSession.summary} candidates={activeSession.candidates.map(c => c.analysis)} analyzedJd={activeSession.analyzedJd} />}
@@ -683,3 +701,5 @@ export default function Home() {
         </SidebarProvider>
     )
 }
+
+    
