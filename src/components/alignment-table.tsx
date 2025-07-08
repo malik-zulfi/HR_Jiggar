@@ -91,12 +91,12 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                     <div key={category}>
                         <h3 className="text-lg font-semibold mb-2 text-primary">{category}</h3>
                         <div className="overflow-x-auto border rounded-md">
-                            <Table>
+                            <Table className="table-fixed w-full">
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Requirement</TableHead>
-                                        <TableHead>Justification</TableHead>
-                                        <TableHead className="w-[80px] text-center">Status</TableHead>
+                                        <TableHead className="w-[35%]">Requirement</TableHead>
+                                        <TableHead className="w-[50%]">Justification</TableHead>
+                                        <TableHead className="w-[15%] text-center">Status</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -104,7 +104,7 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                         const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
                                         return (
                                             <TableRow key={index}>
-                                                <TableCell className="align-top">
+                                                <TableCell className="align-top break-words">
                                                     <div className="flex items-start gap-3">
                                                         <Tooltip>
                                                             <TooltipTrigger className="mt-1">
@@ -120,7 +120,7 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                                         <span className="font-medium">{item.requirement}</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground text-sm align-top">{item.justification}</TableCell>
+                                                <TableCell className="text-muted-foreground text-sm align-top break-words">{item.justification}</TableCell>
                                                 <TableCell className="align-top">
                                                     <div className="flex items-center justify-center">
                                                         <Tooltip>
