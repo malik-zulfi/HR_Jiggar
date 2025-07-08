@@ -32,5 +32,5 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   
   // If all retries have been exhausted, throw the last captured error
   console.error("All retry attempts failed. The last error was:", lastError);
-  throw new Error(`The AI service is temporarily unavailable after multiple retries. Please try again later.`);
+  throw new Error('The AI service is temporarily unavailable. Please try again later');
 }
