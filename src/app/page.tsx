@@ -69,13 +69,14 @@ export default function Home() {
   
   const filteredHistory = useMemo(() => {
     if (!searchQuery.trim()) {
-        return history;
+      return history;
     }
     const lowerCaseQuery = searchQuery.toLowerCase().trim();
-    return history.filter(session =>
-        session.jdName.toLowerCase().includes(lowerCaseQuery) ||
-        session.analyzedJd.jobTitle?.toLowerCase().includes(lowerCaseQuery)
-    );
+    return history.filter(session => {
+        const titleMatch = !!session.analyzedJd.jobTitle && session.analyzedJd.jobTitle.toLowerCase().includes(lowerCaseQuery);
+        const nameMatch = session.jdName.toLowerCase().includes(lowerCaseQuery);
+        return nameMatch || titleMatch;
+    });
   }, [history, searchQuery]);
 
   useEffect(() => {
