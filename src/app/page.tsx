@@ -260,17 +260,18 @@ export default function Home() {
   
     setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-            return { ...s, analyzedJd: editedJd, summary: null };
+            return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
         }
         return s;
     }));
   
-    const candidatesToReassess = activeSession?.candidates.length > 0;
-  
-    if (wasDirty && candidatesToReassess) {
-      await reAssessCandidates(editedJd);
-    } else if (wasDirty) {
-      toast({ description: "Job Description changes have been saved." });
+    if (wasDirty) {
+      const candidatesToReassess = activeSession?.candidates.length > 0;
+      if (candidatesToReassess) {
+        await reAssessCandidates(editedJd);
+      } else {
+        toast({ description: "Job Description changes have been saved." });
+      }
     }
     
     setIsJdAnalysisOpen(false);
@@ -513,6 +514,7 @@ export default function Home() {
                                     onSaveChanges={handleSaveChanges}
                                     isOpen={isJdAnalysisOpen}
                                     onOpenChange={setIsJdAnalysisOpen}
+                                    hasCandidates={activeSession.candidates.length > 0}
                                 />
 
                                 <Separator />

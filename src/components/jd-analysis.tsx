@@ -23,6 +23,7 @@ interface JdAnalysisProps {
   onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => void;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  hasCandidates: boolean;
 }
 
 const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementChange }: { 
@@ -83,7 +84,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
   );
 };
 
-export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange, hasCandidates }: JdAnalysisProps) {
   const [editedJd, setEditedJd] = useState(analysis);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -119,6 +120,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
     { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
   ];
+  
+  const buttonText = hasCandidates ? 'Save Changes & Re-assess' : 'Save Changes';
 
   return (
     <Collapsible
@@ -170,7 +173,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                     <CardFooter className="flex justify-end p-4 border-t">
                         <Button onClick={handleSaveClick} disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes & Re-assess
+                            {buttonText}
                         </Button>
                     </CardFooter>
                 )}
