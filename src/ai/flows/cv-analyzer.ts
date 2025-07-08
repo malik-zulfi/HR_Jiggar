@@ -130,7 +130,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
 
       // Programmatic Score Calculation
       const allRequirements = [
-        ...jobDescriptioneCriteria.education, 
+        ...jobDescriptionCriteria.education, 
         ...jobDescriptionCriteria.experience, 
         ...jobDescriptionCriteria.technicalSkills, 
         ...jobDescriptionCriteria.softSkills, 
