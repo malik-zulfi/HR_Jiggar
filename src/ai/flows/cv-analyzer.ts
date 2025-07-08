@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -43,31 +44,36 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   output: {
     schema: AnalyzeCVAgainstJDOutputSchema,
   },
-  prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria.
+  prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
-First, extract the candidate's full name from the CV. Format the name in Title Case (e.g., "John Doe").
+**Analysis Steps:**
 
-Then, for each requirement in the job description criteria, assess the candidate's CV.
-Determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned' with the requirement. If the CV does not contain information about a requirement, mark it as 'Not Mentioned'.
-Provide a brief justification for your assessment for each requirement, citing evidence from the CV where possible.
+1.  **Extract Candidate Name:** First, extract the candidate's full name from the CV. Format the name in Title Case (e.g., "John Doe").
 
-IMPORTANT: If a requirement contains multiple options (e.g., 'degree in A or B', 'experience with X or Y'), meeting ANY ONE of the options means the candidate is 'Aligned' with that requirement. Do not mark it as 'Partially Aligned' if only one option is met.
+2.  **Assess Each Requirement:**
+    *   For each requirement in the job description criteria, assess the candidate's CV.
+    *   Determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
+    *   Provide a brief justification for your assessment for each requirement, citing evidence from the CV.
 
-CRITICAL RULE: If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' requirement from the 'Experience' or 'Education' categories, they are automatically disqualified. In this case, you MUST set the overall recommendation to 'Not Recommended', regardless of any other strengths.
+**Important Reasoning Rules:**
 
-Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
+*   **Handle Equivalencies:** Recognize and correctly interpret common abbreviations and equivalent terms. For example, 'B.Sc.' is a 'Bachelor of Science' and fully meets a 'Bachelor's degree' requirement. 'MS' is a 'Master's degree'.
+*   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
+*   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning. If the requirement is 'Bachelor’s degree in Civil / Structural Engineering' and the CV lists 'B.Sc. in Civil Engineering', that is a clear 'Aligned' match.
+*   **Handle "Or" Conditions:** If a requirement contains multiple options (e.g., 'degree in A or B', 'experience with X or Y'), meeting ANY ONE of the options means the candidate is 'Aligned' with that requirement. Do not mark it as 'Partially Aligned' if only one option is met.
+
+**Critical Disqualification Rule:**
+If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' requirement from the 'Experience' or 'Education' categories, they are automatically disqualified. In this case, you MUST set the overall recommendation to 'Not Recommended', regardless of any other strengths.
+
+**Final Output:**
+Provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas. The final output must be a valid JSON object matching the provided schema.
 
 Job Description Criteria:
 {{{formattedCriteria}}}
 
 CV:
 {{{cv}}}
-
-Your analysis should be thorough but concise. The final output must be a valid JSON object matching the provided schema.
-Follow these formatting instructions:
-* Justify every conclusion with direct evidence from the CV.
-* Maintain a neutral, analytical tone.
-* Be concise but thorough.`,
+`,
 });
 
 function toTitleCase(str: string): string {
