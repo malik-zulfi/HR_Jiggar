@@ -1,3 +1,4 @@
+import React from 'react';
 import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AlignmentDetail, Requirement } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -39,42 +40,111 @@ const getScoreInfo = (score: number) => {
 };
 
 const statusInfo: Record<AlignmentDetail['status'], { text: string; className: string }> = {
-  'Aligned': { text: '✔ Aligned', className: "text-green-700" },
-  'Partially Aligned': { text: '! Partially Aligned', className: "text-yellow-700" },
-  'Not Aligned': { text: '✖ Not Aligned', className: "text-red-700" },
-  'Not Mentioned': { text: '? Not Mentioned', className: "text-gray-700" },
+  'Aligned': { text: '✔', className: "text-green-700" },
+  'Partially Aligned': { text: '!', className: "text-yellow-700" },
+  'Not Aligned': { text: '✖', className: "text-red-700" },
+  'Not Mentioned': { text: '?', className: "text-gray-700" },
 };
 
-const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => (
-    <table className="w-full text-left border-collapse text-sm">
-        <thead>
-            <tr>
-                <th className="border p-2 bg-gray-100 font-bold">Category</th>
-                <th className="border p-2 bg-gray-100 font-bold">Requirement</th>
-                <th className="border p-2 bg-gray-100 font-bold">Status</th>
-                <th className="border p-2 bg-gray-100 font-bold">Justification</th>
-            </tr>
-        </thead>
-        <tbody>
-            {details.map((item, index) => {
-                const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
-                return (
-                    <tr key={index} className="break-inside-avoid">
-                        <td className="border p-2 align-top">{item.category}</td>
-                        <td className="border p-2 align-top">
-                            {item.requirement}
-                            <span className={`block mt-1 text-xs font-semibold p-1 rounded-sm w-fit ${item.priority === 'MUST-HAVE' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
-                                {item.priority.replace('-', ' ')}
-                            </span>
-                        </td>
-                        <td className={cn("border p-2 align-top font-bold", info.className)}>{info.text}</td>
-                        <td className="border p-2 align-top">{item.justification}</td>
-                    </tr>
-                );
-            })}
-        </tbody>
-    </table>
+
+const ReportLegend = () => (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-2 text-xs text-gray-600">
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+            <span className="font-bold text-sm text-gray-800">Priority:</span>
+            <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-red-700" />
+                <span>Must Have</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-gray-500" />
+                <span>Nice to Have</span>
+            </div>
+        </div>
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+            <span className="font-bold text-sm text-gray-800">Status:</span>
+            <div className="flex items-center gap-2">
+                <span className="text-green-700 font-bold text-lg">✔</span>
+                <span>Aligned</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-yellow-700 font-bold text-lg">!</span>
+                <span>Partially Aligned</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-red-700 font-bold text-lg">✖</span>
+                <span>Not Aligned</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-gray-700 font-bold text-lg">?</span>
+                <span>Not Mentioned</span>
+            </div>
+        </div>
+    </div>
 );
+
+const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => {
+    const groupedDetails = details.reduce((acc, item) => {
+        const category = item.category;
+        if (!acc[category]) {
+            acc[category] = [];
+        }
+        acc[category].push(item);
+        return acc;
+    }, {} as Record<string, AlignmentDetail[]>);
+
+    const categoriesInOrder = [...new Set(details.map(d => d.category))];
+
+    return (
+        <div className="border border-gray-200 rounded-lg">
+            <ReportLegend />
+            <table className="w-full text-left border-collapse text-sm border-t border-gray-200">
+                <thead>
+                    <tr className="break-inside-avoid">
+                        <th className="p-2 bg-gray-100 font-bold w-[45%]">Requirement</th>
+                        <th className="p-2 bg-gray-100 font-bold w-[40%]">Justification</th>
+                        <th className="p-2 bg-gray-100 font-bold w-[15%] text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {categoriesInOrder.map((category) => {
+                        const items = groupedDetails[category];
+                        if (!items || items.length === 0) return null;
+
+                        return (
+                            <React.Fragment key={category}>
+                                <tr className="break-inside-avoid bg-gray-50">
+                                    <td colSpan={3} className="p-2 font-bold text-gray-800 border-t border-b border-gray-200">
+                                        {category}
+                                    </td>
+                                </tr>
+                                {items.map((item, index) => {
+                                    const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
+                                    return (
+                                        <tr key={index} className="break-inside-avoid border-t border-gray-200">
+                                            <td className="p-2 align-top">
+                                                <div className="flex items-start gap-2">
+                                                    <div className={cn(
+                                                        "h-3 w-3 mt-1 rounded-full shrink-0",
+                                                        item.priority === 'MUST-HAVE' ? 'bg-red-700' : 'bg-gray-500'
+                                                    )} />
+                                                    <span className="font-medium text-gray-800">{item.requirement}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-2 align-top text-gray-600">{item.justification}</td>
+                                            <td className={cn("p-2 align-top font-bold text-center text-lg", info.className)}>
+                                                {info.text}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+};
 
 
 export default function Report({ summary, candidates, analyzedJd }: ReportProps) {
