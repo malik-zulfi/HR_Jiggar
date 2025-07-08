@@ -1,19 +1,57 @@
+
 import type { AlignmentDetail } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, AlertTriangle, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-interface AlignmentTableProps {
-  details: AlignmentDetail[];
-}
-
-const statusInfo: Record<AlignmentDetail['status'], { icon: React.ReactNode; className: string }> = {
-  'Aligned': { icon: <CheckCircle2 className="text-green-500" />, className: "text-green-600" },
-  'Partially Aligned': { icon: <AlertTriangle className="text-amber-500" />, className: "text-amber-600" },
-  'Not Aligned': { icon: <XCircle className="text-red-500" />, className: "text-red-600" },
-  'Not Mentioned': { icon: <HelpCircle className="text-gray-500" />, className: "text-gray-600" },
+const statusInfo: Record<AlignmentDetail['status'], { icon: React.ReactNode; label: string }> = {
+  'Aligned': { icon: <CheckCircle2 className="h-5 w-5 text-chart-2" />, label: 'Aligned' },
+  'Partially Aligned': { icon: <AlertTriangle className="h-5 w-5 text-accent" />, label: 'Partially Aligned' },
+  'Not Aligned': { icon: <XCircle className="h-5 w-5 text-destructive" />, label: 'Not Aligned' },
+  'Not Mentioned': { icon: <HelpCircle className="h-5 w-5 text-muted-foreground" />, label: 'Not Mentioned' },
 };
+
+const priorityLegend = [
+    { label: 'Must Have', className: 'bg-destructive' },
+    { label: 'Nice to Have', className: 'bg-muted-foreground' }
+];
+
+const statusLegend = [
+    { label: 'Aligned', icon: <CheckCircle2 className="h-4 w-4 text-chart-2" /> },
+    { label: 'Partially Aligned', icon: <AlertTriangle className="h-4 w-4 text-accent" /> },
+    { label: 'Not Aligned', icon: <XCircle className="h-4 w-4 text-destructive" /> },
+    { label: 'Not Mentioned', icon: <HelpCircle className="h-4 w-4 text-muted-foreground" /> }
+];
+
+const Legend = () => (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 px-4 pt-4 text-xs text-muted-foreground">
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+            <span className="font-semibold text-sm">Priority:</span>
+            {priorityLegend.map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                    <div className={cn("h-3 w-3 rounded-full", item.className)} />
+                    <span>{item.label}</span>
+                </div>
+            ))}
+        </div>
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+            <span className="font-semibold text-sm">Status:</span>
+            {statusLegend.map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                    {item.icon}
+                    <span>{item.label}</span>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
 
 export default function AlignmentTable({ details }: AlignmentTableProps) {
   if (!details || details.length === 0) {
@@ -25,42 +63,61 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
   }
 
   return (
-    <div className="rounded-lg border overflow-hidden bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[150px]">Category</TableHead>
-            <TableHead>Requirement</TableHead>
-            <TableHead className="w-[180px] text-center">Status</TableHead>
-            <TableHead>Justification</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {details.map((item, index) => {
-            const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
-            return (
-              <TableRow key={index}>
-                <TableCell className="font-medium text-muted-foreground align-top">{item.category}</TableCell>
-                <TableCell className="align-top">
-                  <div className="flex flex-col">
-                    <span className="font-medium">{item.requirement}</span>
-                    <Badge variant={item.priority === 'MUST-HAVE' ? 'destructive' : 'secondary'} className="w-fit mt-1">
-                        {item.priority.replace('-', ' ')}
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell className={cn("font-semibold align-top", info.className)}>
-                  <div className="flex items-center justify-center gap-2">
-                    {info.icon}
-                    <span>{item.status}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm align-top">{item.justification}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+    <TooltipProvider>
+      <div className="rounded-lg border overflow-hidden bg-card">
+        <Legend />
+        <div className="overflow-x-auto">
+            <Table>
+            <TableHeader>
+                <TableRow>
+                <TableHead className="w-[150px]">Category</TableHead>
+                <TableHead>Requirement</TableHead>
+                <TableHead className="w-[80px] text-center">Status</TableHead>
+                <TableHead>Justification</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {details.map((item, index) => {
+                const info = statusInfo[item.status] || statusInfo['Not Mentioned'];
+                return (
+                    <TableRow key={index}>
+                    <TableCell className="font-medium text-muted-foreground align-top">{item.category}</TableCell>
+                    <TableCell className="align-top">
+                        <div className="flex items-start gap-3">
+                            <Tooltip>
+                                <TooltipTrigger className="mt-1">
+                                    <div className={cn(
+                                        "h-3 w-3 rounded-full shrink-0", 
+                                        item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
+                                    )} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{item.priority.replace('-', ' ')}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        <span className="font-medium">{item.requirement}</span>
+                        </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                        <div className="flex items-center justify-center">
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    {info.icon}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{info.label}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm align-top">{item.justification}</TableCell>
+                    </TableRow>
+                );
+                })}
+            </TableBody>
+            </Table>
+        </div>
+      </div>
+    </TooltipProvider>
   );
 }
