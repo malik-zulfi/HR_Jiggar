@@ -20,7 +20,7 @@ import {
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   originalAnalysis: ExtractJDCriteriaOutput | null;
-  onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => void;
+  onSaveChanges: (editedJd: ExtractJDCriteriaOutput) => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   hasCandidates: boolean;
@@ -105,11 +105,13 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     });
   };
 
-  const handleSaveClick = () => {
-      setIsSaving(true);
-      onSaveChanges(editedJd);
-      // The parent component will handle closing the collapsible and resetting the saving state.
-      // We set isSaving to true to disable the button immediately.
+  const handleSaveClick = async () => {
+    setIsSaving(true);
+    try {
+      await onSaveChanges(editedJd);
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const categorySections = [
