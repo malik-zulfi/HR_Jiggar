@@ -22,6 +22,7 @@ import SummaryDisplay from "@/components/summary-display";
 import FileUploader from "@/components/file-uploader";
 import ProgressLoader from "@/components/progress-loader";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
@@ -468,7 +469,15 @@ export default function Home() {
     <SidebarProvider>
       <div className="flex flex-col min-h-screen">
         <Header onNewSession={handleNewSession} />
-        <div className="relative flex flex-1 overflow-hidden">
+        <div 
+            className="group/sidebar-wrapper flex flex-1 w-full has-[[data-variant=inset]]:bg-sidebar"
+            style={
+              {
+                "--sidebar-width": "16rem",
+                "--sidebar-width-icon": "3rem",
+              } as React.CSSProperties
+            }
+        >
             <Sidebar side="left" className="h-full">
                 <SidebarHeader>
                     <h2 className="text-lg font-semibold flex items-center gap-2">
