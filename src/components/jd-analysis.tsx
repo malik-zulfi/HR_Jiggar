@@ -115,12 +115,12 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   };
   
   const categorySections = [
+    { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
+    { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
     { key: 'technicalSkills', title: 'Technical Skills', icon: <BrainCircuit className="h-5 w-5" /> },
     { key: 'softSkills', title: 'Soft Skills', icon: <ClipboardCheck className="h-5 w-5" /> },
-    { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
-    { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
-    { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
     { key: 'responsibilities', title: 'Responsibilities', icon: <ListChecks className="h-5 w-5" /> },
+    { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },
   ];
   
   const buttonText = hasCandidates ? 'Save Changes & Re-assess' : 'Save Changes';

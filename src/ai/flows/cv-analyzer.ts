@@ -50,23 +50,23 @@ CRITICAL RULE: If a candidate is assessed as 'Not Aligned' with ANY 'MUST-HAVE' 
 Finally, provide an overall alignment summary, a recommendation (Strongly Recommended, Recommended with Reservations, or Not Recommended), a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas.
 
 Job Description Criteria:
+{{#each jobDescriptionCriteria.education}}
+- Education ({{this.priority}}): {{{this.description}}}
+{{/each}}
+{{#each jobDescriptionCriteria.experience}}
+- Experience ({{this.priority}}): {{{this.description}}}
+{{/each}}
 {{#each jobDescriptionCriteria.technicalSkills}}
 - Technical Skill ({{this.priority}}): {{{this.description}}}
 {{/each}}
 {{#each jobDescriptionCriteria.softSkills}}
 - Soft Skill ({{this.priority}}): {{{this.description}}}
 {{/each}}
-{{#each jobDescriptionCriteria.experience}}
-- Experience ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.education}}
-- Education ({{this.priority}}): {{{this.description}}}
+{{#each jobDescriptionCriteria.responsibilities}}
+- Responsibility ({{this.priority}}): {{{this.description}}}
 {{/each}}
 {{#each jobDescriptionCriteria.certifications}}
 - Certification ({{this.priority}}): {{{this.description}}}
-{{/each}}
-{{#each jobDescriptionCriteria.responsibilities}}
-- Responsibility ({{this.priority}}): {{{this.description}}}
 {{/each}}
 
 CV:

@@ -190,12 +190,12 @@ export default function Home() {
   
   const getRequirementsAsSteps = (jd: ExtractJDCriteriaOutput): string[] => {
     const allReqs = [
+      ...jd.education,
+      ...jd.experience,
       ...jd.technicalSkills,
       ...jd.softSkills,
-      ...jd.experience,
-      ...jd.education,
+      ...jd.responsibilities,
       ...jd.certifications,
-      ...jd.responsibilities
     ];
     return allReqs.map(req => req.description);
   };

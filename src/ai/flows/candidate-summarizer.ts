@@ -31,23 +31,23 @@ const prompt = ai.definePrompt({
   prompt: `You are a hiring manager summarizing candidate assessments for a job.
 
   Job Description Criteria:
+  {{#each jobDescriptionCriteria.education}}
+  - Education ({{this.priority}}): {{{this.description}}}
+  {{/each}}
+  {{#each jobDescriptionCriteria.experience}}
+  - Experience ({{this.priority}}): {{{this.description}}}
+  {{/each}}
   {{#each jobDescriptionCriteria.technicalSkills}}
   - Technical Skill ({{this.priority}}): {{{this.description}}}
   {{/each}}
   {{#each jobDescriptionCriteria.softSkills}}
   - Soft Skill ({{this.priority}}): {{{this.description}}}
   {{/each}}
-  {{#each jobDescriptionCriteria.experience}}
-  - Experience ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.education}}
-  - Education ({{this.priority}}): {{{this.description}}}
+  {{#each jobDescriptionCriteria.responsibilities}}
+  - Responsibility ({{this.priority}}): {{{this.description}}}
   {{/each}}
   {{#each jobDescriptionCriteria.certifications}}
   - Certification ({{this.priority}}): {{{this.description}}}
-  {{/each}}
-  {{#each jobDescriptionCriteria.responsibilities}}
-  - Responsibility ({{this.priority}}): {{{this.description}}}
   {{/each}}
 
   Candidate Assessments:
