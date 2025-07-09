@@ -24,16 +24,17 @@ const ProcessingItem = ({ message, status }: { message: string, status: 'process
 
     useEffect(() => {
         if (status === 'processing') {
+            // Add a random delay to make progress feel more individual and realistic
+            const randomDelay = 1200 + Math.random() * 600; // 1.2s to 1.8s
             const interval = setInterval(() => {
                 setCurrentStepIndex(prev => {
-                    // Don't go past the last step
                     if (prev >= steps.length - 1) {
                         clearInterval(interval);
                         return prev;
                     }
                     return prev + 1;
                 });
-            }, 1500); // Simulate progress every 1.5 seconds
+            }, randomDelay);
 
             return () => clearInterval(interval);
         }
@@ -75,7 +76,6 @@ export default function ProgressLoader({
   steps,
   currentStepIndex,
   statusList,
-  logLength = 5
 }: ProgressLoaderProps) {
   
   // Status list view for concurrent tasks
@@ -91,8 +91,8 @@ export default function ProgressLoader({
         </div>
         <Progress value={progress} className="w-full h-2" />
         <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
-            {statusList.map((item, index) => (
-                <ProcessingItem key={index} message={item.message} status={item.status} />
+            {statusList.map((item) => (
+                <ProcessingItem key={item.message} message={item.message} status={item.status} />
             ))}
         </div>
       </div>
@@ -101,6 +101,7 @@ export default function ProgressLoader({
 
   // Terminal view logic for single tasks
   if (steps && typeof currentStepIndex === 'number' && steps.length > 0) {
+    const logLength = 5;
     const end = Math.min(currentStepIndex, steps.length - 1);
     const start = Math.max(0, end - logLength + 1);
     const visibleSteps = steps.slice(start, end + 1);
