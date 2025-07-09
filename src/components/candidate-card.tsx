@@ -198,6 +198,15 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
         </AccordionPrimitive.Header>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
+          <div className="border-b pb-6">
+            <h4 className="font-semibold mb-2 flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/> Ask a Question</h4>
+            <CandidateChat
+                chatHistory={candidate.chatHistory}
+                onQuery={onQuery}
+                isQuerying={isQuerying}
+            />
+          </div>
+
           <div>
             <h4 className="font-semibold mb-2 flex items-center"><ClipboardCheck className="w-4 h-4 mr-2 text-primary"/> Alignment Details</h4>
             <p className="text-sm text-foreground/80 whitespace-pre-wrap mb-4">{analysis.alignmentSummary}</p>
@@ -224,18 +233,8 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
               {analysis.interviewProbes.map((p, i) => <li key={`probe-${i}`} className="text-foreground">{p}</li>)}
             </ul>
           </div>
-           <div className="border-t pt-6">
-            <h4 className="font-semibold mb-2 flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/> Ask a Question</h4>
-            <CandidateChat
-                chatHistory={candidate.chatHistory}
-                onQuery={onQuery}
-                isQuerying={isQuerying}
-            />
-          </div>
         </div>
       </AccordionContent>
     </AccordionItem>
   );
 }
-
-    
