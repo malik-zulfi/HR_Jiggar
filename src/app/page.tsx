@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight } from 'lucide-react';
+import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight, Filter, X } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate } from '@/lib/types';
 import { AssessmentSessionSchema } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 
@@ -22,6 +23,7 @@ type TopCandidate = AnalyzedCandidate & {
 export default function DashboardPage() {
     const [history, setHistory] = useState<AssessmentSession[]>([]);
     const [isClient, setIsClient] = useState(false);
+    const [filters, setFilters] = useState({ code: 'all', department: 'all' });
 
     useEffect(() => {
         setIsClient(true);
@@ -45,11 +47,32 @@ export default function DashboardPage() {
         }
     }, []);
 
-    const stats = useMemo(() => {
-        const totalPositions = history.length;
-        const totalCandidates = history.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
+    const { uniqueCodes, uniqueDepartments, filteredHistory } = useMemo(() => {
+        const allCodes = new Set<string>();
+        const allDepartments = new Set<string>();
+        history.forEach(session => {
+            if (session.analyzedJd.code) allCodes.add(session.analyzedJd.code);
+            if (session.analyzedJd.department) allDepartments.add(session.analyzedJd.department);
+        });
 
-        const allCandidates: TopCandidate[] = history.flatMap(session =>
+        const fHistory = history.filter(session => {
+            const codeMatch = filters.code === 'all' || session.analyzedJd.code === filters.code;
+            const deptMatch = filters.department === 'all' || session.analyzedJd.department === filters.department;
+            return codeMatch && deptMatch;
+        });
+
+        return {
+            uniqueCodes: ['all', ...Array.from(allCodes)],
+            uniqueDepartments: ['all', ...Array.from(allDepartments)],
+            filteredHistory: fHistory
+        };
+    }, [history, filters]);
+
+    const stats = useMemo(() => {
+        const totalPositions = filteredHistory.length;
+        const totalCandidates = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
+
+        const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
                 ...candidate.analysis,
                 jobTitle: session.analyzedJd.jobTitle || 'N/A',
@@ -59,7 +82,7 @@ export default function DashboardPage() {
 
         const top5Candidates = allCandidates.sort((a, b) => b.alignmentScore - a.alignmentScore).slice(0, 5);
 
-        const assessmentsByCode = history.reduce<Record<string, number>>((acc, session) => {
+        const assessmentsByCode = filteredHistory.reduce<Record<string, number>>((acc, session) => {
             const code = session.analyzedJd.code || 'Not Specified';
             if (!acc[code]) {
                 acc[code] = 0;
@@ -68,7 +91,7 @@ export default function DashboardPage() {
             return acc;
         }, {});
         
-        const assessmentsByDept = history.reduce<Record<string, number>>((acc, session) => {
+        const assessmentsByDept = filteredHistory.reduce<Record<string, number>>((acc, session) => {
             const dept = session.analyzedJd.department || 'Not Specified';
             if (!acc[dept]) {
                 acc[dept] = 0;
@@ -78,7 +101,17 @@ export default function DashboardPage() {
         }, {});
 
         return { totalPositions, totalCandidates, top5Candidates, assessmentsByCode, assessmentsByDept };
-    }, [history]);
+    }, [filteredHistory]);
+    
+    const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
+        setFilters(prev => ({ ...prev, [filterType]: value }));
+    };
+
+    const resetFilters = () => {
+        setFilters({ code: 'all', department: 'all' });
+    };
+    
+    const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
 
     if (!isClient) {
         return null; // or a loading skeleton
@@ -105,6 +138,47 @@ export default function DashboardPage() {
 
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto">
+                    <Card className="mb-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Filter className="text-primary"/> Dashboard Filters</CardTitle>
+                            <CardDescription>Use the slicers below to filter the dashboard metrics.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+                            <div className="grid gap-2 w-full sm:w-auto">
+                                <label className="text-sm font-medium">Job Code</label>
+                                <Select value={filters.code} onValueChange={(value) => handleFilterChange('code', value)}>
+                                    <SelectTrigger className="w-full sm:w-[180px]">
+                                        <SelectValue placeholder="Select Code" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {uniqueCodes.map(code => (
+                                            <SelectItem key={code} value={code}>{code === 'all' ? 'All Codes' : code}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2 w-full sm:w-auto">
+                                 <label className="text-sm font-medium">Department</label>
+                                 <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)}>
+                                    <SelectTrigger className="w-full sm:w-[180px]">
+                                        <SelectValue placeholder="Select Department" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {uniqueDepartments.map(dept => (
+                                            <SelectItem key={dept} value={dept}>{dept === 'all' ? 'All Departments' : dept}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {hasActiveFilters && (
+                                <Button variant="ghost" onClick={resetFilters} className="mt-auto self-end sm:self-center">
+                                    <X className="mr-2 h-4 w-4"/>
+                                    Reset Filters
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -157,7 +231,7 @@ export default function DashboardPage() {
                                         </TableBody>
                                     </Table>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground text-center py-8">No candidates assessed yet.</p>
+                                    <p className="text-sm text-muted-foreground text-center py-8">No candidates found for the selected filters.</p>
                                 )}
                             </CardContent>
                         </Card>
