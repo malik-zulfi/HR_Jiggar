@@ -354,20 +354,34 @@ function HomePageContent() {
     if (!activeSessionId) return;
 
     const currentSession = history.find(s => s.id === activeSessionId);
-    if (!currentSession) return;
+    if (!currentSession || !currentSession.originalAnalyzedJd) return;
 
     const isDirty = JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd);
 
     if (isDirty) {
+      // Check if the new state is an exact match for the original JD state
+      const isRevertedToOriginal = JSON.stringify(editedJd) === JSON.stringify(currentSession.originalAnalyzedJd);
+      
+      // Candidates are considered "stale" only if the JD is NOT in its original state.
+      const newStaleState = !isRevertedToOriginal;
+
       setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-          // Mark all candidates as stale because the JD has changed.
-          const updatedCandidates = s.candidates.map(c => ({ ...c, isStale: true }));
+          // Update all candidates with the new stale status.
+          const updatedCandidates = s.candidates.map(c => ({
+            ...c,
+            isStale: newStaleState,
+          }));
           return { ...s, analyzedJd: editedJd, candidates: updatedCandidates, summary: null };
         }
         return s;
       }));
-      toast({ description: "Job Description changes saved. Re-assess candidates to see updated scores." });
+      
+      if (isRevertedToOriginal) {
+        toast({ description: "Job Description reverted to original. Stale indicators removed." });
+      } else {
+        toast({ description: "Job Description changes saved. Re-assess candidates to see updated scores." });
+      }
     }
 
     setIsJdAnalysisOpen(false);
@@ -775,7 +789,7 @@ function HomePageContent() {
                                     )}
 
                                     {activeSession.candidates.length > 0 && (
-                                      <div className={cn((isAssessingNewCvs || isReassessing) && "opacity-60 pointer-events-none")}>
+                                      <div className={cn((isReassessing) && "opacity-60 pointer-events-none")}>
                                         <Accordion type="single" collapsible className="w-full">
                                             {activeSession.candidates.map((c, i) => (
                                                 <CandidateCard 
@@ -838,5 +852,7 @@ export default function Home() {
         </SidebarProvider>
     )
 }
+
+    
 
     
