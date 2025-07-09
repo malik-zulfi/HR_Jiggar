@@ -326,6 +326,7 @@ export default function DashboardPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Position</TableHead>
+                                            <TableHead>Job Code</TableHead>
                                             <TableHead className="text-center"># Candidates</TableHead>
                                             <TableHead>Date Created</TableHead>
                                             <TableHead className="text-right"></TableHead>
@@ -335,6 +336,7 @@ export default function DashboardPage() {
                                         {stats.recent5Assessments.map((session) => (
                                             <TableRow key={session.id}>
                                                 <TableCell className="font-medium">{session.analyzedJd.jobTitle || session.jdName}</TableCell>
+                                                <TableCell className="text-muted-foreground">{session.analyzedJd.code || 'N/A'}</TableCell>
                                                 <TableCell className="text-center">{session.candidates.length}</TableCell>
                                                 <TableCell className="text-muted-foreground">{new Date(session.createdAt).toLocaleDateString()}</TableCell>
                                                 <TableCell className="text-right">
@@ -359,3 +361,5 @@ export default function DashboardPage() {
         </div>
     );
 }
+
+    
