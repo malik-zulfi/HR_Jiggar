@@ -38,14 +38,15 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
     toast({ description: "Generating cross-candidate alignment report..." });
 
     try {
+      // Use singular category names to match what the AI is prompted with, ensuring data consistency.
       const allJdRequirements = [
         ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
         ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
-        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skills' })),
-        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skills' })),
-        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certifications' })),
-        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibilities' })),
-        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirements' })),
+        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' })),
+        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' })),
+        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certification' })),
+        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' })),
+        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' })),
       ];
 
       if (allJdRequirements.length === 0) {
@@ -66,8 +67,7 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
         'Not Mentioned': '?',
       };
       
-      const normalizeCategory = (str: string) => (str || '').trim().toLowerCase().replace(/s$/, '');
-      const normalizeRequirement = (str: string) => (str || '').trim().toLowerCase();
+      const normalizeString = (str: string) => (str || '').trim().toLowerCase();
 
       const rows = allJdRequirements.map(jdReq => {
         const rowData: (string | undefined)[] = [
@@ -80,11 +80,9 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
             detail => {
-              // Match category (handles plural vs singular like "Technical Skill" vs "Technical Skills")
-              const categoryMatch = normalizeCategory(detail.category) === normalizeCategory(jdReq.category);
-              // Match requirement description
-              const requirementMatch = normalizeRequirement(detail.requirement) === normalizeRequirement(jdReq.description);
-
+              // Normalize strings to handle minor inconsistencies in AI output (case, whitespace).
+              const categoryMatch = normalizeString(detail.category) === normalizeString(jdReq.category);
+              const requirementMatch = normalizeString(detail.requirement) === normalizeString(jdReq.description);
               return categoryMatch && requirementMatch;
             }
           );
