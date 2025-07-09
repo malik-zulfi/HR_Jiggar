@@ -214,7 +214,7 @@ function HomePageContent() {
       toast({ description: "Job Description analyzed successfully." });
     } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: "An unexpected error occurred while analyzing the Job Description. Please check the console for details." });
+      toast({ variant: "destructive", title: "Analysis Error", description: error.message || "An unexpected error occurred. Please check the console." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -233,121 +233,146 @@ function HomePageContent() {
     setCvs([]);
   }
 
-  const reAssessCandidates = async (jd: ExtractJDCriteriaOutput, candidatesToReassess: CandidateRecord[]) => {
-      if (!candidatesToReassess || candidatesToReassess.length === 0) return;
+  const reAssessCandidates = async (
+    jd: ExtractJDCriteriaOutput,
+    candidatesToReassess: CandidateRecord[],
+    isPartialReassess: boolean
+  ) => {
+    if (!candidatesToReassess || candidatesToReassess.length === 0) return;
 
-      const initialStatus: ReassessStatus = candidatesToReassess.reduce((acc, candidate) => {
-          acc[candidate.analysis.candidateName] = { status: 'processing', candidateName: candidate.analysis.candidateName };
-          return acc;
-      }, {} as ReassessStatus);
-      setReassessStatus(initialStatus);
-      
-      try {
-        toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
-        
-        const analysisPromises = candidatesToReassess.map(oldCandidate =>
-          analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
-            .then(result => {
-              setReassessStatus(prev => ({
-                  ...prev,
-                  [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'done' }
-              }));
-              return {
-                ...oldCandidate,
-                analysis: result,
-                isStale: false,
-              };
-            })
-            .catch(error => {
-              setReassessStatus(prev => ({
-                  ...prev,
-                  [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'error' }
-              }));
-              console.error(`Error re-assessing CV for ${oldCandidate.analysis.candidateName}:`, error);
-              toast({
-                  variant: "destructive",
-                  title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
-                  description: "An unexpected error occurred. Please check the console for details.",
-              });
-              return oldCandidate; // Keep the old data on failure
-            })
-        );
-        
-        const updatedCandidates = await Promise.all(analysisPromises);
-        
-        setHistory(prev =>
-            prev.map(s => {
-                if (s.id === activeSessionId) {
-                    const updatedCandidatesMap = new Map(
-                        updatedCandidates.map(c => [c.analysis.candidateName, c])
-                    );
-                    const newFullCandidateList = s.candidates.map(
-                        c => updatedCandidatesMap.get(c.analysis.candidateName) || c
-                    );
-                    newFullCandidateList.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+    const initialStatus: ReassessStatus = candidatesToReassess.reduce((acc, candidate) => {
+      acc[candidate.analysis.candidateName] = { status: 'processing', candidateName: candidate.analysis.candidateName };
+      return acc;
+    }, {} as ReassessStatus);
+    setReassessStatus(initialStatus);
 
-                    return {
-                        ...s,
-                        candidates: newFullCandidateList,
-                        summary: null,
-                    };
-                }
-                return s;
-            })
-        );
+    try {
+      toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
 
-        toast({ description: "Candidates have been re-assessed." });
-      } catch (error: any) {
-        console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected error occurred. Please check the console for details." });
-      } finally {
-        setTimeout(() => {
-            setReassessStatus({});
-        }, 3000);
-      }
-    };
+      const analysisPromises = candidatesToReassess.map(oldCandidate =>
+        analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
+          .then(result => {
+            setReassessStatus(prev => ({
+              ...prev,
+              [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'done' }
+            }));
+            return {
+              ...oldCandidate,
+              analysis: result,
+              isStale: false,
+            };
+          })
+          .catch(error => {
+            setReassessStatus(prev => ({
+              ...prev,
+              [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'error' }
+            }));
+            console.error(`Error re-assessing CV for ${oldCandidate.analysis.candidateName}:`, error);
+            toast({
+              variant: "destructive",
+              title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
+              description: error.message || "An unexpected error occurred. Please check the console.",
+            });
+            return oldCandidate; // Keep the old data on failure
+          })
+      );
+
+      const updatedCandidates = await Promise.all(analysisPromises);
+
+      setHistory(prev =>
+        prev.map(s => {
+          if (s.id === activeSessionId) {
+            const updatedCandidatesMap = new Map(
+              updatedCandidates.map(c => [c.analysis.candidateName, c])
+            );
+            const namesToReassess = new Set(
+              candidatesToReassess.map(c => c.analysis.candidateName)
+            );
+
+            const newFullCandidateList = s.candidates.map(candidate => {
+              const updatedVersion = updatedCandidatesMap.get(
+                candidate.analysis.candidateName
+              );
+              // If this candidate was just reassessed, return the new version.
+              if (updatedVersion) {
+                return updatedVersion; // This will have isStale: false.
+              }
+
+              // If this was a partial reassessment and this candidate was NOT
+              // in the list, mark it as stale.
+              if (isPartialReassess && !namesToReassess.has(candidate.analysis.candidateName)) {
+                return { ...candidate, isStale: true };
+              }
+
+              // Otherwise, return the candidate as is.
+              return candidate;
+            });
+
+            newFullCandidateList.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+
+            return {
+              ...s,
+              candidates: newFullCandidateList,
+              summary: null, // Invalidate summary on any reassessment
+            };
+          }
+          return s;
+        })
+      );
+
+      toast({ description: "Candidates have been re-assessed." });
+    } catch (error: any) {
+      console.error("Error re-assessing CVs:", error);
+      toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected error occurred. Please check the console." });
+    } finally {
+      setTimeout(() => {
+        setReassessStatus({});
+      }, 3000);
+    }
+  };
 
   const handleReassessClick = async () => {
     if (!activeSession || !activeSession.analyzedJd) return;
 
     const candidatesToProcess = selectedCandidates.size > 0
-        ? activeSession.candidates.filter(c => selectedCandidates.has(c.analysis.candidateName))
-        : activeSession.candidates;
-    
+      ? activeSession.candidates.filter(c => selectedCandidates.has(c.analysis.candidateName))
+      : activeSession.candidates;
+
     if (candidatesToProcess.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Cannot Re-assess",
-            description: "There are no candidates in this session to re-assess.",
-        });
-        return;
+      toast({
+        variant: "destructive",
+        title: "Cannot Re-assess",
+        description: "There are no candidates in this session to re-assess.",
+      });
+      return;
     }
-    await reAssessCandidates(activeSession.analyzedJd, candidatesToProcess);
+    await reAssessCandidates(activeSession.analyzedJd, candidatesToProcess, selectedCandidates.size > 0);
     setSelectedCandidates(new Set());
   };
-  
+
   const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
 
     const currentSession = history.find(s => s.id === activeSessionId);
-    const wasDirty = currentSession ? JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd) : false;
+    if (!currentSession) return;
 
-    setHistory(prev => prev.map(s => {
+    const isDirty = JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd);
+
+    if (isDirty) {
+      setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-            const updatedCandidates = s.candidates.map(c => ({ ...c, isStale: true }));
-            return { ...s, analyzedJd: editedJd, candidates: updatedCandidates, summary: null };
+          // Mark all candidates as stale because the JD has changed.
+          const updatedCandidates = s.candidates.map(c => ({ ...c, isStale: true }));
+          return { ...s, analyzedJd: editedJd, candidates: updatedCandidates, summary: null };
         }
         return s;
-    }));
-    
-    if (wasDirty) {
-        toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
-    } else {
-        toast({ description: "All candidates marked as stale. You can now re-assess them." });
+      }));
+      toast({ description: "Job Description changes saved. Re-assess candidates to see updated scores." });
     }
-    
+
     setIsJdAnalysisOpen(false);
   };
+
 
   const handleAnalyzeCvs = async () => {
     if (cvs.length === 0) {
@@ -402,7 +427,7 @@ function HomePageContent() {
             toast({
               variant: "destructive",
               title: `Analysis Failed for ${cv.fileName}`,
-              description: "An unexpected error occurred. Please check the console for details.",
+              description: error.message || "An unexpected error occurred. Please check the console.",
             });
 
             setNewCvProcessingStatus(prev => ({
@@ -422,7 +447,7 @@ function HomePageContent() {
 
     } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred. Please check the console for details." });
+      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred. Please check the console." });
     } finally {
         setTimeout(() => {
             setNewCvProcessingStatus({});
@@ -485,7 +510,7 @@ function HomePageContent() {
       toast({ description: "Candidate summary generated." });
     } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: "An unexpected error occurred. Please check the console for details." });
+      toast({ variant: "destructive", title: "Summary Error", description: error.message || "An unexpected error occurred. Please check the console." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
@@ -543,6 +568,10 @@ function HomePageContent() {
   const reassessButtonText = selectedCandidates.size > 0
     ? `Re-assess Selected (${selectedCandidates.size})`
     : 'Re-assess All';
+  
+  const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
+  const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -705,7 +734,7 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {(activeSession.candidates.length > 0 || isAssessingNewCvs || isReassessing) && (
+                          {showReviewSection && (
                               <Card>
                                   <CardHeader>
                                       <div className="flex items-center justify-between gap-4">
@@ -725,8 +754,12 @@ function HomePageContent() {
                                                   onClick={handleReassessClick}
                                                   disabled={isReassessing}
                                               >
-                                                  <RefreshCw className="mr-2 h-4 w-4" />
-                                                  {reassessButtonText}
+                                                  {isReassessing ? (
+                                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                      <RefreshCw className="mr-2 h-4 w-4" />
+                                                  )}
+                                                  {isReassessing ? "Re-assessing..." : reassessButtonText}
                                               </Button>
                                            )}
                                       </div>
@@ -735,13 +768,14 @@ function HomePageContent() {
                                     {(reassessStatusList || newCvStatusList) && (
                                         <div className="mb-4">
                                             <ProgressLoader
-                                                title={reassessStatusList ? "Re-assessing Candidate(s)" : "Assessing New Candidate(s)"}
+                                                title={isReassessing ? "Re-assessing Candidate(s)" : "Assessing New Candidate(s)"}
                                                 statusList={reassessStatusList || newCvStatusList!}
                                             />
                                         </div>
                                     )}
 
                                     {activeSession.candidates.length > 0 && (
+                                      <div className={cn((isAssessingNewCvs || isReassessing) && "opacity-60 pointer-events-none")}>
                                         <Accordion type="single" collapsible className="w-full">
                                             {activeSession.candidates.map((c, i) => (
                                                 <CandidateCard 
@@ -754,12 +788,13 @@ function HomePageContent() {
                                                 />
                                             ))}
                                         </Accordion>
+                                      </div>
                                     )}
                                   </CardContent>
                               </Card>
                           )}
                           
-                          {(activeSession.candidates.length > 0 && !isAssessingNewCvs && !isReassessing) && (
+                          {showSummarySection && (
                             <>
                                 <Separator />
 
