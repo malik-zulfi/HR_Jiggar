@@ -297,6 +297,8 @@ function AssessmentPageContent() {
         }, {} as CvProcessingStatus);
         setNewCvProcessingStatus(initialStatus);
 
+        let successCount = 0;
+
         try {
             toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
             
@@ -351,6 +353,7 @@ function AssessmentPageContent() {
                         ...prev,
                         [cv.name]: { ...prev[cv.name], status: 'done', candidateName: analysis.candidateName }
                     }));
+                    successCount++;
 
                 } catch (error: any) {
                     console.error(`Error analyzing CV for ${cv.name}:`, error);
@@ -363,9 +366,8 @@ function AssessmentPageContent() {
                 }
             }
 
-            const successfulAnalyses = Object.values(newCvProcessingStatus).filter(s => s.status === 'done').length;
-            if (successfulAnalyses > 0) {
-                toast({ description: `${successfulAnalyses} candidate(s) have been successfully assessed.` });
+            if (successCount > 0) {
+                toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
             }
 
         } catch (error: any) {
