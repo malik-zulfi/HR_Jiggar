@@ -7,44 +7,78 @@ import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 
 interface ProgressLoaderProps {
   title: string;
-  current?: number;
-  total?: number;
   steps?: string[];
   currentStepIndex?: number;
   statusList?: { status: 'processing' | 'done' | 'error', message: string }[];
   logLength?: number;
 }
 
+const ProcessingItem = ({ message, status }: { message: string, status: 'processing' | 'done' | 'error' }) => {
+    const steps = [
+        "Reviewing CV content...",
+        "Assessing against job requirements...",
+        "Calculating alignment score...",
+        "Finalizing analysis...",
+    ];
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
+
+    useEffect(() => {
+        if (status === 'processing') {
+            const interval = setInterval(() => {
+                setCurrentStepIndex(prev => {
+                    // Don't go past the last step
+                    if (prev >= steps.length - 1) {
+                        clearInterval(interval);
+                        return prev;
+                    }
+                    return prev + 1;
+                });
+            }, 1500); // Simulate progress every 1.5 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [status, steps.length]);
+
+    if (status === 'done') {
+        return (
+            <div className="flex items-center gap-3 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-chart-2 shrink-0" />
+                <span className="text-muted-foreground truncate">{message} - Completed</span>
+            </div>
+        );
+    }
+    
+    if (status === 'error') {
+        return (
+            <div className="flex items-center gap-3 text-sm">
+                <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                <span className="text-muted-foreground truncate">{message} - Error</span>
+            </div>
+        );
+    }
+
+    // 'processing' status
+    return (
+        <div className="flex items-start gap-3 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0 mt-0.5" />
+            <div className="flex-1">
+                <p className="text-foreground font-medium truncate">{message}</p>
+                <p className="text-muted-foreground text-xs truncate">{steps[currentStepIndex]}</p>
+            </div>
+        </div>
+    );
+};
+
+
 export default function ProgressLoader({ 
   title, 
-  current, 
-  total, 
   steps,
   currentStepIndex,
   statusList,
   logLength = 5
 }: ProgressLoaderProps) {
-  const [fakeProgress, setFakeProgress] = useState(0);
-
-  const hasRealProgress = typeof current === 'number' && typeof total === 'number' && total > 0;
-  const progressValue = hasRealProgress ? (current / total) * 100 : fakeProgress;
   
-  useEffect(() => {
-    // Fake progress animation for simple loaders
-    if (hasRealProgress || (steps && typeof currentStepIndex === 'number') || statusList) return;
-
-    setFakeProgress(10);
-    const timer = setInterval(() => {
-      setFakeProgress((prev) => {
-        if (prev >= 95) return 95;
-        return Math.min(prev + Math.random() * 10, 95);
-      });
-    }, 800);
-
-    return () => clearInterval(timer);
-  }, [hasRealProgress, steps, currentStepIndex, statusList]);
-  
-  // Status list view
+  // Status list view for concurrent tasks
   if (statusList) {
     const totalItems = statusList.length;
     const doneCount = statusList.filter(s => s.status === 'done' || s.status === 'error').length;
@@ -57,23 +91,18 @@ export default function ProgressLoader({
         </div>
         <Progress value={progress} className="w-full h-2" />
         <div className="text-center font-sans text-muted-foreground text-sm">
-            <p>Assessed {doneCount} of {totalItems} candidate(s)...</p>
+            <p>Processed {doneCount} of {totalItems} candidate(s)...</p>
         </div>
-        <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-2">
+        <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
             {statusList.map((item, index) => (
-                <div key={index} className="flex items-center gap-3 text-sm">
-                    {item.status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
-                    {item.status === 'done' && <CheckCircle2 className="h-4 w-4 text-chart-2 shrink-0" />}
-                    {item.status === 'error' && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
-                    <span className="text-muted-foreground truncate">{item.message}</span>
-                </div>
+                <ProcessingItem key={index} message={item.message} status={item.status} />
             ))}
         </div>
       </div>
     );
   }
 
-  // Terminal view logic
+  // Terminal view logic for single tasks
   if (steps && typeof currentStepIndex === 'number' && steps.length > 0) {
     const end = Math.min(currentStepIndex, steps.length - 1);
     const start = Math.max(0, end - logLength + 1);
@@ -114,14 +143,13 @@ export default function ProgressLoader({
     );
   }
 
-  // Default simple loader
+  // Fallback simple loader for unexpected cases
   return (
     <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
        <div className="text-center text-sm font-medium text-foreground">
             <p>{title}</p>
-            {hasRealProgress && <p className="font-semibold text-accent">{current} of {total} assessed</p>}
         </div>
-      <Progress value={progressValue} className="w-full h-2" />
+      <Progress value={10} className="w-full h-2 animate-pulse" />
     </div>
   );
 }

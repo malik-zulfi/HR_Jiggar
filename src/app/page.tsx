@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, ChevronsUpDown } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
@@ -24,6 +24,7 @@ import FileUploader from "@/components/file-uploader";
 import ProgressLoader from "@/components/progress-loader";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
@@ -72,26 +73,20 @@ function HomePageContent() {
     const statuses = Object.values(newCvProcessingStatus);
     if (statuses.length === 0) return null;
     
-    return statuses.map(item => {
-        let message = '';
-        if (item.status === 'processing') message = `Processing: ${item.fileName}`;
-        if (item.status === 'done') message = `Done: ${item.candidateName || item.fileName}`;
-        if (item.status === 'error') message = `Error: ${item.fileName}`;
-        return { status: item.status, message };
-    });
+    return statuses.map(item => ({
+        status: item.status,
+        message: item.candidateName || item.fileName
+    }));
   }, [newCvProcessingStatus]);
 
   const reassessStatusList = useMemo(() => {
     const statuses = Object.values(reassessStatus);
     if (statuses.length === 0) return null;
 
-    return statuses.map(item => {
-        let message = '';
-        if (item.status === 'processing') message = `Re-assessing: ${item.candidateName}`;
-        if (item.status === 'done') message = `Done: ${item.candidateName}`;
-        if (item.status === 'error') message = `Error: ${item.candidateName}`;
-        return { status: item.status, message };
-    });
+    return statuses.map(item => ({
+        status: item.status,
+        message: item.candidateName
+    }));
   }, [reassessStatus]);
 
   useEffect(() => {
@@ -212,7 +207,7 @@ function HomePageContent() {
       toast({ description: "Job Description analyzed successfully." });
     } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: error.message || "An unexpected response was received from the server." });
+      toast({ variant: "destructive", title: "Analysis Error", description: "An unexpected error occurred while analyzing the Job Description. Please check the console for details." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -265,7 +260,7 @@ function HomePageContent() {
               toast({
                   variant: "destructive",
                   title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
-                  description: "An unexpected response was received from the server.",
+                  description: "An unexpected error occurred. Please check the console for details.",
               });
               return oldCandidate; // Keep the old data on failure
             })
@@ -285,11 +280,11 @@ function HomePageContent() {
         toast({ description: "All candidates have been re-assessed." });
       } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected response was received from the server." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected error occurred. Please check the console for details." });
       } finally {
         setTimeout(() => {
             setReassessStatus({});
-        }, 2000);
+        }, 3000);
       }
     };
 
@@ -329,7 +324,7 @@ function HomePageContent() {
     }
     
     const initialStatus = cvs.reduce((acc, cv) => {
-        acc[cv.fileName] = { status: 'processing', fileName: cv.fileName };
+        acc[cv.fileName] = { status: 'processing', fileName: cv.fileName, candidateName: cv.candidateName };
         return acc;
     }, {} as CvProcessingStatus);
     setNewCvProcessingStatus(initialStatus);
@@ -370,7 +365,7 @@ function HomePageContent() {
             toast({
               variant: "destructive",
               title: `Analysis Failed for ${cv.fileName}`,
-              description: "An unexpected response was received from the server.",
+              description: "An unexpected error occurred. Please check the console for details.",
             });
 
             setNewCvProcessingStatus(prev => ({
@@ -390,13 +385,13 @@ function HomePageContent() {
 
     } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred during the process." });
+      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred. Please check the console for details." });
     } finally {
         setTimeout(() => {
             setNewCvProcessingStatus({});
             setCvs([]);
             setCvResetKey(key => key + 1);
-        }, 2000);
+        }, 3000);
     }
   };
   
@@ -453,7 +448,7 @@ function HomePageContent() {
       toast({ description: "Candidate summary generated." });
     } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: error.message || "An unexpected response was received from the server." });
+      toast({ variant: "destructive", title: "Summary Error", description: "An unexpected error occurred. Please check the console for details." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
@@ -652,7 +647,7 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {(activeSession.candidates.length > 0 || isAssessingNewCvs) && (
+                          {(activeSession.candidates.length > 0 || isAssessingNewCvs || isReassessing) && (
                               <Card>
                                   <CardHeader>
                                       <div className="flex items-center justify-between gap-4">
@@ -666,11 +661,11 @@ function HomePageContent() {
                                                     : 'Review assessments or re-assess all candidates with the current JD.'}
                                               </CardDescription>
                                           </div>
-                                           {activeSession.candidates.length > 0 && (
+                                           {activeSession.candidates.length > 0 && !isAssessingNewCvs && (
                                               <Button 
                                                   variant="outline" 
                                                   onClick={handleReassessClick}
-                                                  disabled={isReassessing || isAssessingNewCvs}
+                                                  disabled={isReassessing}
                                               >
                                                   <RefreshCw className="mr-2 h-4 w-4" />
                                                   Re-assess All
@@ -679,20 +674,11 @@ function HomePageContent() {
                                       </div>
                                   </CardHeader>
                                   <CardContent>
-                                    {reassessStatusList && (
+                                    {(reassessStatusList || newCvStatusList) && (
                                         <div className="mb-4">
                                             <ProgressLoader
-                                                title="Re-assessing Candidate(s)"
-                                                statusList={reassessStatusList}
-                                            />
-                                        </div>
-                                    )}
-
-                                    {newCvStatusList && (
-                                        <div className="mb-4">
-                                            <ProgressLoader
-                                                title="Assessing New Candidate(s)"
-                                                statusList={newCvStatusList}
+                                                title={reassessStatusList ? "Re-assessing Candidate(s)" : "Assessing New Candidate(s)"}
+                                                statusList={reassessStatusList || newCvStatusList!}
                                             />
                                         </div>
                                     )}
@@ -712,7 +698,7 @@ function HomePageContent() {
                               </Card>
                           )}
                           
-                          {activeSession.candidates.length > 0 && (
+                          {(activeSession.candidates.length > 0 && !isAssessingNewCvs && !isReassessing) && (
                             <>
                                 <Separator />
 
@@ -729,8 +715,8 @@ function HomePageContent() {
                                                 currentStepIndex={summaryProgress.currentStepIndex}
                                             />
                                         ) : (
-                                            <Button onClick={handleGenerateSummary}>
-                                                Generate Summary
+                                            <Button onClick={handleGenerateSummary} disabled={!!activeSession.summary}>
+                                                {activeSession.summary ? "Summary Generated" : "Generate Summary"}
                                             </Button>
                                         )}
                                     </CardContent>
