@@ -126,6 +126,19 @@ export const QueryCandidateOutputSchema = z.object({
 export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
 
 
+// For Global Knowledge Base Query
+export const QueryKnowledgeBaseInputSchema = z.object({
+  query: z.string().describe("The user's question about the knowledge base."),
+  sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
+});
+export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
+
+export const QueryKnowledgeBaseOutputSchema = z.object({
+  answer: z.string().describe('The answer to the user query based on the provided data.'),
+});
+export type QueryKnowledgeBaseOutput = z.infer<typeof QueryKnowledgeBaseOutputSchema>;
+
+
 // For session history
 export const ChatMessageSchema = z.object({
     role: z.enum(['user', 'assistant']),
@@ -152,5 +165,3 @@ export const AssessmentSessionSchema = z.object({
     createdAt: z.string().datetime(),
 });
 export type AssessmentSession = z.infer<typeof AssessmentSessionSchema>;
-
-    

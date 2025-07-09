@@ -18,6 +18,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
+import Chatbot from '@/components/chatbot';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
@@ -26,6 +27,7 @@ const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
     jdName: string;
+    sessionId: string;
 };
 
 const chartConfig = {
@@ -100,7 +102,8 @@ export default function DashboardPage() {
             (session.candidates || []).map(candidate => ({
                 ...candidate.analysis,
                 jobTitle: session.analyzedJd.jobTitle || 'N/A',
-                jdName: session.jdName
+                jdName: session.jdName,
+                sessionId: session.id,
             }))
         );
 
@@ -120,12 +123,12 @@ export default function DashboardPage() {
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
 
-        const recent5Assessments = filteredHistory
+        const recent5Assessments = history
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5);
 
         return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, recent5Assessments };
-    }, [filteredHistory]);
+    }, [filteredHistory, history]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
@@ -244,6 +247,7 @@ export default function DashboardPage() {
                                                 <TableHead>Candidate</TableHead>
                                                 <TableHead>Position</TableHead>
                                                 <TableHead className="text-right">Score</TableHead>
+                                                <TableHead></TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -252,7 +256,14 @@ export default function DashboardPage() {
                                                     <TableCell className="font-medium">{c.candidateName}</TableCell>
                                                     <TableCell className="text-muted-foreground">{c.jobTitle}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <Badge variant="secondary">{c.alignmentScore}%</Badge>
+                                                        <Badge variant={c.alignmentScore >= 75 ? "default" : c.alignmentScore >= 40 ? "secondary" : "destructive"}>{c.alignmentScore}%</Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Link href="/assessment" passHref>
+                                                            <Button variant="outline" size="sm" onClick={() => handleViewInTool(c.sessionId)}>
+                                                                View
+                                                            </Button>
+                                                        </Link>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -344,6 +355,7 @@ export default function DashboardPage() {
                     </Card>
                 </div>
             </main>
+            <Chatbot sessions={history} />
         </div>
     );
 }

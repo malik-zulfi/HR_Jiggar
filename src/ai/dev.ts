@@ -7,3 +7,4 @@ import '@/ai/flows/candidate-summarizer.ts';
 import '@/ai/flows/ocr.ts';
 import '@/ai/flows/name-extractor.ts';
 import '@/ai/flows/query-candidate.ts';
+import '@/ai/flows/query-knowledge-base.ts';
