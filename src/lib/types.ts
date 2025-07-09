@@ -109,12 +109,33 @@ export const ExtractCandidateNameOutputSchema = z.object({
 export type ExtractCandidateNameOutput = z.infer<typeof ExtractCandidateNameOutputSchema>;
 
 
+// For Candidate Query
+export const QueryCandidateInputSchema = z.object({
+  cvContent: z.string().describe("The full text content of the candidate's CV."),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria.'),
+  query: z.string().describe("The user's question about the candidate."),
+});
+export type QueryCandidateInput = z.infer<typeof QueryCandidateInputSchema>;
+
+export const QueryCandidateOutputSchema = z.object({
+  answer: z.string().describe('The answer to the user query based on the CV and JD.'),
+});
+export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
+
+
 // For session history
+export const ChatMessageSchema = z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
 export const CandidateRecordSchema = z.object({
     cvName: z.string(),
     cvContent: z.string(),
     analysis: AnalyzeCVAgainstJDOutputSchema,
     isStale: z.boolean().optional(),
+    chatHistory: z.array(ChatMessageSchema).optional(),
 });
 export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 

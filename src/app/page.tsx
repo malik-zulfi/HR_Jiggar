@@ -10,11 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, ChevronsUpDown } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage } from "@/lib/types";
 import { AssessmentSessionSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
+import { queryCandidate } from "@/ai/flows/query-candidate";
 
 import { Header } from "@/components/header";
 import JdAnalysis from "@/components/jd-analysis";
@@ -50,6 +51,7 @@ function HomePageContent() {
   const [newCvProcessingStatus, setNewCvProcessingStatus] = useState<CvProcessingStatus>({});
   const [reassessStatus, setReassessStatus] = useState<ReassessStatus>({});
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
+  const [chatQueryLoading, setChatQueryLoading] = useState<string | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
 
@@ -570,6 +572,98 @@ function HomePageContent() {
 
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
+
+    const handleCandidateQuery = async (candidateName: string, query: string) => {
+        if (!activeSessionId || !query) return;
+
+        setChatQueryLoading(candidateName);
+
+        const session = history.find(s => s.id === activeSessionId);
+        const candidate = session?.candidates.find(c => c.analysis.candidateName === candidateName);
+
+        if (!session || !candidate || !session.analyzedJd) {
+            toast({ variant: "destructive", title: "Error", description: "Could not find active session or candidate to query." });
+            setChatQueryLoading(null);
+            return;
+        }
+
+        const userMessage: ChatMessage = { role: 'user', content: query };
+        setHistory(prev =>
+            prev.map(s => {
+                if (s.id === activeSessionId) {
+                    return {
+                        ...s,
+                        candidates: s.candidates.map(c => {
+                            if (c.analysis.candidateName === candidateName) {
+                                return {
+                                    ...c,
+                                    chatHistory: [...(c.chatHistory || []), userMessage],
+                                };
+                            }
+                            return c;
+                        }),
+                    };
+                }
+                return s;
+            })
+        );
+
+        try {
+            const result = await queryCandidate({
+                cvContent: candidate.cvContent,
+                jobDescriptionCriteria: session.analyzedJd,
+                query: query,
+            });
+
+            const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
+
+            setHistory(prev =>
+                prev.map(s => {
+                    if (s.id === activeSessionId) {
+                        return {
+                            ...s,
+                            candidates: s.candidates.map(c => {
+                                if (c.analysis.candidateName === candidateName) {
+                                    return {
+                                        ...c,
+                                        chatHistory: [...(c.chatHistory || []), assistantMessage],
+                                    };
+                                }
+                                return c;
+                            }),
+                        };
+                    }
+                    return s;
+                })
+            );
+
+        } catch (error: any) {
+            console.error("Error querying candidate:", error);
+            toast({ variant: "destructive", title: "Query Error", description: error.message || "An unexpected error occurred." });
+            
+            setHistory(prev =>
+                prev.map(s => {
+                    if (s.id === activeSessionId) {
+                        return {
+                            ...s,
+                            candidates: s.candidates.map(c => {
+                                if (c.analysis.candidateName === candidateName) {
+                                    return {
+                                        ...c,
+                                        chatHistory: c.chatHistory?.filter(m => m !== userMessage),
+                                    };
+                                }
+                                return c;
+                            }),
+                        };
+                    }
+                    return s;
+                })
+            );
+        } finally {
+            setChatQueryLoading(null);
+        }
+    };
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
 
@@ -794,11 +888,13 @@ function HomePageContent() {
                                             {activeSession.candidates.map((c, i) => (
                                                 <CandidateCard 
                                                     key={`${c.analysis.candidateName}-${i}`} 
-                                                    candidate={c.analysis}
+                                                    candidate={c}
                                                     isStale={c.isStale}
                                                     isSelected={selectedCandidates.has(c.analysis.candidateName)}
                                                     onToggleSelect={() => handleToggleSelectCandidate(c.analysis.candidateName)}
                                                     onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                    onQuery={(query) => handleCandidateQuery(c.analysis.candidateName, query)}
+                                                    isQuerying={chatQueryLoading === c.analysis.candidateName}
                                                 />
                                             ))}
                                         </Accordion>
