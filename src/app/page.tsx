@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight, Filter, X, History } from 'lucide-react';
+import { Bot, Briefcase, Users, Award, Database, BarChart3, ArrowRight, Filter, X, History } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate } from '@/lib/types';
 import { AssessmentSessionSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,7 +23,6 @@ import Chatbot from '@/components/chatbot';
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
-// A type for our flattened top candidates
 type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
     jdName: string;
@@ -145,7 +144,7 @@ export default function DashboardPage() {
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
 
     if (!isClient) {
-        return null; // or a loading skeleton
+        return null;
     }
 
     return (
@@ -229,6 +228,20 @@ export default function DashboardPage() {
                             <CardContent>
                                 <div className="text-2xl font-bold text-accent">{stats.totalCandidates}</div>
                                 <p className="text-xs text-muted-foreground">Total CVs processed across all positions</p>
+                            </CardContent>
+                        </Card>
+                         <Card className="col-span-full md:col-span-2 flex flex-col justify-between">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">CV Database</CardTitle>
+                                <CardDescription>Manage your central repository of candidate CVs.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/cv-database" passHref>
+                                    <Button className="w-full">
+                                        <Database className="mr-2 h-4 w-4"/>
+                                        Open CV Database
+                                    </Button>
+                                </Link>
                             </CardContent>
                         </Card>
                     </div>

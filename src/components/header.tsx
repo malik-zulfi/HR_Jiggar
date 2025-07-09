@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Bot, PlusSquare } from "lucide-react";
+import { Bot, PlusSquare, Database } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   AlertDialog,
@@ -30,9 +30,15 @@ export function Header({ onNewSession }: { onNewSession: () => void }) {
         </Link>
         
         <div className="flex items-center gap-2">
+            <Link href="/cv-database">
+              <Button variant="outline">
+                <Database className="mr-2 h-4 w-4" />
+                CV Database
+              </Button>
+            </Link>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline">
+                <Button>
                   <PlusSquare className="mr-2 h-4 w-4" />
                   New Assessment
                 </Button>

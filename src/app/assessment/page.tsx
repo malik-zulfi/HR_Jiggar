@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, ChevronsUpDown } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage } from "@/lib/types";
-import { AssessmentSessionSchema } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage, CvDatabaseRecord } from "@/lib/types";
+import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
 import { queryCandidate } from "@/ai/flows/query-candidate";
+import { parseCv } from "@/ai/flows/cv-parser";
 
 import { Header } from "@/components/header";
 import JdAnalysis from "@/components/jd-analysis";
@@ -25,11 +26,16 @@ import FileUploader from "@/components/file-uploader";
 import ProgressLoader from "@/components/progress-loader";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
+const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
-type CvFile = { fileName: string; content: string; candidateName: string };
+type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 
@@ -40,12 +46,12 @@ function AssessmentPageContent() {
   const isExpanded = state === 'expanded';
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
+  const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 
-  const [jdFile, setJdFile] = useState<{ name: string; content: string } | null>(null);
-  const [cvs, setCvs] = useState<CvFile[]>([]);
+  const [cvs, setCvs] = useState<UploadedFile[]>([]);
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
@@ -55,6 +61,7 @@ function AssessmentPageContent() {
   const [chatQueryLoading, setChatQueryLoading] = useState<string | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
+  const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
 
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -99,17 +106,17 @@ function AssessmentPageContent() {
 
   useEffect(() => {
     try {
-      const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+      // Load Assessment History
+      const savedHistoryJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       if (intendedSessionId) {
           localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       }
       
-      if (savedStateJSON) {
-        const parsedJSON = JSON.parse(savedStateJSON);
-        if (Array.isArray(parsedJSON) && parsedJSON.length > 0) {
-          // Filter out invalid sessions and add back-compat for originalAnalyzedJd
-          const validHistory = parsedJSON.map(sessionData => {
+      if (savedHistoryJSON) {
+        const parsedHistory = JSON.parse(savedHistoryJSON);
+        if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+          const validHistory = parsedHistory.map(sessionData => {
             const result = AssessmentSessionSchema.safeParse(sessionData);
             if (result.success) {
                 if (!result.data.originalAnalyzedJd) {
@@ -118,25 +125,37 @@ function AssessmentPageContent() {
                 result.data.candidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
                 return result.data;
             }
-            console.warn("Found and skipped invalid session data from localStorage:", result.error);
             return null;
           }).filter((s): s is AssessmentSession => s !== null);
 
           if (validHistory.length > 0) {
             const sortedHistory = validHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setHistory(sortedHistory);
-            
             const sessionToActivate = intendedSessionId ? sortedHistory.find(s => s.id === intendedSessionId) : null;
-            
             setActiveSessionId(sessionToActivate ? sessionToActivate.id : (sortedHistory[0]?.id || null));
           } else {
              localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
         }
       }
+      
+      // Load CV Database
+      const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
+      if (savedCvDbJSON) {
+        const parsedCvDb = JSON.parse(savedCvDbJSON);
+        if (Array.isArray(parsedCvDb)) {
+            const validDb = parsedCvDb.map(record => {
+                const result = CvDatabaseRecordSchema.safeParse(record);
+                return result.success ? result.data : null;
+            }).filter((r): r is CvDatabaseRecord => r !== null);
+            setCvDatabase(validDb);
+        }
+      }
+
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.removeItem(CV_DB_STORAGE_KEY);
     }
   }, []);
 
@@ -144,16 +163,23 @@ function AssessmentPageContent() {
     if (history.length > 0) {
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
-      } catch (error) {
-        console.error("Failed to save state to localStorage", error);
-      }
+      } catch (error) { console.error("Failed to save history to localStorage", error); }
     } else {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [history]);
+
+  useEffect(() => {
+    if (cvDatabase.length > 0) {
+      try {
+        localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
+      } catch (error) { console.error("Failed to save CV DB to localStorage", error); }
+    } else {
+      localStorage.removeItem(CV_DB_STORAGE_KEY);
+    }
+  }, [cvDatabase]);
   
   useEffect(() => {
-    // Clear selection when active session changes
     setSelectedCandidates(new Set());
   }, [activeSessionId]);
 
@@ -176,7 +202,7 @@ function AssessmentPageContent() {
     toast({ description: "Assessment deleted." });
   };
 
-  const handleJdUpload = async (files: { name: string, content: string }[]) => {
+  const handleJdUpload = async (files: UploadedFile[]) => {
     if(files.length === 0) return;
     
     const jdFile = files[0];
@@ -199,7 +225,6 @@ function AssessmentPageContent() {
                 return null;
             }
             const nextStep = prev.currentStepIndex + 1;
-            // Stop before last step, which is triggered after the API call
             if (nextStep >= prev.steps.length - 1) {
                 if (simulationInterval) clearInterval(simulationInterval);
             }
@@ -240,13 +265,120 @@ function AssessmentPageContent() {
     setJdFile(null);
   }
 
-  const handleCvUpload = (files: CvFile[]) => {
+  const handleCvUpload = (files: UploadedFile[]) => {
     setCvs(files);
   };
   
   const handleCvClear = () => {
     setCvs([]);
   }
+  
+  const addOrUpdateCvInDatabase = (parsedCv: CvDatabaseRecord) => {
+    setCvDatabase(prevDb => {
+        const existingCvIndex = prevDb.findIndex(c => c.email === parsedCv.email);
+        if (existingCvIndex !== -1) {
+            const updatedDb = [...prevDb];
+            updatedDb[existingCvIndex] = parsedCv;
+            return updatedDb;
+        } else {
+            return [...prevDb, parsedCv];
+        }
+    });
+  };
+
+  const processAndAnalyzeCandidates = async (
+      candidatesToProcess: UploadedFile[],
+      jd: ExtractJDCriteriaOutput
+    ) => {
+        const initialStatus = candidatesToProcess.reduce((acc, cv) => {
+            acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: 'Parsing...' };
+            return acc;
+        }, {} as CvProcessingStatus);
+        setNewCvProcessingStatus(initialStatus);
+
+        try {
+            toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
+            
+            const jobCode = jd.code;
+            const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
+
+            for (const cv of candidatesToProcess) {
+                try {
+                    // Always analyze against JD
+                    const analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
+                    
+                    const candidateRecord: CandidateRecord = {
+                        cvName: cv.name,
+                        cvContent: cv.content,
+                        analysis,
+                        isStale: false,
+                    };
+
+                    setHistory(prev => prev.map(session => {
+                        if (session.id === activeSessionId) {
+                            const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName));
+                            if (existingNames.has(candidateRecord.analysis.candidateName)) {
+                                toast({ variant: 'destructive', description: `Candidate ${candidateRecord.analysis.candidateName} already exists in this session.` });
+                                return session;
+                            }
+                            const allCandidates = [...session.candidates, candidateRecord];
+                            allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                            return { ...session, candidates: allCandidates, summary: null };
+                        }
+                        return session;
+                    }));
+
+                    // Also add to central CV database if job code is valid
+                    if (isValidJobCode) {
+                        try {
+                            const parsedCvData = await parseCv({ cvText: cv.content });
+                            const dbRecord: CvDatabaseRecord = {
+                                ...parsedCvData,
+                                jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                                cvFileName: cv.name,
+                                cvContent: cv.content,
+                                createdAt: new Date().toISOString(),
+                            };
+                            addOrUpdateCvInDatabase(dbRecord);
+                        } catch (parseError: any) {
+                            console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
+                            toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: parseError.message });
+                        }
+                    }
+
+                    setNewCvProcessingStatus(prev => ({
+                        ...prev,
+                        [cv.name]: { ...prev[cv.name], status: 'done', candidateName: analysis.candidateName }
+                    }));
+
+                } catch (error: any) {
+                    console.error(`Error analyzing CV for ${cv.name}:`, error);
+                    toast({
+                        variant: "destructive",
+                        title: `Analysis Failed for ${cv.name}`,
+                        description: error.message || "An unexpected error occurred.",
+                    });
+                    setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
+                }
+            }
+
+            const successfulAnalyses = Object.values(newCvProcessingStatus).filter(s => s.status === 'done').length;
+            if (successfulAnalyses > 0) {
+                toast({ description: `${successfulAnalyses} candidate(s) have been successfully assessed.` });
+            }
+
+        } catch (error: any) {
+            console.error("Error analyzing CVs:", error);
+            toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred." });
+        } finally {
+            setTimeout(() => {
+                setNewCvProcessingStatus({});
+                setCvs([]);
+                setCvResetKey(key => key + 1);
+            }, 3000);
+        }
+    };
+
 
   const reAssessCandidates = async (
     jd: ExtractJDCriteriaOutput,
@@ -288,7 +420,7 @@ function AssessmentPageContent() {
               title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
               description: error.message || "An unexpected error occurred. Please check the console.",
             });
-            return oldCandidate; // Keep the old data on failure
+            return oldCandidate;
           })
       );
 
@@ -308,18 +440,12 @@ function AssessmentPageContent() {
               const updatedVersion = updatedCandidatesMap.get(
                 candidate.analysis.candidateName
               );
-              // If this candidate was just reassessed, return the new version.
               if (updatedVersion) {
-                return updatedVersion; // This will have isStale: false.
+                return updatedVersion;
               }
-
-              // If this was a partial reassessment and this candidate was NOT
-              // in the list, mark it as stale.
               if (isPartialReassess && !namesToReassess.has(candidate.analysis.candidateName)) {
                 return { ...candidate, isStale: true };
               }
-
-              // Otherwise, return the candidate as is.
               return candidate;
             });
 
@@ -328,7 +454,7 @@ function AssessmentPageContent() {
             return {
               ...s,
               candidates: newFullCandidateList,
-              summary: null, // Invalidate summary on any reassessment
+              summary: null,
             };
           }
           return s;
@@ -338,7 +464,7 @@ function AssessmentPageContent() {
       toast({ description: "Candidates have been re-assessed." });
     } catch (error: any) {
       console.error("Error re-assessing CVs:", error);
-      toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected error occurred. Please check the console." });
+      toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected error occurred." });
     } finally {
       setTimeout(() => {
         setReassessStatus({});
@@ -374,15 +500,11 @@ function AssessmentPageContent() {
     const isDirty = JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd);
 
     if (isDirty) {
-      // Check if the new state is an exact match for the original JD state
       const isRevertedToOriginal = JSON.stringify(editedJd) === JSON.stringify(currentSession.originalAnalyzedJd);
-      
-      // Candidates are considered "stale" only if the JD is NOT in its original state.
       const newStaleState = !isRevertedToOriginal;
 
       setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-          // Update all candidates with the new stale status.
           const updatedCandidates = s.candidates.map(c => ({
             ...c,
             isStale: newStaleState,
@@ -412,78 +534,20 @@ function AssessmentPageContent() {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
+    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd);
+  };
+
+  const handleAnalyzeFromDb = async (selectedCvsFromDb: CvDatabaseRecord[]) => {
+    if (selectedCvsFromDb.length === 0) return;
+    if (!activeSession?.analyzedJd) return;
+
+    const uploadedFiles: UploadedFile[] = selectedCvsFromDb.map(cv => ({
+        name: cv.cvFileName,
+        content: cv.cvContent,
+    }));
     
-    const initialStatus = cvs.reduce((acc, cv) => {
-        acc[cv.fileName] = { status: 'processing', fileName: cv.fileName, candidateName: cv.candidateName };
-        return acc;
-    }, {} as CvProcessingStatus);
-    setNewCvProcessingStatus(initialStatus);
-    
-    try {
-      toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
-      
-      const analysisPromises = cvs.map(cv =>
-        analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession!.analyzedJd, cv: cv.content })
-          .then(analysis => {
-            const candidateRecord: CandidateRecord = {
-              cvName: cv.fileName,
-              cvContent: cv.content,
-              analysis,
-              isStale: false,
-            };
-            
-            setHistory(prev => prev.map(session => {
-              if (session.id === activeSessionId) {
-                const existingNames = new Set(session.candidates.map(c => c.cvName));
-                if (existingNames.has(candidateRecord.cvName)) return session;
-
-                const allCandidates = [...session.candidates, candidateRecord];
-                allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                return { ...session, candidates: allCandidates, summary: null };
-              }
-              return session;
-            }));
-
-            setNewCvProcessingStatus(prev => ({
-              ...prev,
-              [cv.fileName]: { ...prev[cv.fileName], status: 'done', candidateName: analysis.candidateName }
-            }));
-
-            return { status: 'fulfilled', value: candidateRecord };
-          })
-          .catch(error => {
-            console.error(`Error analyzing CV for ${cv.fileName}:`, error);
-            toast({
-              variant: "destructive",
-              title: `Analysis Failed for ${cv.fileName}`,
-              description: error.message || "An unexpected error occurred. Please check the console.",
-            });
-
-            setNewCvProcessingStatus(prev => ({
-              ...prev,
-              [cv.fileName]: { ...prev[cv.fileName], status: 'error' }
-            }));
-            
-            return { status: 'rejected', reason: error };
-          })
-      );
-      
-      const results = await Promise.all(analysisPromises);
-      const successfulAnalyses = results.filter(r => r.status === 'fulfilled').length;
-      if (successfulAnalyses > 0) {
-        toast({ description: `${successfulAnalyses} candidate(s) have been successfully assessed.` });
-      }
-
-    } catch (error: any) {
-      console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred. Please check the console." });
-    } finally {
-        setTimeout(() => {
-            setNewCvProcessingStatus({});
-            setCvs([]);
-            setCvResetKey(key => key + 1);
-        }, 3000);
-    }
+    await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd);
+    setIsAddFromDbOpen(false);
   };
   
   const handleGenerateSummary = async () => {
@@ -570,7 +634,7 @@ function AssessmentPageContent() {
                 return {
                     ...session,
                     candidates: updatedCandidates,
-                    summary: null, // Invalidate summary
+                    summary: null,
                 };
             }
             return session;
@@ -690,24 +754,15 @@ function AssessmentPageContent() {
                         }
                         return c;
                     });
-                    return {
-                        ...session,
-                        candidates: updatedCandidates,
-                    };
+                    return { ...session, candidates: updatedCandidates };
                 }
                 return session;
             })
         );
-
         toast({ description: `Chat history for "${candidateNameToClear}" has been cleared.` });
     };
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
-
-  const handleAutoAnalyze = (files: { name: string, content: string }[]) => {
-    handleJdUpload(files);
-  };
-
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
   const isReassessing = Object.keys(reassessStatus).length > 0;
   const reassessButtonText = selectedCandidates.size > 0
@@ -723,35 +778,25 @@ function AssessmentPageContent() {
       <Header onNewSession={handleNewSession} />
       <div 
           className="flex flex-1 w-full"
-          style={
-            {
-              "--sidebar-width": "18rem",
-              "--sidebar-width-collapsed": "3.5rem",
-            } as React.CSSProperties
-          }
+          style={ { "--sidebar-width": "18rem", "--sidebar-width-collapsed": "3.5rem" } as React.CSSProperties }
       >
           <Sidebar side="left" className="h-full">
               <SidebarHeader
                 onClick={toggleSidebar}
-                className={cn(
-                  "cursor-pointer transition-all",
-                  isExpanded ? "p-2 gap-2" : "p-2 items-center justify-center h-full"
-                )}
+                className={cn("cursor-pointer transition-all", isExpanded ? "p-2 gap-2" : "p-2 items-center justify-center h-full")}
               >
                   {isExpanded ? (
-                      <>
-                          <div className="flex items-center justify-between w-full">
-                              <h2 className="text-lg font-semibold flex items-center gap-2">
-                                  <SlidersHorizontal className="w-5 h-5"/>
-                                  Miscellaneous
-                              </h2>
-                              <PanelLeftClose className="w-5 h-5 text-muted-foreground"/>
-                          </div>
-                      </>
+                      <div className="flex items-center justify-between w-full">
+                          <h2 className="text-lg font-semibold flex items-center gap-2">
+                              <SlidersHorizontal className="w-5 h-5"/>
+                              Controls & History
+                          </h2>
+                          <PanelLeftClose className="w-5 h-5 text-muted-foreground"/>
+                      </div>
                   ) : (
                       <h2 className="[writing-mode:vertical-rl] rotate-180 font-semibold whitespace-nowrap flex items-center gap-2">
                           <SlidersHorizontal className="w-5 h-5"/>
-                          Miscellaneous
+                          Controls & History
                       </h2>
                   )}
               </SidebarHeader>
@@ -768,18 +813,30 @@ function AssessmentPageContent() {
                             onFileClear={handleCvClear}
                             multiple={true}
                         />
-                        <Button 
-                            onClick={handleAnalyzeCvs} 
-                            disabled={cvs.length === 0 || isAssessingNewCvs || isReassessing} 
-                            className="w-full"
-                        >
-                            {isAssessingNewCvs ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <FileText className="mr-2 h-4 w-4" />
-                            )}
-                            {isAssessingNewCvs ? 'Assessing...' : 'Add and Assess Candidate(s)'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button 
+                                onClick={handleAnalyzeCvs} 
+                                disabled={cvs.length === 0 || isAssessingNewCvs || isReassessing} 
+                                className="w-full"
+                            >
+                                {isAssessingNewCvs ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                                {isAssessingNewCvs ? 'Assessing...' : 'Add & Assess'}
+                            </Button>
+                            <Dialog open={isAddFromDbOpen} onOpenChange={setIsAddFromDbOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="w-full">
+                                        <Database className="mr-2 h-4 w-4"/>
+                                        Add from DB
+                                    </Button>
+                                </DialogTrigger>
+                                <AddFromDbDialog 
+                                    allCvs={cvDatabase}
+                                    jobCode={activeSession.analyzedJd.code}
+                                    sessionCandidates={activeSession.candidates}
+                                    onAdd={handleAnalyzeFromDb}
+                                />
+                            </Dialog>
+                        </div>
                     </div>
                   )}
 
@@ -852,7 +909,7 @@ function AssessmentPageContent() {
                               id="jd-uploader"
                               label="Job Description"
                               acceptedFileTypes={acceptedFileTypes}
-                              onFileUpload={handleAutoAnalyze}
+                              onFileUpload={handleJdUpload}
                               onFileClear={handleJdClear}
                               />
                           </div>
@@ -902,11 +959,7 @@ function AssessmentPageContent() {
                                                   onClick={handleReassessClick}
                                                   disabled={isReassessing}
                                               >
-                                                  {isReassessing ? (
-                                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                  ) : (
-                                                      <RefreshCw className="mr-2 h-4 w-4" />
-                                                  )}
+                                                  {isReassessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                                                   {isReassessing ? "Re-assessing..." : reassessButtonText}
                                               </Button>
                                            )}
@@ -948,7 +1001,6 @@ function AssessmentPageContent() {
                           {showSummarySection && (
                             <>
                                 <Separator />
-
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 3: Generate Summary</CardTitle>
@@ -980,6 +1032,136 @@ function AssessmentPageContent() {
     </div>
   );
 }
+
+const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
+  allCvs: CvDatabaseRecord[];
+  jobCode?: string;
+  sessionCandidates: CandidateRecord[];
+  onAdd: (selectedCvs: CvDatabaseRecord[]) => void;
+}) => {
+    const [selectedCvs, setSelectedCvs] = useState<Set<string>>(new Set());
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const compatibleCvs = useMemo(() => {
+        if (!jobCode) return [];
+        return allCvs.filter(cv => cv.jobCode === jobCode);
+    }, [allCvs, jobCode]);
+
+    const filteredCvs = useMemo(() => {
+        if (!searchTerm.trim()) return compatibleCvs;
+        const lowerSearch = searchTerm.toLowerCase();
+        return compatibleCvs.filter(cv => 
+            cv.name.toLowerCase().includes(lowerSearch) ||
+            cv.email.toLowerCase().includes(lowerSearch) ||
+            cv.currentTitle?.toLowerCase().includes(lowerSearch)
+        );
+    }, [compatibleCvs, searchTerm]);
+
+    const sessionCandidateEmails = useMemo(() => 
+        new Set(sessionCandidates.map(c => {
+            const match = c.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+            return match ? match[0].toLowerCase() : null;
+        }).filter(Boolean))
+    , [sessionCandidates]);
+
+
+    const handleSelect = (email: string) => {
+        setSelectedCvs(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(email)) {
+                newSet.delete(email);
+            } else {
+                newSet.add(email);
+            }
+            return newSet;
+        });
+    };
+    
+    const handleAddClick = () => {
+        const cvsToAdd = compatibleCvs.filter(cv => selectedCvs.has(cv.email));
+        onAdd(cvsToAdd);
+        setSelectedCvs(new Set());
+    };
+
+    if (!jobCode) {
+        return (
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Cannot Add from Database</DialogTitle>
+                    <DialogDescription>
+                        The current Job Description does not have a valid job code (OCN, WEX, or SAN). Please edit the JD to add a valid code before adding candidates from the database.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        );
+    }
+    
+    return (
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Add Candidates from Database</DialogTitle>
+                <DialogDescription>
+                    Select candidates from the database with job code <Badge>{jobCode}</Badge> to add to this assessment. Candidates already in this session are disabled.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search by name, email, or title..."
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            <ScrollArea className="h-96 border rounded-md">
+                <Table>
+                    <TableHeader className="sticky top-0 bg-secondary">
+                        <TableRow>
+                            <TableHead className="w-10"></TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Current Position</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredCvs.length > 0 ? filteredCvs.map(cv => {
+                            const isInSession = sessionCandidateEmails.has(cv.email.toLowerCase());
+                            return (
+                                <TableRow key={cv.email} className={cn(isInSession && "bg-muted/50 text-muted-foreground")}>
+                                    <TableCell>
+                                        <Checkbox 
+                                            checked={selectedCvs.has(cv.email)}
+                                            onCheckedChange={() => handleSelect(cv.email)}
+                                            disabled={isInSession}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="font-medium">{cv.name}</TableCell>
+                                    <TableCell>{cv.email}</TableCell>
+                                    <TableCell>{cv.currentTitle || 'N/A'}</TableCell>
+                                </TableRow>
+                            )
+                        }) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                    No compatible candidates found in the database.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </ScrollArea>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                <Button onClick={handleAddClick} disabled={selectedCvs.size === 0}>
+                    Add Selected ({selectedCvs.size})
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    );
+};
 
 
 export default function AssessmentPage() {
