@@ -62,26 +62,35 @@ export default function DashboardPage() {
         }
     }, []);
 
-    const { uniqueCodes, uniqueDepartments, filteredHistory } = useMemo(() => {
-        const allCodes = new Set<string>();
-        const allDepartments = new Set<string>();
-        history.forEach(session => {
-            if (session.analyzedJd.code) allCodes.add(session.analyzedJd.code);
-            if (session.analyzedJd.department) allDepartments.add(session.analyzedJd.department);
-        });
-
-        const fHistory = history.filter(session => {
+    const filteredHistory = useMemo(() => {
+        return history.filter(session => {
             const codeMatch = filters.code === 'all' || session.analyzedJd.code === filters.code;
             const deptMatch = filters.department === 'all' || session.analyzedJd.department === filters.department;
             return codeMatch && deptMatch;
         });
-
-        return {
-            uniqueCodes: ['all', ...Array.from(allCodes)],
-            uniqueDepartments: ['all', ...Array.from(allDepartments)],
-            filteredHistory: fHistory
-        };
     }, [history, filters]);
+
+    const uniqueCodes = useMemo(() => {
+        const relevantHistory = history.filter(session => {
+            return filters.department === 'all' || session.analyzedJd.department === filters.department;
+        });
+        const codes = new Set<string>();
+        relevantHistory.forEach(session => {
+            if (session.analyzedJd.code) codes.add(session.analyzedJd.code);
+        });
+        return ['all', ...Array.from(codes).sort()];
+    }, [history, filters.department]);
+
+    const uniqueDepartments = useMemo(() => {
+        const relevantHistory = history.filter(session => {
+            return filters.code === 'all' || session.analyzedJd.code === filters.code;
+        });
+        const departments = new Set<string>();
+        relevantHistory.forEach(session => {
+            if (session.analyzedJd.department) departments.add(session.analyzedJd.department);
+        });
+        return ['all', ...Array.from(departments).sort()];
+    }, [history, filters.code]);
 
     const stats = useMemo(() => {
         const totalPositions = filteredHistory.length;
