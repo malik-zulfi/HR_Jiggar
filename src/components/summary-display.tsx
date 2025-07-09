@@ -1,16 +1,18 @@
+
 "use client";
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CandidateSummaryOutput, AnalyzedCandidate, ExtractJDCriteriaOutput } from "@/lib/types";
-import { Award, Target, Telescope, UserMinus, UserCheck, Users, Download, Loader2 } from "lucide-react";
+import { Award, Target, Telescope, UserMinus, UserCheck, Users, Download, Loader2, FileSpreadsheet } from "lucide-react";
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { createRoot } from 'react-dom/client';
 import Report from './report';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 
 interface SummaryDisplayProps {
   summary: CandidateSummaryOutput;
@@ -21,6 +23,99 @@ interface SummaryDisplayProps {
 export default function SummaryDisplay({ summary, candidates, analyzedJd }: SummaryDisplayProps) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const handleExportExcel = () => {
+    if (candidates.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "No candidates to export."
+      });
+      return;
+    }
+    setIsExportingExcel(true);
+    toast({ description: "Generating cross-candidate alignment report..." });
+
+    try {
+      const allJdRequirements = [
+        ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
+        ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
+        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skills' })),
+        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skills' })),
+        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certifications' })),
+        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibilities' })),
+        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirements' })),
+      ];
+
+      if (allJdRequirements.length === 0) {
+          toast({ variant: "destructive", title: "Export Failed", description: "No job description requirements to create a report from." });
+          setIsExportingExcel(false);
+          return;
+      }
+      
+      const candidateMap = new Map(candidates.map(c => [c.candidateName, c]));
+      const candidateNames = candidates.map(c => c.candidateName);
+
+      const header = ['Category', 'Requirement', 'Priority', ...candidateNames];
+      
+      const statusSymbols: { [key: string]: string } = {
+        'Aligned': '✔',
+        'Partially Aligned': '!',
+        'Not Aligned': '✖',
+        'Not Mentioned': '?',
+      };
+
+      const rows = allJdRequirements.map(jdReq => {
+        const rowData: (string | undefined)[] = [
+          jdReq.category,
+          jdReq.description,
+          jdReq.priority
+        ];
+
+        candidateNames.forEach(name => {
+          const candidate = candidateMap.get(name);
+          const alignmentDetail = candidate?.alignmentDetails.find(
+            detail => 
+                detail.requirement.trim().toLowerCase() === jdReq.description.trim().toLowerCase() && 
+                detail.category.trim().toLowerCase() === jdReq.category.trim().toLowerCase()
+          );
+
+          if (alignmentDetail) {
+            const symbol = statusSymbols[alignmentDetail.status] || '';
+            rowData.push(`${symbol} ${alignmentDetail.status}`);
+          } else {
+            rowData.push('? Not Mentioned');
+          }
+        });
+
+        return rowData;
+      });
+      
+      const worksheetData = [header, ...rows];
+
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+      const colWidths = header.map((_, colIndex) => {
+          const maxLength = Math.max(
+              ...worksheetData.map(row => (row[colIndex]?.toString() ?? '').length)
+          );
+          return { wch: maxLength + 2 };
+      });
+      worksheet['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Candidate Alignment Matrix');
+      XLSX.writeFile(workbook, 'candidate_alignment_matrix.xlsx');
+
+      toast({ description: "Excel report downloaded successfully." });
+    } catch (error) {
+        console.error("Failed to export Excel", error);
+        toast({ variant: "destructive", title: "Export Failed", description: "Could not generate Excel report." });
+    } finally {
+        setIsExportingExcel(false);
+    }
+  };
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -97,14 +192,24 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
                 <CardTitle>Overall Assessment Summary</CardTitle>
                 <CardDescription>A complete overview of all candidates and strategic recommendations.</CardDescription>
             </div>
-            <Button onClick={handleExport} disabled={isExporting}>
-                {isExporting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                )}
-                Export PDF
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button onClick={handleExportExcel} disabled={isExportingExcel || isExporting} variant="outline">
+                    {isExportingExcel ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    )}
+                    Export Excel
+                </Button>
+                <Button onClick={handleExport} disabled={isExporting || isExportingExcel}>
+                    {isExporting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Export PDF
+                </Button>
+            </div>
         </div>
       </CardHeader>
       <CardContent>
