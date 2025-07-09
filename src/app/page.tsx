@@ -664,6 +664,30 @@ function HomePageContent() {
             setChatQueryLoading(null);
         }
     };
+
+    const handleClearChatHistory = (candidateNameToClear: string) => {
+        if (!activeSessionId) return;
+
+        setHistory(prev =>
+            prev.map(session => {
+                if (session.id === activeSessionId) {
+                    const updatedCandidates = session.candidates.map(c => {
+                        if (c.analysis.candidateName === candidateNameToClear) {
+                            return { ...c, chatHistory: [] };
+                        }
+                        return c;
+                    });
+                    return {
+                        ...session,
+                        candidates: updatedCandidates,
+                    };
+                }
+                return session;
+            })
+        );
+
+        toast({ description: `Chat history for "${candidateNameToClear}" has been cleared.` });
+    };
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
 
@@ -895,6 +919,7 @@ function HomePageContent() {
                                                     onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
                                                     onQuery={(query) => handleCandidateQuery(c.analysis.candidateName, query)}
                                                     isQuerying={chatQueryLoading === c.analysis.candidateName}
+                                                    onClearChat={() => handleClearChatHistory(c.analysis.candidateName)}
                                                 />
                                             ))}
                                         </Accordion>
@@ -952,3 +977,4 @@ export default function Home() {
     
 
     
+

@@ -6,7 +6,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate, CandidateRecord, ChatMessage } from "@/lib/types";
-import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw, MessageSquare, Send, Loader2 } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw, MessageSquare, Send, Loader2, Eraser } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 import { Checkbox } from "./ui/checkbox";
@@ -132,6 +132,7 @@ interface CandidateCardProps {
   onDelete: () => void;
   onQuery: (query: string) => void;
   isQuerying: boolean;
+  onClearChat: () => void;
 }
 
 const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation']) => {
@@ -166,9 +167,10 @@ const getScoreBadgeClass = (score: number) => {
     return "bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80";
 };
 
-export default function CandidateCard({ candidate, isStale, isSelected, onToggleSelect, onDelete, onQuery, isQuerying }: CandidateCardProps) {
+export default function CandidateCard({ candidate, isStale, isSelected, onToggleSelect, onDelete, onQuery, isQuerying, onClearChat }: CandidateCardProps) {
   const analysis = candidate.analysis;
   const recommendationInfo = getRecommendationInfo(analysis.recommendation);
+  const hasChatHistory = candidate.chatHistory && candidate.chatHistory.length > 0;
 
   return (
     <AccordionItem value={analysis.candidateName}>
@@ -239,7 +241,23 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
           <div className="border-b pb-6">
-            <h4 className="font-semibold mb-2 flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/> Ask a Question</h4>
+            <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/> Ask a Question</h4>
+                {hasChatHistory && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={onClearChat}>
+                                    <Eraser className="w-4 h-4"/>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Clear chat history</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+            </div>
             <CandidateChat
                 chatHistory={candidate.chatHistory}
                 onQuery={onQuery}
