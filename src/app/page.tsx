@@ -196,9 +196,9 @@ function HomePageContent() {
       setActiveSessionId(newSession.id);
       setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error analyzing JD:", error);
-      toast({ variant: "destructive", title: "Analysis Error", description: "An unexpected response was received from the server." });
+      toast({ variant: "destructive", title: "Analysis Error", description: error.message || "An unexpected response was received from the server." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(null);
@@ -262,9 +262,9 @@ function HomePageContent() {
         }));
 
         toast({ description: "All candidates have been re-assessed." });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
-        toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected response was received from the server." });
+        toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected response was received from the server." });
       } finally {
         setReassessProgress(null);
       }
@@ -365,9 +365,9 @@ function HomePageContent() {
         toast({ description: `${successfulAnalyses} candidate(s) have been successfully assessed.` });
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred during the process." });
+      toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred during the process." });
     } finally {
         setTimeout(() => {
             setNewCvProcessingStatus({});
@@ -428,9 +428,9 @@ function HomePageContent() {
       }));
 
       toast({ description: "Candidate summary generated." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: "An unexpected response was received from the server." });
+      toast({ variant: "destructive", title: "Summary Error", description: error.message || "An unexpected response was received from the server." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
