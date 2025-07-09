@@ -26,6 +26,7 @@ export async function queryKnowledgeBase(input: QueryKnowledgeBaseInput): Promis
 
 const SummarizedDataSchema = z.object({
     query: z.string(),
+    currentDate: z.string(),
     knowledgeBase: z.any() // Using any to avoid schema complexity in the prompt definition
 });
 
@@ -41,13 +42,17 @@ You have been given a summarized JSON of "Assessment Sessions". Each session con
 1.  A unique \`sessionId\`.
 2.  A job title, code, department, and the original JD filename.
 3.  A list of candidates who were assessed against that JD.
-4.  Each candidate record includes their name, alignment score, final recommendation, strengths, and weaknesses.
+4.  Each candidate record includes their name, alignment score, final recommendation, strengths, weaknesses, and the full text of their CV (\`cvContent\`).
+
+**Important Reasoning Rules:**
+*   **Calculate Experience for Current Roles:** If the user's question involves calculating work experience, you MUST use the CV content to find the employment dates. When a candidate's experience is listed as "Present", "Current", or "To Date", you must use today's date ({{{currentDate}}}) as the end date for that role when calculating their total years of experience.
+*   **Handle Overlapping Experience:** When calculating total years of experience, you MUST identify all distinct employment periods from the CV. If there are overlapping date ranges (e.g., working two jobs at the same time), merge them to avoid double-counting. The total experience should be the sum of the unique, non-overlapping time periods.
 
 **Your Task:**
 - Analyze the user's query and the provided session data.
-- Formulate a concise and accurate answer based *only* on the information in the knowledge base.
+- Formulate a concise and accurate answer based *only* on the information in the knowledge base, including the full CV content for detailed questions.
 - If the answer requires aggregating data (e.g., "How many candidates know Python?"), do the aggregation and present the result clearly.
-- If the information is not in the summary (e.g., specific dates from a CV, full text of a JD), state that you can only answer from the summarized data you have.
+- If the information is not in the summary or CVs (e.g., full text of a JD), state that you can only answer from the summarized data you have.
 - If the answer cannot be found in the provided data at all, state that clearly.
 - Use Markdown for all formatting (lists, bolding, tables).
 - **Important**: When you mention a specific assessment session, job, or candidate that belongs to a session, you MUST create a Markdown link for it. The link should allow the user to navigate to that assessment. The format for the link MUST be \`[link text](/assessment?sessionId=SESSION_ID_HERE)\`, where \`SESSION_ID_HERE\` is the \`sessionId\` from the knowledge base summary.
@@ -84,12 +89,16 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
             recommendation: c.analysis.recommendation,
             strengths: c.analysis.strengths,
             weaknesses: c.analysis.weaknesses,
+            cvContent: c.cvContent,
         })),
     }));
+
+    const currentDate = new Date().toDateString();
 
     const {output} = await withRetry(() => prompt({
         query: input.query,
         knowledgeBase,
+        currentDate,
     }));
     
     if (!output) {
