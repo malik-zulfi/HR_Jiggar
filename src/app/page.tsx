@@ -40,6 +40,7 @@ function HomePageContent() {
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 
   const [jdFile, setJdFile] = useState<{ name: string; content: string } | null>(null);
   const [cvs, setCvs] = useState<CvFile[]>([]);
@@ -135,6 +136,12 @@ function HomePageContent() {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [history]);
+  
+  useEffect(() => {
+    // Clear selection when active session changes
+    setSelectedCandidates(new Set());
+  }, [activeSessionId]);
+
 
   const handleNewSession = () => {
     setActiveSessionId(null);
@@ -226,20 +233,19 @@ function HomePageContent() {
     setCvs([]);
   }
 
-  const reAssessCandidates = async (jd: ExtractJDCriteriaOutput) => {
-      const session = history.find(s => s.id === activeSessionId);
-      if (!session || session.candidates.length === 0) return;
+  const reAssessCandidates = async (jd: ExtractJDCriteriaOutput, candidatesToReassess: CandidateRecord[]) => {
+      if (!candidatesToReassess || candidatesToReassess.length === 0) return;
 
-      const initialStatus: ReassessStatus = session.candidates.reduce((acc, candidate) => {
+      const initialStatus: ReassessStatus = candidatesToReassess.reduce((acc, candidate) => {
           acc[candidate.analysis.candidateName] = { status: 'processing', candidateName: candidate.analysis.candidateName };
           return acc;
       }, {} as ReassessStatus);
       setReassessStatus(initialStatus);
       
       try {
-        toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
+        toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
         
-        const analysisPromises = session.candidates.map(oldCandidate =>
+        const analysisPromises = candidatesToReassess.map(oldCandidate =>
           analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
             .then(result => {
               setReassessStatus(prev => ({
@@ -248,7 +254,8 @@ function HomePageContent() {
               }));
               return {
                 ...oldCandidate,
-                analysis: result
+                analysis: result,
+                isStale: false,
               };
             })
             .catch(error => {
@@ -268,16 +275,28 @@ function HomePageContent() {
         
         const updatedCandidates = await Promise.all(analysisPromises);
         
-        updatedCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+        setHistory(prev =>
+            prev.map(s => {
+                if (s.id === activeSessionId) {
+                    const updatedCandidatesMap = new Map(
+                        updatedCandidates.map(c => [c.analysis.candidateName, c])
+                    );
+                    const newFullCandidateList = s.candidates.map(
+                        c => updatedCandidatesMap.get(c.analysis.candidateName) || c
+                    );
+                    newFullCandidateList.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
 
-        setHistory(prev => prev.map(s => {
-          if (s.id === activeSessionId) {
-            return { ...s, candidates: updatedCandidates, summary: null }; // Invalidate summary
-          }
-          return s;
-        }));
+                    return {
+                        ...s,
+                        candidates: newFullCandidateList,
+                        summary: null,
+                    };
+                }
+                return s;
+            })
+        );
 
-        toast({ description: "All candidates have been re-assessed." });
+        toast({ description: "Candidates have been re-assessed." });
       } catch (error: any) {
         console.error("Error re-assessing CVs:", error);
         toast({ variant: "destructive", title: "Re-assessment Error", description: "An unexpected error occurred. Please check the console for details." });
@@ -289,7 +308,13 @@ function HomePageContent() {
     };
 
   const handleReassessClick = async () => {
-    if (!activeSession || !activeSession.analyzedJd || activeSession.candidates.length === 0) {
+    if (!activeSession || !activeSession.analyzedJd) return;
+
+    const candidatesToProcess = selectedCandidates.size > 0
+        ? activeSession.candidates.filter(c => selectedCandidates.has(c.analysis.candidateName))
+        : activeSession.candidates;
+    
+    if (candidatesToProcess.length === 0) {
         toast({
             variant: "destructive",
             title: "Cannot Re-assess",
@@ -297,7 +322,8 @@ function HomePageContent() {
         });
         return;
     }
-    await reAssessCandidates(activeSession.analyzedJd);
+    await reAssessCandidates(activeSession.analyzedJd, candidatesToProcess);
+    setSelectedCandidates(new Set());
   };
   
   const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
@@ -305,7 +331,8 @@ function HomePageContent() {
 
     setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-            return { ...s, analyzedJd: editedJd, summary: null }; // Invalidate summary
+            const updatedCandidates = s.candidates.map(c => ({ ...c, isStale: true }));
+            return { ...s, analyzedJd: editedJd, candidates: updatedCandidates, summary: null };
         }
         return s;
     }));
@@ -338,7 +365,8 @@ function HomePageContent() {
             const candidateRecord: CandidateRecord = {
               cvName: cv.fileName,
               cvContent: cv.content,
-              analysis
+              analysis,
+              isStale: false,
             };
             
             setHistory(prev => prev.map(session => {
@@ -455,6 +483,18 @@ function HomePageContent() {
     }
   };
 
+  const handleToggleSelectCandidate = (candidateName: string) => {
+    setSelectedCandidates(prev => {
+        const newSelection = new Set(prev);
+        if (newSelection.has(candidateName)) {
+            newSelection.delete(candidateName);
+        } else {
+            newSelection.add(candidateName);
+        }
+        return newSelection;
+    });
+  };
+
   const handleDeleteCandidate = (candidateNameToDelete: string) => {
     if (!activeSessionId) return;
 
@@ -473,6 +513,12 @@ function HomePageContent() {
             return session;
         })
     );
+    
+    setSelectedCandidates(prev => {
+        const newSelection = new Set(prev);
+        newSelection.delete(candidateNameToDelete);
+        return newSelection;
+    });
 
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
@@ -485,6 +531,9 @@ function HomePageContent() {
 
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
   const isReassessing = Object.keys(reassessStatus).length > 0;
+  const reassessButtonText = selectedCandidates.size > 0
+    ? `Re-assess Selected (${selectedCandidates.size})`
+    : 'Re-assess All';
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -647,7 +696,7 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {(activeSession.candidates.length > 0 || isAssessingNewCvs || isReassessing) && (
+                          {(activeSession.candidates.length > 0 || isAssessingNewCvs) && (
                               <Card>
                                   <CardHeader>
                                       <div className="flex items-center justify-between gap-4">
@@ -658,7 +707,7 @@ function HomePageContent() {
                                                     ? 'Assessing new candidates...' 
                                                     : isReassessing
                                                     ? 'Re-assessing candidates...'
-                                                    : 'Review assessments or re-assess all candidates with the current JD.'}
+                                                    : 'Review assessments, select candidates to re-assess, or re-assess all.'}
                                               </CardDescription>
                                           </div>
                                            {activeSession.candidates.length > 0 && !isAssessingNewCvs && (
@@ -668,7 +717,7 @@ function HomePageContent() {
                                                   disabled={isReassessing}
                                               >
                                                   <RefreshCw className="mr-2 h-4 w-4" />
-                                                  Re-assess All
+                                                  {reassessButtonText}
                                               </Button>
                                            )}
                                       </div>
@@ -689,6 +738,9 @@ function HomePageContent() {
                                                 <CandidateCard 
                                                     key={`${c.analysis.candidateName}-${i}`} 
                                                     candidate={c.analysis}
+                                                    isStale={c.isStale}
+                                                    isSelected={selectedCandidates.has(c.analysis.candidateName)}
+                                                    onToggleSelect={() => handleToggleSelectCandidate(c.analysis.candidateName)}
                                                     onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
                                                 />
                                             ))}
@@ -742,3 +794,5 @@ export default function Home() {
         </SidebarProvider>
     )
 }
+
+    

@@ -114,6 +114,7 @@ export const CandidateRecordSchema = z.object({
     cvName: z.string(),
     cvContent: z.string(),
     analysis: AnalyzeCVAgainstJDOutputSchema,
+    isStale: z.boolean().optional(),
 });
 export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 
@@ -127,3 +128,5 @@ export const AssessmentSessionSchema = z.object({
     createdAt: z.string().datetime(),
 });
 export type AssessmentSession = z.infer<typeof AssessmentSessionSchema>;
+
+    

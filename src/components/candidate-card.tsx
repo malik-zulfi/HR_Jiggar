@@ -6,12 +6,18 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
+import { Checkbox } from "./ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+
 
 interface CandidateCardProps {
   candidate: AnalyzedCandidate;
+  isStale?: boolean;
+  isSelected?: boolean;
+  onToggleSelect: () => void;
   onDelete: () => void;
 }
 
@@ -47,12 +53,25 @@ const getScoreBadgeClass = (score: number) => {
     return "bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80";
 };
 
-export default function CandidateCard({ candidate, onDelete }: CandidateCardProps) {
+export default function CandidateCard({ candidate, isStale, isSelected, onToggleSelect, onDelete }: CandidateCardProps) {
   const recommendationInfo = getRecommendationInfo(candidate.recommendation);
 
   return (
     <AccordionItem value={candidate.candidateName}>
-        <AccordionPrimitive.Header className="flex w-full items-center p-0">
+        <AccordionPrimitive.Header className="flex w-full items-center">
+            <div
+                className="pl-4 py-4 cursor-pointer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSelect();
+                }}
+            >
+                <Checkbox
+                    id={`select-${candidate.candidateName}`}
+                    checked={isSelected}
+                    aria-label={`Select candidate ${candidate.candidateName}`}
+                />
+            </div>
             <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between p-4 font-medium transition-all hover:no-underline data-[state=open]:bg-accent/10">
                 <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
@@ -62,6 +81,20 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
                             {candidate.alignmentScore}%
                         </div>
                     </Badge>
+                     {isStale && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center justify-center h-full">
+                                        <RefreshCw className="h-4 w-4 text-accent animate-pulse" />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>JD has changed. Re-assess for an updated score.</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                     {candidate.processingTime && (
                         <Badge variant="outline" className="font-normal text-muted-foreground">
                             <div className="flex items-center gap-1">
@@ -122,3 +155,5 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
     </AccordionItem>
   );
 }
+
+    
