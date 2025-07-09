@@ -110,26 +110,44 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                             ul: ({node, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
                             ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
                             a: ({node, ...props}) => {
-                              const href = props.href || '';
-                              if (href.startsWith('/assessment?sessionId=')) {
-                                const sessionId = href.split('sessionId=')[1];
-                                const handleViewInTool = () => {
-                                    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
-                                    setIsOpen(false);
-                                };
-                                const { ...restProps } = props;
-                                return (
-                                  <Link
-                                    href="/assessment"
-                                    onClick={handleViewInTool}
-                                    className="font-semibold text-primary underline hover:no-underline cursor-pointer"
-                                    {...restProps}
-                                  >
-                                    {props.children}
-                                  </Link>
-                                );
-                              }
-                              return <a className="text-primary underline hover:no-underline" {...props} target="_blank" rel="noopener noreferrer"/>;
+                                const { href, children, ...rest } = props;
+                                const url = href || '';
+
+                                if (url.startsWith('/assessment?sessionId=')) {
+                                    const sessionId = url.split('sessionId=')[1];
+                                    const handleViewInTool = () => {
+                                        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
+                                        setIsOpen(false);
+                                    };
+                                    return (
+                                        <Link
+                                            href="/assessment"
+                                            onClick={handleViewInTool}
+                                            className="font-semibold text-primary underline hover:no-underline cursor-pointer"
+                                            {...rest}
+                                        >
+                                            {children}
+                                        </Link>
+                                    );
+                                }
+
+                                if (url.startsWith('/cv-database?email=')) {
+                                    const handleViewCv = () => {
+                                        setIsOpen(false);
+                                    };
+                                    return (
+                                        <Link
+                                            href={url}
+                                            onClick={handleViewCv}
+                                            className="font-semibold text-primary underline hover:no-underline cursor-pointer"
+                                            {...rest}
+                                        >
+                                            {children}
+                                        </Link>
+                                    );
+                                }
+                              
+                                return <a href={url} className="text-primary underline hover:no-underline" {...rest} target="_blank" rel="noopener noreferrer">{children}</a>;
                             },
                             code: ({ node, inline, className, children, ...props }) => {
                                 return !inline ? (

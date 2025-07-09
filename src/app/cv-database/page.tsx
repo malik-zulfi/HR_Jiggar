@@ -33,6 +33,7 @@ export default function CvDatabasePage() {
     const [processingStatus, setProcessingStatus] = useState<CvProcessingStatus>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
+    const [openAccordion, setOpenAccordion] = useState<string>();
 
     useEffect(() => {
         setIsClient(true);
@@ -47,6 +48,18 @@ export default function CvDatabasePage() {
                     }).filter((r): r is CvDatabaseRecord => r !== null);
                     setCvDatabase(validDb.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                 }
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const emailToOpen = params.get('email');
+            if (emailToOpen) {
+                setOpenAccordion(emailToOpen);
+                setTimeout(() => {
+                    const element = document.getElementById(`cv-item-${emailToOpen}`);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 500);
             }
         } catch (error) {
             console.error("Failed to load CV database from localStorage", error);
@@ -234,9 +247,9 @@ export default function CvDatabasePage() {
                                 />
                             </div>
                             
-                            <Accordion type="single" collapsible className="w-full border rounded-md">
+                            <Accordion type="single" collapsible className="w-full border rounded-md" value={openAccordion} onValueChange={setOpenAccordion}>
                                 {filteredCvs.length > 0 ? filteredCvs.map(cv => (
-                                    <AccordionItem value={cv.email} key={cv.email}>
+                                    <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
                                         <AccordionTrigger className="px-4 py-3 text-left hover:no-underline hover:bg-muted/50">
                                             <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
                                                 <span className="font-semibold text-primary col-span-2 md:col-span-1">{cv.name}</span>
@@ -275,5 +288,3 @@ export default function CvDatabasePage() {
         </div>
     );
 }
-
-    

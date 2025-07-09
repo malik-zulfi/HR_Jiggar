@@ -42,7 +42,7 @@ const prompt = ai.definePrompt({
 
 **Knowledge Base Context:**
 *   An "Assessment Session" contains: a unique \`sessionId\`, job details, and a list of candidates assessed for that job, including their name, score, recommendation, and full CV text.
-*   The "cvDatabase" contains: candidate contact details, their full CV content (\`cvContent\`), and their CV parsed into a structured format (\`structuredContent\`).
+*   The "cvDatabase" contains: candidate contact details (\`email\`), their full CV content (\`cvContent\`), and their CV parsed into a structured format (\`structuredContent\`).
 
 **Important Reasoning Rules:**
 *   **Use the Right Data Source:** For questions about specific assessments (e.g., "Who scored highest for the developer job?"), use the \`assessmentSessions\`. For general questions about candidates (e.g., "Do we have any candidates with a PMP certification?"), you MUST search the entire \`cvDatabase\`.
@@ -55,7 +55,10 @@ const prompt = ai.definePrompt({
 - If the answer requires aggregating data (e.g., "How many candidates know Python?"), do the aggregation and present the result clearly.
 - If the answer cannot be found in the provided data at all, state that clearly.
 - Use Markdown for all formatting (lists, bolding, tables).
-- **Important**: When you mention a specific assessment session, job, or candidate that belongs to a session, you MUST create a Markdown link for it. The link should allow the user to navigate to that assessment. The format for the link MUST be \`[link text](/assessment?sessionId=SESSION_ID_HERE)\`, where \`SESSION_ID_HERE\` is the \`sessionId\` from the knowledge base summary.
+- **Linking Rules (VERY IMPORTANT):**
+    - When you mention a candidate by name, you MUST also create a Markdown link to their profile in the CV Database. The link format MUST be \`[Candidate Name](/cv-database?email=CANDIDATE_EMAIL_HERE)\`. Use the \`email\` field from the \`cvDatabase\` for the link.
+    - When you mention an assessment session, you MUST create a Markdown link to it. The format MUST be \`[Assessment Name](/assessment?sessionId=SESSION_ID_HERE)\`. Use the \`sessionId\` from the \`assessmentSessions\` for the link.
+    - If a candidate is mentioned in the context of an assessment, provide both links. For example: "Yes, [Jane Doe](/cv-database?email=jane.d@example.com) was assessed for the [Senior Developer Role](/assessment?sessionId=xyz-123)."
 
 **User's Question:**
 "{{{query}}}"
