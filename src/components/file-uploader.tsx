@@ -8,13 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { performOcr } from '@/ai/flows/ocr';
-import { extractCandidateName } from '@/ai/flows/name-extractor';
 import ProgressLoader from './progress-loader';
 
-type UploadedFile = { fileName: string; content: string; candidateName: string };
+type UploadedFile = { name: string; content: string };
 
 interface FileUploaderProps {
-  onFileUpload: (files: any[]) => void;
+  onFileUpload: (files: UploadedFile[]) => void;
   onFileClear: () => void;
   acceptedFileTypes: string;
   label: string;
@@ -37,7 +36,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     }
   };
 
-  const parseFile = async (file: File): Promise<{ name: string; content: string } | null> => {
+  const parseFile = async (file: File): Promise<UploadedFile | null> => {
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     let content = '';
 
@@ -49,22 +48,18 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
             
+            let textContentAcc = '';
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                content += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
+                textContentAcc += textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' ');
             }
+            content = textContentAcc;
 
+            // If PDF text is sparse, it might be an image-based PDF.
             if (content.trim().length < 100) {
-                let toastTitle = "Image-based PDF Detected";
-                if (id === 'cv-uploader') {
-                    toastTitle = "Image-based CV Detected";
-                } else if (id === 'jd-uploader') {
-                    toastTitle = "Image-based JD Detected";
-                }
-
                 toast({ 
-                    title: toastTitle,
+                    title: "Image-based PDF Detected",
                     description: `Performing OCR on "${file.name}" to extract text. This may take a few moments...`
                 });
 
@@ -79,15 +74,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                     canvas.width = viewport.width;
 
                     if (context) {
-                        const renderContext = {
-                            canvasContext: context,
-                            viewport: viewport,
-                        };
-                        await page.render(renderContext).promise;
-                        
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
                         const imageDataUri = canvas.toDataURL('image/png');
                         const ocrResult = await performOcr({ image: imageDataUri });
-                        
                         if (ocrResult?.text) {
                             ocrContent += ocrResult.text + '\n\n';
                         }
@@ -126,7 +115,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
 
     const allowedTypes = acceptedFileTypes.split(',').map(t => t.trim().toLowerCase());
     const validFiles: File[] = [];
-    const invalidFiles: string[] = [];
+    let invalidFiles: string[] = [];
 
     for (const file of Array.from(files)) {
         const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
@@ -140,21 +129,15 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     if (invalidFiles.length > 0) {
         toast({ variant: "destructive", title: "Invalid File Type(s)", description: `Skipping files: ${invalidFiles.join(', ')}. Please use: ${acceptedFileTypes}` });
     }
-
-    if (validFiles.length === 0) {
-        return;
-    }
+    if (validFiles.length === 0) return;
     
-    let steps = [
+    const steps = [
         "Initializing secure upload...",
         "Validating file formats...",
         `Parsing ${validFiles.length} document(s)...`,
         "Extracting text content...",
+        "Finalizing for analysis...",
     ];
-    if (id === 'cv-uploader') {
-        steps.push("Identifying candidate names...");
-    }
-    steps.push("Finalizing for analysis...");
 
     setProcessingProgress({ steps, currentStepIndex: 0 });
     let simulationInterval: NodeJS.Timeout | null = setInterval(() => {
@@ -164,7 +147,6 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                 return null;
             }
             const nextStep = prev.currentStepIndex + 1;
-            // Stop before last step, which is triggered after the API call
             if (nextStep >= prev.steps.length - 1) {
                 if(simulationInterval) clearInterval(simulationInterval);
             }
@@ -173,35 +155,9 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
     }, 500);
 
     try {
-        const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as { name: string; content: string }[];
-        
-        if (id === 'cv-uploader') {
-            const filesWithNames = await Promise.all(
-                parsedFiles.map(async (file) => {
-                    try {
-                        const result = await extractCandidateName({ cvText: file.content });
-                        return {
-                            fileName: file.name,
-                            content: file.content,
-                            candidateName: result.candidateName || file.name,
-                        };
-                    } catch (e: any) {
-                        console.error(`Failed to extract name for ${file.name}`, e);
-                        toast({ variant: "destructive", title: `Error with ${file.name}`, description: e.message || "Could not extract name." });
-                        return {
-                            fileName: file.name,
-                            content: file.content,
-                            candidateName: file.name, // Fallback to filename
-                        };
-                    }
-                })
-            );
-            onFileUpload(filesWithNames);
-            setFileDisplayNames(filesWithNames.map(f => f.candidateName));
-        } else {
-            onFileUpload(parsedFiles);
-            setFileDisplayNames(parsedFiles.map(f => f.name));
-        }
+        const parsedFiles = (await Promise.all(validFiles.map(parseFile))).filter(Boolean) as UploadedFile[];
+        onFileUpload(parsedFiles);
+        setFileDisplayNames(parsedFiles.map(f => f.name));
     } catch (error: any) {
         console.error("Error processing files:", error);
         toast({ variant: "destructive", title: "Processing Error", description: error.message || "An error occurred while processing files."});
@@ -246,7 +202,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
       <Label htmlFor={id}>{label}</Label>
       {processingProgress ? (
         <ProgressLoader
-          title={`Processing ${multiple ? 'files' : 'file'}...`}
+          title={`Reading ${multiple ? 'files' : 'file'}...`}
           steps={processingProgress.steps}
           currentStepIndex={processingProgress.currentStepIndex}
         />
@@ -295,7 +251,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
             <span className="font-semibold text-primary">Click to upload</span> or drag and drop
           </p>
           <p className="text-xs text-muted-foreground">
-            {multiple ? 'PDF, DOCX, or TXT (multiple files allowed)' : 'PDF, DOCX, or TXT'}
+            {acceptedFileTypes.replace(/,/g, ', ').toUpperCase()}
           </p>
         </div>
       )}

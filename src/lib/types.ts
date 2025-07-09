@@ -11,6 +11,9 @@ export type Requirement = z.infer<typeof RequirementSchema>;
 export const ExtractJDCriteriaOutputSchema = z.object({
   jobTitle: z.string().optional().describe('The title of the job position.'),
   positionNumber: z.string().optional().describe('The position or requisition number, if available.'),
+  code: z.string().optional().describe('The internal job code, if available.'),
+  grade: z.string().optional().describe('The job grade or level, if available.'),
+  department: z.string().optional().describe('The department or team for the position, if available.'),
   technicalSkills: z.array(RequirementSchema).describe('Technical skills requirements.'),
   softSkills: z.array(RequirementSchema).describe('Soft skills requirements.'),
   experience: z.array(RequirementSchema).describe('Experience requirements.'),
@@ -51,7 +54,6 @@ export const AnalyzeCVAgainstJDOutputSchema = z.object({
 });
 export type AnalyzeCVAgainstJDOutput = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
 
-// This is an alias used in the client components
 export type AnalyzedCandidate = AnalyzeCVAgainstJDOutput;
 
 
@@ -123,6 +125,20 @@ export const QueryCandidateOutputSchema = z.object({
 export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
 
 
+// For Global Knowledge Base Query
+export const QueryKnowledgeBaseInputSchema = z.object({
+  query: z.string().describe("The user's question about the knowledge base."),
+  sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
+  cvDatabase: z.array(z.lazy(() => CvDatabaseRecordSchema)).describe("The central database of all parsed CVs, including those not yet assessed."),
+});
+export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
+
+export const QueryKnowledgeBaseOutputSchema = z.object({
+  answer: z.string().describe('The answer to the user query based on the provided data.'),
+});
+export type QueryKnowledgeBaseOutput = z.infer<typeof QueryKnowledgeBaseOutputSchema>;
+
+
 // For session history
 export const ChatMessageSchema = z.object({
     role: z.enum(['user', 'assistant']),
@@ -150,4 +166,59 @@ export const AssessmentSessionSchema = z.object({
 });
 export type AssessmentSession = z.infer<typeof AssessmentSessionSchema>;
 
-    
+
+// For CV Database
+export const StructuredCvContentSchema = z.object({
+    summary: z.string().optional().describe("Professional summary or objective from the CV."),
+    experience: z.array(z.object({
+        jobTitle: z.string(),
+        company: z.string(),
+        location: z.string().optional(),
+        dates: z.string(),
+        description: z.array(z.string()),
+    })).optional().describe("Detailed work experience."),
+    education: z.array(z.object({
+        degree: z.string(),
+        institution: z.string(),
+        dates: z.string().optional(),
+    })).optional().describe("Educational background."),
+    skills: z.array(z.string()).optional().describe("List of skills."),
+    projects: z.array(z.object({
+        name: z.string(),
+        description: z.string(),
+        technologies: z.array(z.string()).optional(),
+    })).optional().describe("Projects listed on the CV."),
+});
+export type StructuredCvContent = z.infer<typeof StructuredCvContentSchema>;
+
+export const CvDatabaseRecordSchema = z.object({
+    email: z.string().describe("Candidate's email, used as a unique identifier."),
+    name: z.string().describe("Candidate's full name."),
+    contactNumber: z.string().optional().describe("Candidate's contact number."),
+    linkedinUrl: z.string().optional().describe("URL to the candidate's LinkedIn profile."),
+    currentTitle: z.string().optional().describe("Candidate's most recent job title."),
+    currentCompany: z.string().optional().describe("Candidate's most recent company."),
+    totalExperience: z.string().nullable().optional().describe("Total years of professional experience calculated from the CV."),
+    jobCode: z.enum(['OCN', 'WEX', 'SAN']).describe("Job code associated with this CV upload."),
+    cvFileName: z.string().describe("Original filename of the CV."),
+    cvContent: z.string().describe("Full text content of the CV."),
+    structuredContent: StructuredCvContentSchema.describe("The CV content, broken down into a structured format."),
+    createdAt: z.string().datetime(),
+});
+export type CvDatabaseRecord = z.infer<typeof CvDatabaseRecordSchema>;
+
+// Input for the new CV Parser flow
+export const ParseCvInputSchema = z.object({
+    cvText: z.string().describe('The full text content of the CV.'),
+    currentDate: z.string().describe("The current date, for calculating experience from 'Present' roles."),
+});
+export type ParseCvInput = z.infer<typeof ParseCvInputSchema>;
+
+// Output will be most of CvDatabaseRecordSchema, minus the fields the flow doesn't set itself.
+export const ParseCvOutputSchema = CvDatabaseRecordSchema.omit({
+    jobCode: true,
+    cvFileName: true,
+    cvContent: true,
+    createdAt: true,
+});
+export type ParseCvOutput = z.infer<typeof ParseCvOutputSchema>;

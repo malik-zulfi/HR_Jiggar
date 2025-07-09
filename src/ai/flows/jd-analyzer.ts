@@ -30,7 +30,7 @@ const prompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
-First, extract the job title and the position/requisition number (if available).
+First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
 
 Then, extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
 For each requirement, indicate whether it is a MUST-HAVE or NICE-TO-HAVE.
