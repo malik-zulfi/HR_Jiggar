@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { cn } from "@/lib/utils";
-import type { AssessmentSession } from "@/lib/types";
+import type { AssessmentSession, CvDatabaseRecord } from "@/lib/types";
 import { queryKnowledgeBase } from "@/ai/flows/query-knowledge-base";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
@@ -23,9 +23,10 @@ type ChatMessage = {
 
 interface ChatbotProps {
   sessions: AssessmentSession[];
+  cvDatabase: CvDatabaseRecord[];
 }
 
-export default function Chatbot({ sessions }: ChatbotProps) {
+export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -48,7 +49,7 @@ export default function Chatbot({ sessions }: ChatbotProps) {
     if (isOpen && chatHistory.length === 0) {
         setChatHistory([initialMessage]);
     }
-  }, [isOpen]);
+  }, [isOpen, chatHistory.length]);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -59,7 +60,7 @@ export default function Chatbot({ sessions }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      const result = await queryKnowledgeBase({ query, sessions });
+      const result = await queryKnowledgeBase({ query, sessions, cvDatabase });
       const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch (error: any) {
@@ -106,8 +107,8 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                           className="text-sm leading-relaxed"
                           components={{
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                            ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
-                            ol: ({node, ordered, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
                             a: ({node, ...props}) => {
                               const href = props.href || '';
                               if (href.startsWith('/assessment?sessionId=')) {
@@ -116,8 +117,7 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                                     localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
                                     setIsOpen(false);
                                 };
-                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                                const { href: markdownHref, ...restProps } = props;
+                                const { ...restProps } = props;
                                 return (
                                   <Link
                                     href="/assessment"
@@ -151,9 +151,9 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                             ),
                             thead: ({node, ...props}) => <thead className="bg-muted/50 font-medium" {...props} />,
                             tbody: ({node, ...props}) => <tbody {...props} />,
-                            tr: ({node, isHeader, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
-                            th: ({node, isHeader, ...props}) => <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" {...props} />,
-                            td: ({node, isHeader, ...props}) => <td className="p-3 align-middle" {...props} />,
+                            tr: ({node, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
+                            th: ({node, ...props}) => <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" {...props} />,
+                            td: ({node, ...props}) => <td className="p-3 align-middle" {...props} />,
                           }}
                        >
                            {msg.content}

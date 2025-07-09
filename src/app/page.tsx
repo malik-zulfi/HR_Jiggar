@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Briefcase, Users, Award, Database, BarChart3, ArrowRight, Filter, X, History } from 'lucide-react';
-import type { AssessmentSession, AnalyzedCandidate } from '@/lib/types';
-import { AssessmentSessionSchema } from '@/lib/types';
+import type { AssessmentSession, AnalyzedCandidate, CvDatabaseRecord } from '@/lib/types';
+import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   ChartContainer,
@@ -21,6 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from '
 import Chatbot from '@/components/chatbot';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
+const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
 type TopCandidate = AnalyzedCandidate & {
@@ -38,6 +39,7 @@ const chartConfig = {
 
 export default function DashboardPage() {
     const [history, setHistory] = useState<AssessmentSession[]>([]);
+    const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
     const [isClient, setIsClient] = useState(false);
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
 
@@ -56,6 +58,18 @@ export default function DashboardPage() {
                         return null;
                     }).filter((s): s is AssessmentSession => s !== null);
                     setHistory(validHistory);
+                }
+            }
+            
+            const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
+            if (savedCvDbJSON) {
+                const parsedCvDb = JSON.parse(savedCvDbJSON);
+                if (Array.isArray(parsedCvDb)) {
+                    const validDb = parsedCvDb.map(record => {
+                        const result = CvDatabaseRecordSchema.safeParse(record);
+                        return result.success ? result.data : null;
+                    }).filter((r): r is CvDatabaseRecord => r !== null);
+                    setCvDatabase(validDb);
                 }
             }
         } catch (error) {
@@ -370,9 +384,7 @@ export default function DashboardPage() {
                     </Card>
                 </div>
             </main>
-            <Chatbot sessions={history} />
+            <Chatbot sessions={history} cvDatabase={cvDatabase} />
         </div>
     );
 }
-
-    

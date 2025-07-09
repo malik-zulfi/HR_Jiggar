@@ -129,6 +129,7 @@ export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
 export const QueryKnowledgeBaseInputSchema = z.object({
   query: z.string().describe("The user's question about the knowledge base."),
   sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
+  cvDatabase: z.array(z.lazy(() => CvDatabaseRecordSchema)).describe("The central database of all parsed CVs, including those not yet assessed."),
 });
 export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
 
