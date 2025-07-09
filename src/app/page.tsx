@@ -105,22 +105,8 @@ export default function DashboardPage() {
             acc[code] += session.candidates?.length || 0;
             return acc;
         }, {});
-        
-        const assessmentsByDept = filteredHistory.reduce<Record<string, number>>((acc, session) => {
-            const dept = session.analyzedJd.department || 'Not Specified';
-            if (!acc[dept]) {
-                acc[dept] = 0;
-            }
-            acc[dept] += session.candidates?.length || 0;
-            return acc;
-        }, {});
 
         const chartDataByCode = Object.entries(assessmentsByCode)
-            .map(([name, count]) => ({ name, count }))
-            .filter(item => item.count > 0)
-            .sort((a,b) => b.count - a.count);
-
-        const chartDataByDept = Object.entries(assessmentsByDept)
             .map(([name, count]) => ({ name, count }))
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
@@ -129,7 +115,7 @@ export default function DashboardPage() {
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5);
 
-        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, chartDataByDept, recent5Assessments };
+        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, recent5Assessments };
     }, [filteredHistory]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
@@ -272,45 +258,15 @@ export default function DashboardPage() {
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
-                                <CardDescription>Visual breakdown of candidates by job code and department.</CardDescription>
+                                <CardDescription>Visual breakdown of candidates by job code.</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-8">
+                            <CardContent>
                                 <div>
                                     <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Briefcase className="w-4 h-4"/> By Job Code</h4>
                                     {stats.chartDataByCode.length > 0 ? (
                                         <ChartContainer config={chartConfig} className="h-[200px] w-full">
                                             <BarChart
                                                 data={stats.chartDataByCode}
-                                                layout="vertical"
-                                                margin={{ right: 20 }}
-                                            >
-                                                <CartesianGrid horizontal={false} />
-                                                <YAxis
-                                                    dataKey="name"
-                                                    type="category"
-                                                    tickLine={false}
-                                                    axisLine={false}
-                                                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                                                    width={80}
-                                                />
-                                                <XAxis dataKey="count" type="number" hide />
-                                                <Tooltip
-                                                    cursor={{ fill: 'hsl(var(--muted))' }}
-                                                    content={<ChartTooltipContent />}
-                                                />
-                                                <Bar dataKey="count" fill="var(--color-count)" radius={[0, 4, 4, 0]}>
-                                                    <LabelList dataKey="count" position="right" offset={8} className="fill-foreground" fontSize={12} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ChartContainer>
-                                    ) : <p className="text-xs text-muted-foreground text-center py-4">No data to display.</p>}
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Building className="w-4 h-4"/> By Department</h4>
-                                    {stats.chartDataByDept.length > 0 ? (
-                                        <ChartContainer config={chartConfig} className="h-[200px] w-full">
-                                            <BarChart
-                                                data={stats.chartDataByDept}
                                                 layout="vertical"
                                                 margin={{ right: 20 }}
                                             >
