@@ -71,7 +71,17 @@ const CandidateChat = ({ chatHistory, onQuery, isQuerying }: {
                                     {children}
                                 </code>
                             );
-                        }
+                        },
+                        table: ({node, ...props}) => (
+                            <div className="my-2 w-full overflow-y-auto rounded-md border">
+                                <table className="w-full" {...props} />
+                            </div>
+                        ),
+                        thead: ({node, ...props}) => <thead className="bg-muted font-medium" {...props} />,
+                        tbody: ({node, ...props}) => <tbody {...props} />,
+                        tr: ({node, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
+                        th: ({node, ...props}) => <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" {...props} />,
+                        td: ({node, ...props}) => <td className="p-4 align-middle" {...props} />,
                       }}
                    >
                        {msg.content}
