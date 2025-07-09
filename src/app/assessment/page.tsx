@@ -51,6 +51,7 @@ function AssessmentPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 
+  const [jdFile, setJdFile] = useState<UploadedFile | null>(null);
   const [cvs, setCvs] = useState<UploadedFile[]>([]);
   const [cvResetKey, setCvResetKey] = useState(0);
 
