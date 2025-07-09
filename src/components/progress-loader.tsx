@@ -90,9 +90,6 @@ export default function ProgressLoader({
             <p>{title}</p>
         </div>
         <Progress value={progress} className="w-full h-2" />
-        <div className="text-center font-sans text-muted-foreground text-sm">
-            <p>Processed {doneCount} of {totalItems} candidate(s)...</p>
-        </div>
         <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
             {statusList.map((item, index) => (
                 <ProcessingItem key={index} message={item.message} status={item.status} />
