@@ -76,7 +76,9 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
         candidateNames.forEach(name => {
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
-            detail => detail.requirement === jdReq.description && detail.category === jdReq.category
+            detail => 
+                detail.requirement.trim().toLowerCase() === jdReq.description.trim().toLowerCase() && 
+                detail.category.trim().toLowerCase() === jdReq.category.trim().toLowerCase()
           );
 
           if (alignmentDetail) {
