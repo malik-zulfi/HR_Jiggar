@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CandidateSummaryOutput, AnalyzedCandidate, ExtractJDCriteriaOutput } from "@/lib/types";
-import { Award, Target, Telescope, UserMinus, UserCheck, Users, Download, Loader2 } from "lucide-react";
+import { Award, Target, Telescope, UserMinus, UserCheck, Users, Download, Loader2, FileSpreadsheet } from "lucide-react";
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { createRoot } from 'react-dom/client';
 import Report from './report';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 
 interface SummaryDisplayProps {
   summary: CandidateSummaryOutput;
@@ -21,6 +22,66 @@ interface SummaryDisplayProps {
 export default function SummaryDisplay({ summary, candidates, analyzedJd }: SummaryDisplayProps) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const handleExportExcel = () => {
+    if (candidates.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Export Failed",
+            description: "No candidates to export."
+        });
+        return;
+    }
+    setIsExportingExcel(true);
+    toast({ description: "Generating Excel report..." });
+
+    try {
+        const worksheetData = candidates.flatMap(candidate => 
+            candidate.alignmentDetails.map(detail => ({
+                'Candidate Name': candidate.candidateName,
+                'Category': detail.category,
+                'Requirement': detail.requirement,
+                'Priority': detail.priority,
+                'Status': detail.status,
+                'Justification': detail.justification,
+            }))
+        );
+
+        if (worksheetData.length === 0) {
+            toast({
+                variant: "destructive",
+                title: "Export Failed",
+                description: "No alignment details to export."
+            });
+            setIsExportingExcel(false);
+            return;
+        }
+
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+        
+        const colWidths = Object.keys(worksheetData[0]).map(key => {
+            const maxLength = Math.max(
+                ...worksheetData.map(row => (row as any)[key]?.toString().length ?? 0),
+                key.length
+            );
+            return { wch: maxLength + 2 };
+        });
+        worksheet['!cols'] = colWidths;
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Alignment Details');
+        XLSX.writeFile(workbook, 'candidate_alignment_report.xlsx');
+
+        toast({ description: "Excel report downloaded successfully." });
+
+    } catch (error) {
+        console.error("Failed to export Excel", error);
+        toast({ variant: "destructive", title: "Export Failed", description: "Could not generate Excel report." });
+    } finally {
+        setIsExportingExcel(false);
+    }
+  };
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -97,14 +158,24 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
                 <CardTitle>Overall Assessment Summary</CardTitle>
                 <CardDescription>A complete overview of all candidates and strategic recommendations.</CardDescription>
             </div>
-            <Button onClick={handleExport} disabled={isExporting}>
-                {isExporting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                )}
-                Export PDF
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button onClick={handleExportExcel} disabled={isExportingExcel || isExporting} variant="outline">
+                    {isExportingExcel ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    )}
+                    Export Excel
+                </Button>
+                <Button onClick={handleExport} disabled={isExporting || isExportingExcel}>
+                    {isExporting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Export PDF
+                </Button>
+            </div>
         </div>
       </CardHeader>
       <CardContent>
