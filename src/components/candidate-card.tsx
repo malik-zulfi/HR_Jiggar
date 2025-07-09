@@ -13,6 +13,8 @@ import { Checkbox } from "./ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import React, { useState, useRef, useEffect } from "react";
 import { Input } from "./ui/input";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 
 const CandidateChat = ({ chatHistory, onQuery, isQuerying }: {
@@ -48,7 +50,35 @@ const CandidateChat = ({ chatHistory, onQuery, isQuerying }: {
                 "p-3 rounded-lg max-w-[80%]",
                 msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               )}>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === 'assistant' ? (
+                   <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      className="text-sm leading-relaxed"
+                      components={{
+                        p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
+                        a: ({node, ...props}) => <a className="text-primary underline hover:no-underline" {...props} />,
+                        code: ({ node, inline, className, children, ...props }) => {
+                            return !inline ? (
+                                <pre className="text-sm bg-black/10 dark:bg-white/10 p-2 rounded-md overflow-x-auto my-2">
+                                    <code className={cn("font-mono", className)} {...props}>
+                                        {children}
+                                    </code>
+                                </pre>
+                            ) : (
+                                <code className={cn("font-mono text-sm px-1 py-0.5 bg-black/10 dark:bg-white/10 rounded", className)} {...props}>
+                                    {children}
+                                </code>
+                            );
+                        }
+                      }}
+                   >
+                       {msg.content}
+                   </ReactMarkdown>
+                ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                )}
               </div>
             </div>
           ))
