@@ -11,6 +11,9 @@ export type Requirement = z.infer<typeof RequirementSchema>;
 export const ExtractJDCriteriaOutputSchema = z.object({
   jobTitle: z.string().optional().describe('The title of the job position.'),
   positionNumber: z.string().optional().describe('The position or requisition number, if available.'),
+  code: z.string().optional().describe('The internal job code, if available.'),
+  grade: z.string().optional().describe('The job grade or level, if available.'),
+  department: z.string().optional().describe('The department or team for the position, if available.'),
   technicalSkills: z.array(RequirementSchema).describe('Technical skills requirements.'),
   softSkills: z.array(RequirementSchema).describe('Soft skills requirements.'),
   experience: z.array(RequirementSchema).describe('Experience requirements.'),

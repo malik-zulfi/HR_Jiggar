@@ -66,9 +66,13 @@ function HomePageContent() {
         if (!session || !session.analyzedJd) return false;
         
         const jd = session.analyzedJd;
-        const titleMatch = jd.jobTitle ? jd.jobTitle.toLowerCase().includes(lowerCaseQuery) : false;
-        const nameMatch = session.jdName ? session.jdName.toLowerCase().includes(lowerCaseQuery) : false;
-        return nameMatch || titleMatch;
+        const titleMatch = jd.jobTitle?.toLowerCase().includes(lowerCaseQuery);
+        const nameMatch = session.jdName?.toLowerCase().includes(lowerCaseQuery);
+        const codeMatch = jd.code?.toLowerCase().includes(lowerCaseQuery);
+        const gradeMatch = jd.grade?.toLowerCase().includes(lowerCaseQuery);
+        const departmentMatch = jd.department?.toLowerCase().includes(lowerCaseQuery);
+        
+        return nameMatch || titleMatch || codeMatch || gradeMatch || departmentMatch;
     });
   }, [history, searchQuery]);
   
@@ -799,9 +803,12 @@ function HomePageContent() {
                                                   <span className="truncate w-full font-medium" title={session.analyzedJd.jobTitle || session.jdName}>
                                                       {session.analyzedJd.jobTitle || session.jdName}
                                                   </span>
-                                                  {session.analyzedJd.jobTitle && (
-                                                      <span className="text-xs text-muted-foreground truncate w-full">{session.jdName}</span>
-                                                  )}
+                                                  <div className="text-xs text-muted-foreground w-full flex items-center gap-2 flex-wrap mt-1">
+                                                      <span className="font-normal truncate" title={session.jdName}>{session.jdName}</span>
+                                                      {session.analyzedJd.code && <Badge variant="secondary" className="px-1.5 py-0 font-normal">#{session.analyzedJd.code}</Badge>}
+                                                      {session.analyzedJd.department && <Badge variant="secondary" className="px-1.5 py-0 font-normal">{session.analyzedJd.department}</Badge>}
+                                                      {session.analyzedJd.grade && <Badge variant="secondary" className="px-1.5 py-0 font-normal">G{session.analyzedJd.grade}</Badge>}
+                                                  </div>
                                               </div>
                                           </SidebarMenuButton>
                                           <SidebarMenuAction
@@ -977,4 +984,5 @@ export default function Home() {
     
 
     
+
 

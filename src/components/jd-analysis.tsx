@@ -227,10 +227,13 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                 <div className="flex items-start justify-between gap-4">
                     <CollapsibleTrigger asChild>
                         <div className="flex-1 cursor-pointer">
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 flex-wrap">
                                 <Briefcase className="h-5 w-5 text-primary"/>
-                                <span>{analysis.jobTitle || 'Job Description Breakdown'}</span>
-                                {analysis.positionNumber && <Badge variant="outline">#{analysis.positionNumber}</Badge>}
+                                <span className="mr-2">{analysis.jobTitle || 'Job Description Breakdown'}</span>
+                                {analysis.positionNumber && <Badge variant="outline">Req: {analysis.positionNumber}</Badge>}
+                                {analysis.code && <Badge variant="outline">Code: {analysis.code}</Badge>}
+                                {analysis.grade && <Badge variant="outline">Grade: {analysis.grade}</Badge>}
+                                {analysis.department && <Badge variant="outline">Dept: {analysis.department}</Badge>}
                             </CardTitle>
                             <CardDescription>The JD has been deconstructed. Expand to see details and adjust requirement priorities.</CardDescription>
                         </div>
