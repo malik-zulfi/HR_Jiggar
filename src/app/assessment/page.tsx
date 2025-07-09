@@ -292,7 +292,7 @@ function AssessmentPageContent() {
       jd: ExtractJDCriteriaOutput
     ) => {
         const initialStatus = candidatesToProcess.reduce((acc, cv) => {
-            acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: 'Parsing...' };
+            acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: cv.name };
             return acc;
         }, {} as CvProcessingStatus);
         setNewCvProcessingStatus(initialStatus);
