@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -26,55 +27,86 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
 
   const handleExportExcel = () => {
     if (candidates.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Export Failed",
-            description: "No candidates to export."
-        });
-        return;
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "No candidates to export."
+      });
+      return;
     }
     setIsExportingExcel(true);
-    toast({ description: "Generating Excel report..." });
+    toast({ description: "Generating cross-candidate alignment report..." });
 
     try {
-        const worksheetData = candidates.flatMap(candidate => 
-            candidate.alignmentDetails.map(detail => ({
-                'Candidate Name': candidate.candidateName,
-                'Category': detail.category,
-                'Requirement': detail.requirement,
-                'Priority': detail.priority,
-                'Status': detail.status,
-                'Justification': detail.justification,
-            }))
-        );
+      const allJdRequirements = [
+        ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
+        ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
+        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skills' })),
+        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skills' })),
+        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certifications' })),
+        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibilities' })),
+        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirements' })),
+      ];
 
-        if (worksheetData.length === 0) {
-            toast({
-                variant: "destructive",
-                title: "Export Failed",
-                description: "No alignment details to export."
-            });
-            setIsExportingExcel(false);
-            return;
-        }
+      if (allJdRequirements.length === 0) {
+          toast({ variant: "destructive", title: "Export Failed", description: "No job description requirements to create a report from." });
+          setIsExportingExcel(false);
+          return;
+      }
+      
+      const candidateMap = new Map(candidates.map(c => [c.candidateName, c]));
+      const candidateNames = candidates.map(c => c.candidateName);
 
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-        
-        const colWidths = Object.keys(worksheetData[0]).map(key => {
-            const maxLength = Math.max(
-                ...worksheetData.map(row => (row as any)[key]?.toString().length ?? 0),
-                key.length
-            );
-            return { wch: maxLength + 2 };
+      const header = ['Category', 'Requirement', 'Priority', ...candidateNames];
+      
+      const statusSymbols: { [key: string]: string } = {
+        'Aligned': '✔',
+        'Partially Aligned': '!',
+        'Not Aligned': '✖',
+        'Not Mentioned': '?',
+      };
+
+      const rows = allJdRequirements.map(jdReq => {
+        const rowData: (string | undefined)[] = [
+          jdReq.category,
+          jdReq.description,
+          jdReq.priority
+        ];
+
+        candidateNames.forEach(name => {
+          const candidate = candidateMap.get(name);
+          const alignmentDetail = candidate?.alignmentDetails.find(
+            detail => detail.requirement === jdReq.description && detail.category === jdReq.category
+          );
+
+          if (alignmentDetail) {
+            const symbol = statusSymbols[alignmentDetail.status] || '';
+            rowData.push(`${symbol} ${alignmentDetail.status}`);
+          } else {
+            rowData.push('? Not Mentioned');
+          }
         });
-        worksheet['!cols'] = colWidths;
 
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Alignment Details');
-        XLSX.writeFile(workbook, 'candidate_alignment_report.xlsx');
+        return rowData;
+      });
+      
+      const worksheetData = [header, ...rows];
 
-        toast({ description: "Excel report downloaded successfully." });
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
+      const colWidths = header.map((_, colIndex) => {
+          const maxLength = Math.max(
+              ...worksheetData.map(row => (row[colIndex]?.toString() ?? '').length)
+          );
+          return { wch: maxLength + 2 };
+      });
+      worksheet['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Candidate Alignment Matrix');
+      XLSX.writeFile(workbook, 'candidate_alignment_matrix.xlsx');
+
+      toast({ description: "Excel report downloaded successfully." });
     } catch (error) {
         console.error("Failed to export Excel", error);
         toast({ variant: "destructive", title: "Export Failed", description: "Could not generate Excel report." });
