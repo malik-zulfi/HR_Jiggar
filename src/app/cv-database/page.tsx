@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, ChevronDown, Clock, ChevronRight } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, ChevronDown, Clock, ChevronRight, Users } from "lucide-react";
 import type { CvDatabaseRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -278,3 +278,5 @@ export default function CvDatabasePage() {
         </div>
     );
 }
+
+    
