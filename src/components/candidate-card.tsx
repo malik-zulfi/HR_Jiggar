@@ -73,7 +73,7 @@ const CandidateChat = ({ chatHistory, onQuery, isQuerying }: {
                             );
                         },
                         table: ({node, ...props}) => (
-                            <div className="my-2 w-full overflow-y-auto rounded-md border">
+                            <div className="my-2 w-full overflow-auto rounded-md border">
                                 <table className="w-full" {...props} />
                             </div>
                         ),

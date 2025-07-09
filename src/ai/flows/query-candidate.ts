@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Answers user queries about a specific candidate based on their CV and the job description.
@@ -38,6 +39,10 @@ const prompt = ai.definePrompt({
   config: { temperature: 0.1 },
   prompt: `You are an expert recruitment assistant. Your task is to answer a specific question about a candidate based *only* on the provided CV and the job description criteria.
 
+**Formatting Instructions:**
+- Use Markdown for all formatting (lists, bolding, etc.).
+- If you need to present data in a table, you MUST use GitHub-flavored Markdown table syntax.
+
 **Important Reasoning Rules for Answering:**
 - **Calculate Experience for Current Roles:** When a candidate's experience is listed as "Present", "Current", or "To Date", you must use today's date ({{{currentDate}}}) as the end date for that role when calculating their total years of experience.
 - **Handle Overlapping Experience:** When calculating total years of experience, you MUST identify all distinct employment periods from the CV. If there are overlapping date ranges (e.g., working two jobs at the same time), merge them to avoid double-counting. The total experience should be the sum of the unique, non-overlapping time periods.
@@ -52,7 +57,7 @@ const prompt = ai.definePrompt({
 **User's Question:**
 "{{{query}}}"
 
-Your answer must be concise and directly address the user's question, following the rules above.
+Your answer must be concise and directly address the user's question, following all rules and formatting instructions above.
 `,
 });
 
