@@ -13,7 +13,14 @@ interface ProgressLoaderProps {
   logLength?: number;
 }
 
-const ProcessingItem = ({ message, status }: { message: string, status: 'processing' | 'done' | 'error' }) => {
+interface ProcessingItemProps {
+    message: string;
+    status: 'processing' | 'done' | 'error';
+    statusList: { status: 'processing' | 'done' | 'error', message: string }[];
+    myIndex: number;
+}
+
+const ProcessingItem = ({ message, status, statusList, myIndex }: ProcessingItemProps) => {
     const steps = [
         "Reviewing CV content...",
         "Assessing against job requirements...",
@@ -21,24 +28,41 @@ const ProcessingItem = ({ message, status }: { message: string, status: 'process
         "Finalizing analysis...",
     ];
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const [displayText, setDisplayText] = useState(steps[0]);
 
     useEffect(() => {
         if (status === 'processing') {
-            // Add a random delay to make progress feel more individual and realistic
-            const randomDelay = 1200 + Math.random() * 600; // 1.2s to 1.8s
+            const randomDelay = 1200 + Math.random() * 600;
             const interval = setInterval(() => {
                 setCurrentStepIndex(prev => {
-                    if (prev >= steps.length - 1) {
+                    const nextStep = prev + 1;
+                    if (nextStep >= steps.length) {
                         clearInterval(interval);
                         return prev;
                     }
-                    return prev + 1;
+                    return nextStep;
                 });
             }, randomDelay);
 
             return () => clearInterval(interval);
         }
     }, [status, steps.length]);
+
+    useEffect(() => {
+        if (status !== 'processing') return;
+
+        if (currentStepIndex < steps.length - 1) {
+            setDisplayText(steps[currentStepIndex]);
+        } else {
+            // At the final step, check the queue
+            const firstProcessingIndex = statusList.findIndex(item => item.status === 'processing');
+            if (myIndex === firstProcessingIndex) {
+                setDisplayText(steps[steps.length - 1]); // "Finalizing analysis..."
+            } else {
+                setDisplayText("Queued for finalization...");
+            }
+        }
+    }, [currentStepIndex, status, statusList, myIndex, steps]);
 
     if (status === 'done') {
         return (
@@ -64,7 +88,7 @@ const ProcessingItem = ({ message, status }: { message: string, status: 'process
             <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0 mt-0.5" />
             <div className="flex-1">
                 <p className="text-foreground font-medium truncate">{message}</p>
-                <p className="text-muted-foreground text-xs truncate">{steps[currentStepIndex]}</p>
+                <p className="text-muted-foreground text-xs truncate">{displayText}</p>
             </div>
         </div>
     );
@@ -91,8 +115,14 @@ export default function ProgressLoader({
         </div>
         <Progress value={progress} className="w-full h-2" />
         <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
-            {statusList.map((item) => (
-                <ProcessingItem key={item.message} message={item.message} status={item.status} />
+            {statusList.map((item, index) => (
+                <ProcessingItem
+                    key={item.message}
+                    message={item.message}
+                    status={item.status}
+                    statusList={statusList}
+                    myIndex={index}
+                />
             ))}
         </div>
       </div>
