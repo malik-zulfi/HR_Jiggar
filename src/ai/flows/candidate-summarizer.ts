@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -68,7 +69,7 @@ const summarizeCandidateAssessmentsFlow = ai.defineFlow(
   },
   async input => {
     const { jobDescriptionCriteria, candidateAssessments } = input;
-    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jobDescriptionCriteria;
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = jobDescriptionCriteria;
 
     const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
 
@@ -89,6 +90,7 @@ const summarizeCandidateAssessmentsFlow = ai.defineFlow(
         formattedCriteria += formatSection('Certification', certifications);
     }
     formattedCriteria += formatSection('Responsibility', responsibilities);
+    formattedCriteria += formatSection('Additional Requirement', additionalRequirements);
 
     const {output} = await withRetry(() => prompt({
         formattedCriteria,

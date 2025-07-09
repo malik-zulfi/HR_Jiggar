@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -100,7 +101,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   },
   async input => {
     const { jobDescriptionCriteria, cv } = input;
-    const { education, experience, technicalSkills, softSkills, responsibilities, certifications } = jobDescriptionCriteria;
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = jobDescriptionCriteria;
     
     const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
 
@@ -121,6 +122,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         formattedCriteria += formatSection('Certification', certifications);
     }
     formattedCriteria += formatSection('Responsibility', responsibilities);
+    formattedCriteria += formatSection('Additional Requirement', additionalRequirements);
 
     const currentDate = new Date().toDateString();
     const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
@@ -160,6 +162,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     calculateMaxScore(jobDescriptionCriteria.softSkills);
     calculateMaxScore(jobDescriptionCriteria.certifications);
     calculateMaxScore(jobDescriptionCriteria.responsibilities, true);
+    calculateMaxScore(jobDescriptionCriteria.additionalRequirements);
 
     let candidateScore = 0;
     output.alignmentDetails.forEach(detail => {

@@ -17,6 +17,7 @@ export const ExtractJDCriteriaOutputSchema = z.object({
   education: z.array(RequirementSchema).describe('Education requirements.'),
   certifications: z.array(RequirementSchema).describe('Certification requirements.'),
   responsibilities: z.array(RequirementSchema).describe('Responsibilities listed in the job description.'),
+  additionalRequirements: z.array(RequirementSchema).optional().describe('User-added requirements that can be deleted.'),
 });
 export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
 
