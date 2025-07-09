@@ -329,6 +329,9 @@ function HomePageContent() {
   const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
     if (!activeSessionId) return;
 
+    const currentSession = history.find(s => s.id === activeSessionId);
+    const wasDirty = currentSession ? JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd) : false;
+
     setHistory(prev => prev.map(s => {
         if (s.id === activeSessionId) {
             const updatedCandidates = s.candidates.map(c => ({ ...c, isStale: true }));
@@ -336,7 +339,13 @@ function HomePageContent() {
         }
         return s;
     }));
-    toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
+    
+    if (wasDirty) {
+        toast({ description: "Job Description changes saved. You can re-assess candidates using the button below." });
+    } else {
+        toast({ description: "All candidates marked as stale. You can now re-assess them." });
+    }
+    
     setIsJdAnalysisOpen(false);
   };
 
@@ -696,7 +705,7 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {(activeSession.candidates.length > 0 || isAssessingNewCvs) && (
+                          {(activeSession.candidates.length > 0 || isAssessingNewCvs || isReassessing) && (
                               <Card>
                                   <CardHeader>
                                       <div className="flex items-center justify-between gap-4">

@@ -319,11 +319,9 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                         </PopoverContent>
                     </Popover>
                     
-                    {isDirty && (
-                        <Button onClick={handleSaveClick}>
-                            Save Changes
-                        </Button>
-                    )}
+                    <Button onClick={handleSaveClick}>
+                        {isDirty ? 'Save Changes' : 'Mark All Stale'}
+                    </Button>
                 </CardFooter>
             </CollapsibleContent>
         </Card>
