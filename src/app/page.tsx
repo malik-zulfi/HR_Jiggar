@@ -11,6 +11,13 @@ import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight, Filter, 
 import type { AssessmentSession, AnalyzedCandidate } from '@/lib/types';
 import { AssessmentSessionSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 
@@ -19,6 +26,13 @@ type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
     jdName: string;
 };
+
+const chartConfig = {
+  count: {
+    label: "Candidates",
+    color: "hsl(var(--primary))",
+  },
+} satisfies ChartConfig;
 
 export default function DashboardPage() {
     const [history, setHistory] = useState<AssessmentSession[]>([]);
@@ -100,7 +114,17 @@ export default function DashboardPage() {
             return acc;
         }, {});
 
-        return { totalPositions, totalCandidates, top5Candidates, assessmentsByCode, assessmentsByDept };
+        const chartDataByCode = Object.entries(assessmentsByCode)
+            .map(([name, count]) => ({ name, count }))
+            .filter(item => item.count > 0)
+            .sort((a,b) => b.count - a.count);
+
+        const chartDataByDept = Object.entries(assessmentsByDept)
+            .map(([name, count]) => ({ name, count }))
+            .filter(item => item.count > 0)
+            .sort((a,b) => b.count - a.count);
+
+        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, chartDataByDept };
     }, [filteredHistory]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
@@ -238,33 +262,69 @@ export default function DashboardPage() {
                         
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidates by Group</CardTitle>
-                                <CardDescription>Number of candidates grouped by job code or department.</CardDescription>
+                                <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
+                                <CardDescription>Visual breakdown of candidates by job code and department.</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Briefcase className="w-4 h-4"/> By Job Code</h4>
-                                        <div className="space-y-2">
-                                            {Object.keys(stats.assessmentsByCode).length > 0 ? Object.entries(stats.assessmentsByCode).map(([code, count]) => (
-                                                <div key={code} className="flex justify-between items-center text-sm p-2 bg-secondary/50 rounded-md">
-                                                    <span className="font-medium">{code}</span>
-                                                    <Badge variant="outline">{count} {count === 1 ? 'candidate' : 'candidates'}</Badge>
-                                                </div>
-                                            )) : <p className="text-xs text-muted-foreground">No data.</p>}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Building className="w-4 h-4"/> By Department</h4>
-                                        <div className="space-y-2">
-                                            {Object.keys(stats.assessmentsByDept).length > 0 ? Object.entries(stats.assessmentsByDept).map(([dept, count]) => (
-                                                <div key={dept} className="flex justify-between items-center text-sm p-2 bg-secondary/50 rounded-md">
-                                                    <span className="font-medium">{dept}</span>
-                                                    <Badge variant="outline">{count} {count === 1 ? 'candidate' : 'candidates'}</Badge>
-                                                </div>
-                                            )) : <p className="text-xs text-muted-foreground">No data.</p>}
-                                        </div>
-                                    </div>
+                            <CardContent className="space-y-8">
+                                <div>
+                                    <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Briefcase className="w-4 h-4"/> By Job Code</h4>
+                                    {stats.chartDataByCode.length > 0 ? (
+                                        <ChartContainer config={chartConfig} className="h-[200px] w-full">
+                                            <BarChart
+                                                data={stats.chartDataByCode}
+                                                layout="vertical"
+                                                margin={{ right: 20 }}
+                                            >
+                                                <CartesianGrid horizontal={false} />
+                                                <YAxis
+                                                    dataKey="name"
+                                                    type="category"
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                                                    width={80}
+                                                />
+                                                <XAxis dataKey="count" type="number" hide />
+                                                <Tooltip
+                                                    cursor={{ fill: 'hsl(var(--muted))' }}
+                                                    content={<ChartTooltipContent />}
+                                                />
+                                                <Bar dataKey="count" fill="var(--color-count)" radius={[0, 4, 4, 0]}>
+                                                    <LabelList dataKey="count" position="right" offset={8} className="fill-foreground" fontSize={12} />
+                                                </Bar>
+                                            </BarChart>
+                                        </ChartContainer>
+                                    ) : <p className="text-xs text-muted-foreground text-center py-4">No data to display.</p>}
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5"><Building className="w-4 h-4"/> By Department</h4>
+                                    {stats.chartDataByDept.length > 0 ? (
+                                        <ChartContainer config={chartConfig} className="h-[200px] w-full">
+                                            <BarChart
+                                                data={stats.chartDataByDept}
+                                                layout="vertical"
+                                                margin={{ right: 20 }}
+                                            >
+                                                <CartesianGrid horizontal={false} />
+                                                <YAxis
+                                                    dataKey="name"
+                                                    type="category"
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                                                    width={80}
+                                                />
+                                                <XAxis dataKey="count" type="number" hide />
+                                                <Tooltip
+                                                    cursor={{ fill: 'hsl(var(--muted))' }}
+                                                    content={<ChartTooltipContent />}
+                                                />
+                                                <Bar dataKey="count" fill="var(--color-count)" radius={[0, 4, 4, 0]}>
+                                                    <LabelList dataKey="count" position="right" offset={8} className="fill-foreground" fontSize={12} />
+                                                </Bar>
+                                            </BarChart>
+                                        </ChartContainer>
+                                    ) : <p className="text-xs text-muted-foreground text-center py-4">No data to display.</p>}
                                 </div>
                             </CardContent>
                         </Card>
