@@ -191,10 +191,10 @@ export const StructuredCvContentSchema = z.object({
 export type StructuredCvContent = z.infer<typeof StructuredCvContentSchema>;
 
 export const CvDatabaseRecordSchema = z.object({
-    email: z.string().email().describe("Candidate's email, used as a unique identifier."),
+    email: z.string().describe("Candidate's email, used as a unique identifier."),
     name: z.string().describe("Candidate's full name."),
     contactNumber: z.string().optional().describe("Candidate's contact number."),
-    linkedinUrl: z.string().url().optional().describe("URL to the candidate's LinkedIn profile."),
+    linkedinUrl: z.string().optional().describe("URL to the candidate's LinkedIn profile."),
     currentTitle: z.string().optional().describe("Candidate's most recent job title."),
     currentCompany: z.string().optional().describe("Candidate's most recent company."),
     totalExperience: z.string().nullable().optional().describe("Total years of professional experience calculated from the CV."),
