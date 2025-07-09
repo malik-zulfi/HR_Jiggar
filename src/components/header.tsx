@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Bot, PlusSquare } from "lucide-react";
@@ -14,18 +15,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { SidebarTrigger } from "./ui/sidebar";
+import Link from "next/link";
 
 export function Header({ onNewSession }: { onNewSession: () => void }) {
   return (
-    <header className="p-4 border-b bg-card">
+    <header className="p-4 border-b bg-card sticky top-0 z-10">
       <div className="container mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3">
             <SidebarTrigger className="md:hidden" />
             <div className="p-2 bg-primary/10 rounded-lg">
               <Bot className="w-6 h-6 text-primary" />
             </div>
             <h1 className="text-xl font-bold text-foreground">Jiggar Assessment</h1>
-        </div>
+        </Link>
         
         <div className="flex items-center gap-2">
             <AlertDialog>
