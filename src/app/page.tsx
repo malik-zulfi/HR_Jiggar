@@ -20,6 +20,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
+const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
 // A type for our flattened top candidates
 type TopCandidate = AnalyzedCandidate & {
@@ -137,6 +138,10 @@ export default function DashboardPage() {
 
     const resetFilters = () => {
         setFilters({ code: 'all', department: 'all' });
+    };
+
+    const handleViewInTool = (sessionId: string) => {
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
     };
     
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
@@ -358,7 +363,7 @@ export default function DashboardPage() {
                                                 <TableCell className="text-muted-foreground">{new Date(session.createdAt).toLocaleDateString()}</TableCell>
                                                 <TableCell className="text-right">
                                                     <Link href="/assessment" passHref>
-                                                        <Button variant="outline" size="sm">
+                                                        <Button variant="outline" size="sm" onClick={() => handleViewInTool(session.id)}>
                                                             View in Tool
                                                         </Button>
                                                     </Link>

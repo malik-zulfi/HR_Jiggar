@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
+const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 type CvFile = { fileName: string; content: string; candidateName: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
@@ -99,6 +100,11 @@ function AssessmentPageContent() {
   useEffect(() => {
     try {
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (intendedSessionId) {
+          localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+      
       if (savedStateJSON) {
         const parsedJSON = JSON.parse(savedStateJSON);
         if (Array.isArray(parsedJSON) && parsedJSON.length > 0) {
@@ -119,7 +125,10 @@ function AssessmentPageContent() {
           if (validHistory.length > 0) {
             const sortedHistory = validHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setHistory(sortedHistory);
-            setActiveSessionId(sortedHistory[0]?.id);
+            
+            const sessionToActivate = intendedSessionId ? sortedHistory.find(s => s.id === intendedSessionId) : null;
+            
+            setActiveSessionId(sessionToActivate ? sessionToActivate.id : (sortedHistory[0]?.id || null));
           } else {
              localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
