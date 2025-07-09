@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
+type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 
 
 function HomePageContent() {
@@ -45,7 +46,7 @@ function HomePageContent() {
 
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
   const [newCvProcessingStatus, setNewCvProcessingStatus] = useState<CvProcessingStatus>({});
-  const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; } | null>(null);
+  const [reassessStatus, setReassessStatus] = useState<ReassessStatus>({});
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
@@ -79,6 +80,19 @@ function HomePageContent() {
         return { status: item.status, message };
     });
   }, [newCvProcessingStatus]);
+
+  const reassessStatusList = useMemo(() => {
+    const statuses = Object.values(reassessStatus);
+    if (statuses.length === 0) return null;
+
+    return statuses.map(item => {
+        let message = '';
+        if (item.status === 'processing') message = `Re-assessing: ${item.candidateName}`;
+        if (item.status === 'done') message = `Done: ${item.candidateName}`;
+        if (item.status === 'error') message = `Error: ${item.candidateName}`;
+        return { status: item.status, message };
+    });
+  }, [reassessStatus]);
 
   useEffect(() => {
     try {
@@ -221,25 +235,32 @@ function HomePageContent() {
       const session = history.find(s => s.id === activeSessionId);
       if (!session || session.candidates.length === 0) return;
 
-      setReassessProgress({ current: 0, total: session.candidates.length });
+      const initialStatus: ReassessStatus = session.candidates.reduce((acc, candidate) => {
+          acc[candidate.analysis.candidateName] = { status: 'processing', candidateName: candidate.analysis.candidateName };
+          return acc;
+      }, {} as ReassessStatus);
+      setReassessStatus(initialStatus);
       
       try {
         toast({ description: `Re-assessing ${session.candidates.length} candidate(s)...` });
         
-        let assessedCount = 0;
         const analysisPromises = session.candidates.map(oldCandidate =>
           analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
             .then(result => {
-              assessedCount++;
-              setReassessProgress({ current: assessedCount, total: session.candidates.length });
+              setReassessStatus(prev => ({
+                  ...prev,
+                  [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'done' }
+              }));
               return {
                 ...oldCandidate,
                 analysis: result
               };
             })
             .catch(error => {
-              assessedCount++;
-              setReassessProgress({ current: assessedCount, total: session.candidates.length });
+              setReassessStatus(prev => ({
+                  ...prev,
+                  [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'error' }
+              }));
               console.error(`Error re-assessing CV for ${oldCandidate.analysis.candidateName}:`, error);
               toast({
                   variant: "destructive",
@@ -266,7 +287,9 @@ function HomePageContent() {
         console.error("Error re-assessing CVs:", error);
         toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected response was received from the server." });
       } finally {
-        setReassessProgress(null);
+        setTimeout(() => {
+            setReassessStatus({});
+        }, 2000);
       }
     };
 
@@ -466,6 +489,7 @@ function HomePageContent() {
   };
 
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
+  const isReassessing = Object.keys(reassessStatus).length > 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -519,7 +543,7 @@ function HomePageContent() {
                         />
                         <Button 
                             onClick={handleAnalyzeCvs} 
-                            disabled={cvs.length === 0 || isAssessingNewCvs} 
+                            disabled={cvs.length === 0 || isAssessingNewCvs || isReassessing} 
                             className="w-full"
                         >
                             {isAssessingNewCvs ? (
@@ -637,6 +661,8 @@ function HomePageContent() {
                                               <CardDescription>
                                                 {isAssessingNewCvs 
                                                     ? 'Assessing new candidates...' 
+                                                    : isReassessing
+                                                    ? 'Re-assessing candidates...'
                                                     : 'Review assessments or re-assess all candidates with the current JD.'}
                                               </CardDescription>
                                           </div>
@@ -644,7 +670,7 @@ function HomePageContent() {
                                               <Button 
                                                   variant="outline" 
                                                   onClick={handleReassessClick}
-                                                  disabled={reassessProgress !== null || isAssessingNewCvs}
+                                                  disabled={isReassessing || isAssessingNewCvs}
                                               >
                                                   <RefreshCw className="mr-2 h-4 w-4" />
                                                   Re-assess All
@@ -653,34 +679,34 @@ function HomePageContent() {
                                       </div>
                                   </CardHeader>
                                   <CardContent>
-                                    {reassessProgress ? (
-                                        <ProgressLoader
-                                            title="Re-assessing Candidate(s)"
-                                            current={reassessProgress.current}
-                                            total={reassessProgress.total}
-                                        />
-                                    ) : (
-                                        <>
-                                            {newCvStatusList && (
-                                                <div className="mb-4">
-                                                    <ProgressLoader
-                                                        title="Assessing New Candidate(s)"
-                                                        statusList={newCvStatusList}
-                                                    />
-                                                </div>
-                                            )}
-                                            {activeSession.candidates.length > 0 && (
-                                                <Accordion type="single" collapsible className="w-full">
-                                                    {activeSession.candidates.map((c, i) => (
-                                                        <CandidateCard 
-                                                            key={`${c.analysis.candidateName}-${i}`} 
-                                                            candidate={c.analysis}
-                                                            onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
-                                                        />
-                                                    ))}
-                                                </Accordion>
-                                            )}
-                                        </>
+                                    {reassessStatusList && (
+                                        <div className="mb-4">
+                                            <ProgressLoader
+                                                title="Re-assessing Candidate(s)"
+                                                statusList={reassessStatusList}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {newCvStatusList && (
+                                        <div className="mb-4">
+                                            <ProgressLoader
+                                                title="Assessing New Candidate(s)"
+                                                statusList={newCvStatusList}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {activeSession.candidates.length > 0 && (
+                                        <Accordion type="single" collapsible className="w-full">
+                                            {activeSession.candidates.map((c, i) => (
+                                                <CandidateCard 
+                                                    key={`${c.analysis.candidateName}-${i}`} 
+                                                    candidate={c.analysis}
+                                                    onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
+                                                />
+                                            ))}
+                                        </Accordion>
                                     )}
                                   </CardContent>
                               </Card>
