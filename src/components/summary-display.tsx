@@ -38,7 +38,6 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
     toast({ description: "Generating cross-candidate alignment report..." });
 
     try {
-      // Use singular category names to match what the AI is prompted with, ensuring data consistency.
       const allJdRequirements = [
         ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
         ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
@@ -57,30 +56,43 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       
       const candidateMap = new Map(candidates.map(c => [c.candidateName, c]));
       const candidateNames = candidates.map(c => c.candidateName);
-
-      const header = ['Category', 'Requirement', 'Priority', ...candidateNames];
+      const normalizeString = (str: string) => (str || '').trim().toLowerCase();
       
-      const statusSymbols: { [key: string]: string } = {
-        'Aligned': '✔',
-        'Partially Aligned': '!',
-        'Not Aligned': '✖',
-        'Not Mentioned': '?',
+      const priorityEmojis: { [key: string]: string } = {
+        'MUST-HAVE': '🔴',
+        'NICE-TO-HAVE': '🟡',
       };
       
-      const normalizeString = (str: string) => (str || '').trim().toLowerCase();
+      const statusEmojis: { [key: string]: string } = {
+        'Aligned': '✅',
+        'Partially Aligned': '❗',
+        'Not Aligned': '❌',
+        'Not Mentioned': '❔',
+      };
+      
+      // Header creation
+      const headerRow1: (string | null)[] = ['', ''];
+      const headerRow2: string[] = ['Priority', 'Requirement'];
+      const merges = [];
+      
+      candidateNames.forEach((name, index) => {
+          headerRow1.push(name, null); // Push name and a null for the merge
+          headerRow2.push('Status', 'Justification');
+          const startCol = 2 + (index * 2);
+          merges.push({ s: { r: 0, c: startCol }, e: { r: 0, c: startCol + 1 } });
+      });
 
-      const rows = allJdRequirements.map(jdReq => {
+      // Data row creation
+      const dataRows = allJdRequirements.map(jdReq => {
         const rowData: (string | undefined)[] = [
-          jdReq.category,
-          jdReq.description,
-          jdReq.priority
+          priorityEmojis[jdReq.priority],
+          jdReq.description
         ];
 
         candidateNames.forEach(name => {
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
             detail => {
-              // Normalize strings to handle minor inconsistencies in AI output (case, whitespace).
               const categoryMatch = normalizeString(detail.category) === normalizeString(jdReq.category);
               const requirementMatch = normalizeString(detail.requirement) === normalizeString(jdReq.description);
               return categoryMatch && requirementMatch;
@@ -88,27 +100,50 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
           );
 
           if (alignmentDetail) {
-            const symbol = statusSymbols[alignmentDetail.status] || '';
-            rowData.push(`${symbol} ${alignmentDetail.status}`);
+            rowData.push(statusEmojis[alignmentDetail.status]);
+            rowData.push(alignmentDetail.justification);
           } else {
-            rowData.push('? Not Mentioned');
+            rowData.push(statusEmojis['Not Mentioned']);
+            rowData.push('');
           }
         });
 
         return rowData;
       });
       
-      const worksheetData = [header, ...rows];
+      const worksheetData = [headerRow1, headerRow2, ...dataRows];
 
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      
+      worksheet['!merges'] = merges;
 
-      const colWidths = header.map((_, colIndex) => {
-          const maxLength = Math.max(
-              ...worksheetData.map(row => (row[colIndex]?.toString() ?? '').length)
-          );
+      // Auto-size columns for better readability
+      const colWidths = headerRow2.map((header, colIndex) => {
+          if (header === 'Status' || header === 'Priority') return { wch: 8 };
+
+          let maxLength = 0;
+          for (const row of worksheetData) {
+              const cellContent = row[colIndex];
+              if (cellContent) {
+                  maxLength = Math.max(maxLength, String(cellContent).length);
+              }
+          }
+          if (header === 'Justification') return { wch: Math.min(50, maxLength + 2) };
+          if (header === 'Requirement') return { wch: Math.min(60, maxLength + 2) };
           return { wch: maxLength + 2 };
       });
+
+      // Adjust for merged candidate name headers
+      candidateNames.forEach((name, index) => {
+          const colIndex = 2 + (index * 2);
+          const nameLength = name.length;
+          const combinedWidth = colWidths[colIndex].wch! + colWidths[colIndex + 1].wch!;
+          if (nameLength > combinedWidth) {
+              colWidths[colIndex + 1].wch = nameLength - colWidths[colIndex].wch! + 2;
+          }
+      });
+      
       worksheet['!cols'] = colWidths;
       
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Candidate Alignment Matrix');
