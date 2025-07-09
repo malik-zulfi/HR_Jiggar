@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Answers user queries about the entire knowledge base of JDs and CVs.
@@ -87,6 +88,12 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
         query: input.query,
         knowledgeBase,
     }));
-    return output!;
+    
+    if (!output) {
+      throw new Error("The AI failed to generate a valid response. Please try asking your question in a different way.");
+    }
+
+    return output;
   }
 );
+
