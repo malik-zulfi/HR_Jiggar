@@ -38,9 +38,10 @@ const prompt = ai.definePrompt({
 
 **Knowledge Base Context:**
 You have been given a summarized JSON of "Assessment Sessions". Each session contains:
-1.  A job title, code, department, and the original JD filename.
-2.  A list of candidates who were assessed against that JD.
-3.  Each candidate record includes their name, alignment score, final recommendation, strengths, and weaknesses.
+1.  A unique \`sessionId\`.
+2.  A job title, code, department, and the original JD filename.
+3.  A list of candidates who were assessed against that JD.
+4.  Each candidate record includes their name, alignment score, final recommendation, strengths, and weaknesses.
 
 **Your Task:**
 - Analyze the user's query and the provided session data.
@@ -49,6 +50,7 @@ You have been given a summarized JSON of "Assessment Sessions". Each session con
 - If the information is not in the summary (e.g., specific dates from a CV, full text of a JD), state that you can only answer from the summarized data you have.
 - If the answer cannot be found in the provided data at all, state that clearly.
 - Use Markdown for all formatting (lists, bolding, tables).
+- **Important**: When you mention a specific assessment session, job, or candidate that belongs to a session, you MUST create a Markdown link for it. The link should allow the user to navigate to that assessment. The format for the link MUST be \`[link text](/assessment?sessionId=SESSION_ID_HERE)\`, where \`SESSION_ID_HERE\` is the \`sessionId\` from the knowledge base summary.
 
 **User's Question:**
 "{{{query}}}"
@@ -70,6 +72,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
     
     // Create a summarized version of the data to pass to the prompt
     const knowledgeBase = input.sessions.map(session => ({
+        sessionId: session.id,
         jobTitle: session.analyzedJd.jobTitle,
         jobCode: session.analyzedJd.code,
         department: session.analyzedJd.department,
@@ -96,4 +99,3 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
     return output;
   }
 );
-

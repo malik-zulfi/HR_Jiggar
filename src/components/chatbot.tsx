@@ -12,6 +12,9 @@ import { queryKnowledgeBase } from "@/ai/flows/query-knowledge-base";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Link from "next/link";
+
+const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -105,7 +108,29 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                             ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
                             ol: ({node, ordered, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
-                            a: ({node, ...props}) => <a className="text-primary underline hover:no-underline" {...props} />,
+                            a: ({node, ...props}) => {
+                              const href = props.href || '';
+                              if (href.startsWith('/assessment?sessionId=')) {
+                                const sessionId = href.split('sessionId=')[1];
+                                const handleViewInTool = () => {
+                                    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
+                                    setIsOpen(false);
+                                };
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                const { href: markdownHref, ...restProps } = props;
+                                return (
+                                  <Link
+                                    href="/assessment"
+                                    onClick={handleViewInTool}
+                                    className="font-semibold text-primary underline hover:no-underline cursor-pointer"
+                                    {...restProps}
+                                  >
+                                    {props.children}
+                                  </Link>
+                                );
+                              }
+                              return <a className="text-primary underline hover:no-underline" {...props} target="_blank" rel="noopener noreferrer"/>;
+                            },
                             code: ({ node, inline, className, children, ...props }) => {
                                 return !inline ? (
                                     <pre className="text-sm bg-black/10 dark:bg-white/10 p-2 rounded-md overflow-x-auto my-2">
