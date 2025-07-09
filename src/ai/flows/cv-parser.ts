@@ -45,7 +45,7 @@ const prompt = ai.definePrompt({
     *   **Experience**: Detail each work experience with job title, company, dates, and a list of responsibilities/achievements.
     *   **Education**: List all educational qualifications with degree, institution, and dates.
     *   **Skills**: Consolidate all technical and soft skills into a single list.
-    *   **Projects**: If any projects are listed, extract their name, description, and technologies used.
+    *   **Projects**: If any projects are listed, extract their name, description, and technologies used. You MUST ensure that each project listed in the output is unique; do not include duplicate project entries.
 
 Your final output must be a valid JSON object matching the provided schema. Do not add any commentary or text outside of the JSON structure.
 

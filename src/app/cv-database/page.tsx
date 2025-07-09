@@ -100,7 +100,7 @@ export default function CvDatabasePage() {
         }, {} as CvProcessingStatus);
         setProcessingStatus(initialStatus);
 
-        const newRecords: CvDatabaseRecord[] = [];
+        let successCount = 0;
         let errorCount = 0;
 
         for (const cv of cvsToUpload) {
@@ -114,7 +114,15 @@ export default function CvDatabasePage() {
                     cvContent: cv.content,
                     createdAt: new Date().toISOString(),
                 };
-                newRecords.push(record);
+                
+                // Update the central database state immediately for this CV
+                setCvDatabase(prevDb => {
+                    const dbMap = new Map(prevDb.map(c => [c.email, c]));
+                    dbMap.set(record.email, record);
+                    return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                });
+
+                successCount++;
                 setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
             } catch (error: any) {
                 errorCount++;
@@ -124,30 +132,19 @@ export default function CvDatabasePage() {
             }
         }
         
-        setCvDatabase(prevDb => {
-            const dbMap = new Map(prevDb.map(cv => [cv.email, cv]));
-            newRecords.forEach(rec => dbMap.set(rec.email, rec));
-            const sortedDb = Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            return sortedDb;
-        });
-        
-        const successCount = newRecords.length;
         if (successCount > 0) {
             toast({ description: `${successCount} CV(s) processed and added/updated in the database.` });
         }
-        if (errorCount === 0) {
-             setTimeout(() => {
-                setProcessingStatus({});
+        
+        const cleanupDelay = errorCount === 0 ? 2000 : 5000;
+        setTimeout(() => {
+            setProcessingStatus({});
+            if (errorCount === 0) {
                 setCvsToUpload([]);
                 setJobCode(null);
                 setCvResetKey(key => key + 1);
-            }, 2000);
-        } else {
-            // Keep loader visible to show errors
-             setTimeout(() => {
-                setProcessingStatus({});
-             }, 5000);
-        }
+            }
+        }, cleanupDelay);
     };
     
     if (!isClient) return null;
