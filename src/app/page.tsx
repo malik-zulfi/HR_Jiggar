@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight, Filter, X } from 'lucide-react';
+import { Bot, Briefcase, Users, Award, Building, BarChart3, ArrowRight, Filter, X, History } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate } from '@/lib/types';
 import { AssessmentSessionSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -124,7 +124,11 @@ export default function DashboardPage() {
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
 
-        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, chartDataByDept };
+        const recent5Assessments = filteredHistory
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 5);
+
+        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, chartDataByDept, recent5Assessments };
     }, [filteredHistory]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
@@ -329,6 +333,45 @@ export default function DashboardPage() {
                             </CardContent>
                         </Card>
                     </div>
+
+                    <Card className="mt-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><History className="text-primary"/> Recent Assessments</CardTitle>
+                            <CardDescription>The 5 most recently created assessments.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {stats.recent5Assessments.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Position</TableHead>
+                                            <TableHead className="text-center"># Candidates</TableHead>
+                                            <TableHead>Date Created</TableHead>
+                                            <TableHead className="text-right"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {stats.recent5Assessments.map((session) => (
+                                            <TableRow key={session.id}>
+                                                <TableCell className="font-medium">{session.analyzedJd.jobTitle || session.jdName}</TableCell>
+                                                <TableCell className="text-center">{session.candidates.length}</TableCell>
+                                                <TableCell className="text-muted-foreground">{new Date(session.createdAt).toLocaleDateString()}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Link href="/assessment" passHref>
+                                                        <Button variant="outline" size="sm">
+                                                            View in Tool
+                                                        </Button>
+                                                    </Link>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center py-8">No recent assessments to display.</p>
+                                )}
+                        </CardContent>
+                    </Card>
                 </div>
             </main>
         </div>
