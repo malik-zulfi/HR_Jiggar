@@ -41,11 +41,11 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       const allJdRequirements = [
         ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
         ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
-        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' })),
-        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' })),
-        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certification' })),
-        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' })),
-        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' })),
+        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skills' })),
+        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skills' })),
+        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certifications' })),
+        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibilities' })),
+        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirements' })),
       ];
 
       if (allJdRequirements.length === 0) {
@@ -59,15 +59,15 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       const normalizeString = (str: string) => (str || '').trim().toLowerCase();
       
       const priorityEmojis: { [key: string]: string } = {
-        'MUST-HAVE': '🔴',
-        'NICE-TO-HAVE': '🟡',
+        'MUST-HAVE': '★',
+        'NICE-TO-HAVE': '•',
       };
       
       const statusEmojis: { [key: string]: string } = {
         'Aligned': '✅',
-        'Partially Aligned': '❗',
+        'Partially Aligned': '⚠️',
         'Not Aligned': '❌',
-        'Not Mentioned': '❔',
+        'Not Mentioned': '—',
       };
       
       // Header creation
