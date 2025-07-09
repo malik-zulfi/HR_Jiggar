@@ -47,6 +47,7 @@ export const AnalyzeCVAgainstJDOutputSchema = z.object({
   strengths: z.array(z.string()).describe('The strengths of the candidate.'),
   weaknesses: z.array(z.string()).describe('The weaknesses of the candidate.'),
   interviewProbes: z.array(z.string()).describe('Suggested interview probes to explore weak areas.'),
+  processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
 export type AnalyzeCVAgainstJDOutput = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
 
@@ -66,6 +67,7 @@ const CandidateAssessmentSchema = z.object({
   interviewProbes: z
     .array(z.string())
     .describe('Suggested interview probes to explore weak/unclear areas.'),
+  processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
 
 export const CandidateSummaryInputSchema = z.object({

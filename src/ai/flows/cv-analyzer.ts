@@ -42,6 +42,7 @@ const DynamicCriteriaPromptInputSchema = z.object({
 const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({
     alignmentScore: true,
     recommendation: true,
+    processingTime: true,
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -100,6 +101,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     outputSchema: AnalyzeCVAgainstJDOutputSchema,
   },
   async input => {
+    const startTime = Date.now();
     const { jobDescriptionCriteria, cv } = input;
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = jobDescriptionCriteria;
     
@@ -207,6 +209,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
             output.recommendation = 'Not Recommended';
         }
     }
+    
+    const endTime = Date.now();
+    output.processingTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
     
     return output;
   }

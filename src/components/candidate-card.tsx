@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AccordionContent, AccordionItem } from "@/components/ui/accordion";
@@ -5,7 +6,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate } from "@/lib/types";
-import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 
@@ -53,7 +54,7 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
     <AccordionItem value={candidate.candidateName}>
         <AccordionPrimitive.Header className="flex w-full items-center p-0">
             <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between p-4 font-medium transition-all hover:no-underline data-[state=open]:bg-accent/10">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-semibold text-lg text-foreground truncate">{candidate.candidateName}</span>
                      <Badge className={cn("whitespace-nowrap font-bold", getScoreBadgeClass(candidate.alignmentScore))}>
                         <div className="flex items-center gap-1">
@@ -61,6 +62,14 @@ export default function CandidateCard({ candidate, onDelete }: CandidateCardProp
                             {candidate.alignmentScore}%
                         </div>
                     </Badge>
+                    {candidate.processingTime && (
+                        <Badge variant="outline" className="font-normal text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {candidate.processingTime}s
+                            </div>
+                        </Badge>
+                    )}
                     <Badge className={cn("whitespace-nowrap", recommendationInfo.className)}>
                         <div className="flex items-center gap-2">
                             {recommendationInfo.icon}

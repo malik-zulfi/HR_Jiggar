@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 type CvFile = { fileName: string; content: string; candidateName: string };
+type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
+
 
 function HomePageContent() {
   const { toast } = useToast();
@@ -42,7 +44,7 @@ function HomePageContent() {
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
-  const [newCvAnalysisProgress, setNewCvAnalysisProgress] = useState<{ current: number; total: number; } | null>(null);
+  const [newCvProcessingStatus, setNewCvProcessingStatus] = useState<CvProcessingStatus>({});
   const [reassessProgress, setReassessProgress] = useState<{ current: number; total: number; } | null>(null);
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
@@ -64,6 +66,19 @@ function HomePageContent() {
         return nameMatch || titleMatch;
     });
   }, [history, searchQuery]);
+  
+  const newCvStatusList = useMemo(() => {
+    const statuses = Object.values(newCvProcessingStatus);
+    if (statuses.length === 0) return null;
+    
+    return statuses.map(item => {
+        let message = '';
+        if (item.status === 'processing') message = `Processing: ${item.fileName}`;
+        if (item.status === 'done') message = `Done: ${item.candidateName || item.fileName}`;
+        if (item.status === 'error') message = `Error: ${item.fileName}`;
+        return { status: item.status, message };
+    });
+  }, [newCvProcessingStatus]);
 
   useEffect(() => {
     try {
@@ -290,23 +305,42 @@ function HomePageContent() {
         return;
     }
     
-    setNewCvAnalysisProgress({ current: 0, total: cvs.length });
+    const initialStatus = cvs.reduce((acc, cv) => {
+        acc[cv.fileName] = { status: 'processing', fileName: cv.fileName };
+        return acc;
+    }, {} as CvProcessingStatus);
+    setNewCvProcessingStatus(initialStatus);
     
     try {
       toast({ description: `Assessing ${cvs.length} candidate(s)... This may take a moment.` });
       
-      const newCandidates: CandidateRecord[] = [];
-
       const analysisPromises = cvs.map(cv =>
         analyzeCVAgainstJD({ jobDescriptionCriteria: activeSession!.analyzedJd, cv: cv.content })
           .then(analysis => {
-            const candidateRecord = {
+            const candidateRecord: CandidateRecord = {
               cvName: cv.fileName,
               cvContent: cv.content,
               analysis
             };
-            newCandidates.push(candidateRecord);
-            return candidateRecord;
+            
+            setHistory(prev => prev.map(session => {
+              if (session.id === activeSessionId) {
+                const existingNames = new Set(session.candidates.map(c => c.cvName));
+                if (existingNames.has(candidateRecord.cvName)) return session;
+
+                const allCandidates = [...session.candidates, candidateRecord];
+                allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                return { ...session, candidates: allCandidates, summary: null };
+              }
+              return session;
+            }));
+
+            setNewCvProcessingStatus(prev => ({
+              ...prev,
+              [cv.fileName]: { ...prev[cv.fileName], status: 'done', candidateName: analysis.candidateName }
+            }));
+
+            return { status: 'fulfilled', value: candidateRecord };
           })
           .catch(error => {
             console.error(`Error analyzing CV for ${cv.fileName}:`, error);
@@ -315,40 +349,31 @@ function HomePageContent() {
               title: `Analysis Failed for ${cv.fileName}`,
               description: "An unexpected response was received from the server.",
             });
-            return null;
+
+            setNewCvProcessingStatus(prev => ({
+              ...prev,
+              [cv.fileName]: { ...prev[cv.fileName], status: 'error' }
+            }));
+            
+            return { status: 'rejected', reason: error };
           })
       );
       
-      await Promise.all(analysisPromises);
-      
-      if (newCandidates.length > 0) {
-        setHistory(prev => prev.map(session => {
-          if (session.id === activeSessionId) {
-            const existingNames = new Set(session.candidates.map(c => c.cvName));
-            const newCandidatesToAdd = newCandidates.filter(nc => !existingNames.has(nc.cvName));
-            const allCandidates = [...session.candidates, ...newCandidatesToAdd];
-            allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-            return {
-              ...session,
-              candidates: allCandidates,
-              summary: null,
-            };
-          }
-          return session;
-        }));
-      }
-      
-      if (newCandidates.length > 0) {
-        toast({ description: `${newCandidates.length} candidate(s) have been successfully assessed.` });
+      const results = await Promise.all(analysisPromises);
+      const successfulAnalyses = results.filter(r => r.status === 'fulfilled').length;
+      if (successfulAnalyses > 0) {
+        toast({ description: `${successfulAnalyses} candidate(s) have been successfully assessed.` });
       }
 
-      setCvs([]);
-      setCvResetKey(key => key + 1);
     } catch (error) {
       console.error("Error analyzing CVs:", error);
-      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected response was received from the server." });
+      toast({ variant: "destructive", title: "Assessment Error", description: "An unexpected error occurred during the process." });
     } finally {
-      setNewCvAnalysisProgress(null);
+        setTimeout(() => {
+            setNewCvProcessingStatus({});
+            setCvs([]);
+            setCvResetKey(key => key + 1);
+        }, 2000);
     }
   };
   
@@ -387,6 +412,7 @@ function HomePageContent() {
         strengths: c.analysis.strengths,
         weaknesses: c.analysis.weaknesses,
         interviewProbes: c.analysis.interviewProbes,
+        processingTime: c.analysis.processingTime,
       }));
       const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescriptionCriteria: activeSession.analyzedJd });
       
@@ -438,6 +464,8 @@ function HomePageContent() {
   const handleAutoAnalyze = (files: { name: string, content: string }[]) => {
     handleJdUpload(files);
   };
+
+  const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -491,15 +519,15 @@ function HomePageContent() {
                         />
                         <Button 
                             onClick={handleAnalyzeCvs} 
-                            disabled={cvs.length === 0 || newCvAnalysisProgress !== null} 
+                            disabled={cvs.length === 0 || isAssessingNewCvs} 
                             className="w-full"
                         >
-                            {newCvAnalysisProgress ? (
+                            {isAssessingNewCvs ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                                 <FileText className="mr-2 h-4 w-4" />
                             )}
-                            {newCvAnalysisProgress ? 'Assessing...' : 'Add and Assess Candidate(s)'}
+                            {isAssessingNewCvs ? 'Assessing...' : 'Add and Assess Candidate(s)'}
                         </Button>
                     </div>
                   )}
@@ -600,14 +628,14 @@ function HomePageContent() {
 
                           <Separator />
                           
-                          {(activeSession.candidates.length > 0 || newCvAnalysisProgress) && (
+                          {(activeSession.candidates.length > 0 || isAssessingNewCvs) && (
                               <Card>
                                   <CardHeader>
                                       <div className="flex items-center justify-between gap-4">
                                           <div>
                                               <CardTitle className="flex items-center gap-2"><Users /> Step 2: Review Candidates</CardTitle>
                                               <CardDescription>
-                                                {newCvAnalysisProgress 
+                                                {isAssessingNewCvs 
                                                     ? 'Assessing new candidates...' 
                                                     : 'Review assessments or re-assess all candidates with the current JD.'}
                                               </CardDescription>
@@ -616,7 +644,7 @@ function HomePageContent() {
                                               <Button 
                                                   variant="outline" 
                                                   onClick={handleReassessClick}
-                                                  disabled={reassessProgress !== null || newCvAnalysisProgress !== null}
+                                                  disabled={reassessProgress !== null || isAssessingNewCvs}
                                               >
                                                   <RefreshCw className="mr-2 h-4 w-4" />
                                                   Re-assess All
@@ -633,12 +661,11 @@ function HomePageContent() {
                                         />
                                     ) : (
                                         <>
-                                            {newCvAnalysisProgress && (
+                                            {newCvStatusList && (
                                                 <div className="mb-4">
                                                     <ProgressLoader
                                                         title="Assessing New Candidate(s)"
-                                                        current={newCvAnalysisProgress.current}
-                                                        total={newCvAnalysisProgress.total}
+                                                        statusList={newCvStatusList}
                                                     />
                                                 </div>
                                             )}
@@ -703,7 +730,3 @@ export default function Home() {
         </SidebarProvider>
     )
 }
-
-    
-
-    

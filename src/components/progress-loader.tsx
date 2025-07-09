@@ -1,16 +1,17 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 
 interface ProgressLoaderProps {
   title: string;
   current?: number;
   total?: number;
-  itemName?: string;
   steps?: string[];
   currentStepIndex?: number;
+  statusList?: { status: 'processing' | 'done' | 'error', message: string }[];
   logLength?: number;
 }
 
@@ -18,9 +19,9 @@ export default function ProgressLoader({
   title, 
   current, 
   total, 
-  itemName,
   steps,
   currentStepIndex,
+  statusList,
   logLength = 5
 }: ProgressLoaderProps) {
   const [fakeProgress, setFakeProgress] = useState(0);
@@ -30,7 +31,7 @@ export default function ProgressLoader({
   
   useEffect(() => {
     // Fake progress animation for simple loaders
-    if (hasRealProgress || (steps && typeof currentStepIndex === 'number')) return;
+    if (hasRealProgress || (steps && typeof currentStepIndex === 'number') || statusList) return;
 
     setFakeProgress(10);
     const timer = setInterval(() => {
@@ -41,7 +42,36 @@ export default function ProgressLoader({
     }, 800);
 
     return () => clearInterval(timer);
-  }, [hasRealProgress, steps, currentStepIndex]);
+  }, [hasRealProgress, steps, currentStepIndex, statusList]);
+  
+  // Status list view
+  if (statusList) {
+    const totalItems = statusList.length;
+    const doneCount = statusList.filter(s => s.status === 'done' || s.status === 'error').length;
+    const progress = totalItems > 0 ? (doneCount / totalItems) * 100 : 0;
+    
+    return (
+      <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
+        <div className="text-center font-sans text-sm font-medium text-foreground">
+            <p>{title}</p>
+        </div>
+        <Progress value={progress} className="w-full h-2" />
+        <div className="text-center font-sans text-muted-foreground text-sm">
+            <p>Assessed {doneCount} of {totalItems} candidate(s)...</p>
+        </div>
+        <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-2">
+            {statusList.map((item, index) => (
+                <div key={index} className="flex items-center gap-3 text-sm">
+                    {item.status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+                    {item.status === 'done' && <CheckCircle2 className="h-4 w-4 text-chart-2 shrink-0" />}
+                    {item.status === 'error' && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                    <span className="text-muted-foreground truncate">{item.message}</span>
+                </div>
+            ))}
+        </div>
+      </div>
+    );
+  }
 
   // Terminal view logic
   if (steps && typeof currentStepIndex === 'number' && steps.length > 0) {
