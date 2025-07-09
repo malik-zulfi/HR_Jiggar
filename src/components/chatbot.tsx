@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -102,8 +103,8 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                           className="text-sm leading-relaxed"
                           components={{
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
+                            ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
+                            ol: ({node, ordered, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
                             a: ({node, ...props}) => <a className="text-primary underline hover:no-underline" {...props} />,
                             code: ({ node, inline, className, children, ...props }) => {
                                 return !inline ? (
@@ -125,9 +126,9 @@ export default function Chatbot({ sessions }: ChatbotProps) {
                             ),
                             thead: ({node, ...props}) => <thead className="bg-muted/50 font-medium" {...props} />,
                             tbody: ({node, ...props}) => <tbody {...props} />,
-                            tr: ({node, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
-                            th: ({node, ...props}) => <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" {...props} />,
-                            td: ({node, ...props}) => <td className="p-3 align-middle" {...props} />,
+                            tr: ({node, isHeader, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
+                            th: ({node, isHeader, ...props}) => <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" {...props} />,
+                            td: ({node, isHeader, ...props}) => <td className="p-3 align-middle" {...props} />,
                           }}
                        >
                            {msg.content}
