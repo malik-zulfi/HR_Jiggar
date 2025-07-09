@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, ChevronDown, Clock, ChevronRight, Users } from "lucide-react";
-import type { CvDatabaseRecord } from '@/lib/types';
-import { CvDatabaseRecordSchema } from '@/lib/types';
+import type { CvDatabaseRecord, AssessmentSession } from '@/lib/types';
+import { CvDatabaseRecordSchema, AssessmentSessionSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FileUploader from '@/components/file-uploader';
 import { parseCv } from '@/ai/flows/cv-parser';
@@ -18,8 +18,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import CvDisplay from '@/components/cv-display';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
+const HISTORY_STORAGE_KEY = 'jiggar-history';
 type UploadedFile = { name: string; content: string };
 type JobCode = 'OCN' | 'WEX' | 'SAN';
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', message: string }>;
@@ -28,6 +30,7 @@ export default function CvDatabasePage() {
     const { toast } = useToast();
     const [isClient, setIsClient] = useState(false);
     const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
+    const [history, setHistory] = useState<AssessmentSession[]>([]);
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
     const [jobCode, setJobCode] = useState<JobCode | null>(null);
     const [processingStatus, setProcessingStatus] = useState<CvProcessingStatus>({});
@@ -38,6 +41,7 @@ export default function CvDatabasePage() {
     useEffect(() => {
         setIsClient(true);
         try {
+            // Load CV Database
             const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
             if (savedCvDbJSON) {
                 const parsedCvDb = JSON.parse(savedCvDbJSON);
@@ -47,6 +51,19 @@ export default function CvDatabasePage() {
                         return result.success ? result.data : null;
                     }).filter((r): r is CvDatabaseRecord => r !== null);
                     setCvDatabase(validDb.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                }
+            }
+
+            // Load Assessment History
+            const savedHistoryJSON = localStorage.getItem(HISTORY_STORAGE_KEY);
+            if (savedHistoryJSON) {
+                const parsedHistory = JSON.parse(savedHistoryJSON);
+                if (Array.isArray(parsedHistory)) {
+                    const validHistory = parsedHistory.map(sessionData => {
+                        const result = AssessmentSessionSchema.safeParse(sessionData);
+                        return result.success ? result.data : null;
+                    }).filter((s): s is AssessmentSession => s !== null);
+                    setHistory(validHistory);
                 }
             }
 
@@ -62,7 +79,7 @@ export default function CvDatabasePage() {
                 }, 500);
             }
         } catch (error) {
-            console.error("Failed to load CV database from localStorage", error);
+            console.error("Failed to load data from localStorage", error);
         }
     }, []);
 
@@ -71,6 +88,43 @@ export default function CvDatabasePage() {
             localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
         }
     }, [cvDatabase, isClient]);
+
+    const suitablePositionsCount = useMemo(() => {
+        const countMap = new Map<string, number>();
+        if (!history.length || !cvDatabase.length) {
+            return countMap;
+        }
+
+        const sessionsByJobCode = new Map<string, AssessmentSession[]>();
+        history.forEach(session => {
+            if (session.analyzedJd.code) {
+                const list = sessionsByJobCode.get(session.analyzedJd.code) || [];
+                list.push(session);
+                sessionsByJobCode.set(session.analyzedJd.code, list);
+            }
+        });
+
+        cvDatabase.forEach(cv => {
+            const potentialSessions = sessionsByJobCode.get(cv.jobCode) || [];
+            let suitableCount = 0;
+            
+            potentialSessions.forEach(session => {
+                const isAssessed = session.candidates.some(candidateRecord => {
+                    const match = candidateRecord.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+                    const assessedEmail = match ? match[0].toLowerCase() : null;
+                    return assessedEmail === cv.email.toLowerCase();
+                });
+
+                if (!isAssessed) {
+                    suitableCount++;
+                }
+            });
+
+            countMap.set(cv.email, suitableCount);
+        });
+
+        return countMap;
+    }, [cvDatabase, history]);
 
     const filteredCvs = useMemo(() => {
         if (!searchTerm.trim()) {
@@ -128,7 +182,6 @@ export default function CvDatabasePage() {
                     createdAt: new Date().toISOString(),
                 };
                 
-                // Update the central database state immediately for this CV
                 setCvDatabase(prevDb => {
                     const dbMap = new Map(prevDb.map(c => [c.email, c]));
                     dbMap.set(record.email, record);
@@ -248,7 +301,9 @@ export default function CvDatabasePage() {
                             </div>
                             
                             <Accordion type="single" collapsible className="w-full border rounded-md" value={openAccordion} onValueChange={setOpenAccordion}>
-                                {filteredCvs.length > 0 ? filteredCvs.map(cv => (
+                                {filteredCvs.length > 0 ? filteredCvs.map(cv => {
+                                    const suitableCount = suitablePositionsCount.get(cv.email) || 0;
+                                    return (
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
                                         <AccordionTrigger className="px-4 py-3 text-left hover:no-underline hover:bg-muted/50">
                                             <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
@@ -256,12 +311,27 @@ export default function CvDatabasePage() {
                                                 <span className="text-sm text-muted-foreground truncate">{cv.currentTitle || 'N/A'}</span>
                                                 <span className="text-sm text-muted-foreground truncate">{cv.currentCompany || 'N/A'}</span>
                                                 <span className="text-sm text-muted-foreground">{cv.totalExperience || 'N/A'}</span>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <Badge>{cv.jobCode}</Badge>
                                                     <Badge variant="outline" className="font-normal text-muted-foreground">
                                                         <Clock className="h-3 w-3 mr-1.5" />
                                                         {new Date(cv.createdAt).toLocaleDateString()}
                                                     </Badge>
+                                                     {suitableCount > 0 && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Badge variant="secondary" className="font-semibold border-primary/50 text-primary cursor-default">
+                                                                         <Briefcase className="h-3 w-3 mr-1.5" />
+                                                                         {suitableCount} Open Position(s)
+                                                                    </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>This candidate can be assessed for {suitableCount} other open position(s) with the same job code.</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
                                                 </div>
                                             </div>
                                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
@@ -275,7 +345,7 @@ export default function CvDatabasePage() {
                                             <CvDisplay structuredContent={cv.structuredContent} />
                                         </AccordionContent>
                                     </AccordionItem>
-                                )) : (
+                                )}) : (
                                     <div className="text-center p-8 text-muted-foreground">
                                         No candidates found matching your search.
                                     </div>
