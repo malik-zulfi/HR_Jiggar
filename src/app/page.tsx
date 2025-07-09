@@ -85,7 +85,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="flex flex-col min-h-screen bg-secondary/50">
+        <div className="flex flex-col min-h-screen bg-secondary/40">
             <header className="p-4 border-b bg-card shadow-sm sticky top-0 z-10">
                 <div className="container mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -109,20 +109,20 @@ export default function DashboardPage() {
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Positions Assessed</CardTitle>
-                                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                <Briefcase className="h-4 w-4 text-primary" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{stats.totalPositions}</div>
+                                <div className="text-2xl font-bold text-primary">{stats.totalPositions}</div>
                                 <p className="text-xs text-muted-foreground">Total unique job descriptions analyzed</p>
                             </CardContent>
                         </Card>
                          <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Candidates Assessed</CardTitle>
-                                <Users className="h-4 w-4 text-muted-foreground" />
+                                <Users className="h-4 w-4 text-accent" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{stats.totalCandidates}</div>
+                                <div className="text-2xl font-bold text-accent">{stats.totalCandidates}</div>
                                 <p className="text-xs text-muted-foreground">Total CVs processed across all positions</p>
                             </CardContent>
                         </Card>
@@ -131,7 +131,7 @@ export default function DashboardPage() {
                     <div className="grid gap-6 mt-6 md:grid-cols-2">
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Award /> Top 5 Candidates</CardTitle>
+                                <CardTitle className="flex items-center gap-2"><Award className="text-chart-4" /> Top 5 Candidates</CardTitle>
                                 <CardDescription>Highest scoring candidates across all assessments.</CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
                         
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><BarChart3 /> Candidates by Group</CardTitle>
+                                <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidates by Group</CardTitle>
                                 <CardDescription>Number of candidates grouped by job code or department.</CardDescription>
                             </CardHeader>
                             <CardContent>
