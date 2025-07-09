@@ -65,6 +65,9 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
         'Not Aligned': '✖',
         'Not Mentioned': '?',
       };
+      
+      const normalizeCategory = (str: string) => (str || '').trim().toLowerCase().replace(/s$/, '');
+      const normalizeRequirement = (str: string) => (str || '').trim().toLowerCase();
 
       const rows = allJdRequirements.map(jdReq => {
         const rowData: (string | undefined)[] = [
@@ -76,9 +79,14 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
         candidateNames.forEach(name => {
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
-            detail => 
-                detail.requirement.trim().toLowerCase() === jdReq.description.trim().toLowerCase() && 
-                detail.category.trim().toLowerCase() === jdReq.category.trim().toLowerCase()
+            detail => {
+              // Match category (handles plural vs singular like "Technical Skill" vs "Technical Skills")
+              const categoryMatch = normalizeCategory(detail.category) === normalizeCategory(jdReq.category);
+              // Match requirement description
+              const requirementMatch = normalizeRequirement(detail.requirement) === normalizeRequirement(jdReq.description);
+
+              return categoryMatch && requirementMatch;
+            }
           );
 
           if (alignmentDetail) {
