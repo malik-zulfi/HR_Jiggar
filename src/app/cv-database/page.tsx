@@ -81,7 +81,6 @@ export default function CvDatabasePage() {
             session.candidates.forEach(candidate => {
                 let email = candidate.analysis.email;
 
-                // Backwards compatibility: if email is not on the analysis, find it via name from the database.
                 if (!email) {
                     const candidateNameLower = candidate.analysis.candidateName.toLowerCase();
                     if (nameToEmailMap.has(candidateNameLower)) {
@@ -206,6 +205,16 @@ export default function CvDatabasePage() {
             }
         }
     }, [cvDatabase, isClient]);
+    
+    useEffect(() => {
+        if (isClient) {
+            if (history.length > 0) {
+                localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+            } else {
+                localStorage.removeItem(HISTORY_STORAGE_KEY);
+            }
+        }
+    }, [history, isClient]);
 
     useEffect(() => {
         if (isClient) {
@@ -393,9 +402,25 @@ export default function CvDatabasePage() {
     }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded]);
     
     const handleDeleteCv = (emailToDelete: string) => {
+        // Remove from CV Database
         setCvDatabase(prev => prev.filter(cv => cv.email !== emailToDelete));
+
+        // Remove from all assessments in history
+        setHistory(prevHistory => {
+            return prevHistory.map(session => {
+                const updatedCandidates = session.candidates.filter(candidate => {
+                    if (candidate.analysis.email) {
+                        return candidate.analysis.email.toLowerCase() !== emailToDelete.toLowerCase();
+                    }
+                    // Fallback for older data that may not have the email in the analysis
+                    return !candidate.cvContent.toLowerCase().includes(emailToDelete.toLowerCase());
+                });
+                return { ...session, candidates: updatedCandidates, summary: updatedCandidates.length > 0 ? session.summary : null };
+            });
+        });
+
         toast({
-            description: "Candidate record deleted from the database.",
+            description: "Candidate record deleted from the database and all assessments.",
         });
     };
 
@@ -614,7 +639,7 @@ export default function CvDatabasePage() {
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                                         <AlertDialogDescription>
-                                                                            This action cannot be undone. This will permanently delete the record for <span className="font-bold">{cv.name}</span>.
+                                                                            This action cannot be undone. This will permanently delete the record for <span className="font-bold">{cv.name}</span> and remove them from all assessments.
                                                                         </AlertDialogDescription>
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>
@@ -708,22 +733,18 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     
     const compatibleAssessments = useMemo(() => {
         const assessedSessionIds = new Set<string>();
-        const nameToEmailMap = new Map<string, string>();
+        
+        const candidateEmailLower = candidate.email.toLowerCase();
 
         assessments.forEach(session => {
             session.candidates.forEach(c => {
-                let email = c.analysis.email;
-                if (!email) {
-                    if (!nameToEmailMap.has(c.analysis.candidateName.toLowerCase())) {
-                        // This fallback is imperfect but necessary for old data.
-                        // It assumes names are unique, which is not guaranteed.
-                        // The proper fix is adding email to analysis for all new candidates.
-                    }
-                    // For the popover, we can be a bit more aggressive. Let's assume if the name matches, it's the same person.
-                    if(c.analysis.candidateName.toLowerCase() === candidate.name.toLowerCase()){
-                        assessedSessionIds.add(session.id);
-                    }
-                } else if (email.toLowerCase() === candidate.email.toLowerCase()) {
+                const assessedEmail = c.analysis.email?.toLowerCase();
+                // Prioritize checking the reliable email field first
+                if (assessedEmail && assessedEmail === candidateEmailLower) {
+                    assessedSessionIds.add(session.id);
+                } 
+                // Fallback for old data: check by name.
+                else if (!assessedEmail && c.analysis.candidateName.toLowerCase() === candidate.name.toLowerCase()) {
                     assessedSessionIds.add(session.id);
                 }
             });
@@ -780,4 +801,5 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     
 
     
+
 
