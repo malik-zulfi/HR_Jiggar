@@ -16,11 +16,9 @@ interface ProgressLoaderProps {
 interface ProcessingItemProps {
     message: string;
     status: 'processing' | 'done' | 'error';
-    statusList: { status: 'processing' | 'done' | 'error', message: string }[];
-    myIndex: number;
 }
 
-const ProcessingItem = ({ message, status, statusList, myIndex }: ProcessingItemProps) => {
+const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
     const steps = [
         "Reviewing CV content...",
         "Assessing against job requirements...",
@@ -28,7 +26,6 @@ const ProcessingItem = ({ message, status, statusList, myIndex }: ProcessingItem
         "Finalizing analysis...",
     ];
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
-    const [displayText, setDisplayText] = useState(steps[0]);
 
     useEffect(() => {
         if (status === 'processing') {
@@ -47,22 +44,8 @@ const ProcessingItem = ({ message, status, statusList, myIndex }: ProcessingItem
             return () => clearInterval(interval);
         }
     }, [status, steps.length]);
-
-    useEffect(() => {
-        if (status !== 'processing') return;
-
-        if (currentStepIndex < steps.length - 1) {
-            setDisplayText(steps[currentStepIndex]);
-        } else {
-            // At the final step, check the queue
-            const firstProcessingIndex = statusList.findIndex(item => item.status === 'processing');
-            if (myIndex === firstProcessingIndex) {
-                setDisplayText(steps[steps.length - 1]); // "Finalizing analysis..."
-            } else {
-                setDisplayText("Queued for finalization...");
-            }
-        }
-    }, [currentStepIndex, status, statusList, myIndex, steps]);
+    
+    const displayText = steps[Math.min(currentStepIndex, steps.length - 1)];
 
     if (status === 'done') {
         return (
@@ -115,13 +98,11 @@ export default function ProgressLoader({
         </div>
         <Progress value={progress} className="w-full h-2" />
         <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
-            {statusList.map((item, index) => (
+            {statusList.map((item) => (
                 <ProcessingItem
                     key={item.message}
                     message={item.message}
                     status={item.status}
-                    statusList={statusList}
-                    myIndex={index}
                 />
             ))}
         </div>

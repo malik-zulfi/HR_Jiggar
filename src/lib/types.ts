@@ -126,10 +126,17 @@ export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
 
 
 // For Global Knowledge Base Query
+export const ChatMessageSchema = z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
 export const QueryKnowledgeBaseInputSchema = z.object({
   query: z.string().describe("The user's question about the knowledge base."),
   sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
   cvDatabase: z.array(z.lazy(() => CvDatabaseRecordSchema)).describe("The central database of all parsed CVs, including those not yet assessed."),
+  chatHistory: z.array(ChatMessageSchema).optional().describe('The history of the current conversation.'),
 });
 export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
 
@@ -140,12 +147,6 @@ export type QueryKnowledgeBaseOutput = z.infer<typeof QueryKnowledgeBaseOutputSc
 
 
 // For session history
-export const ChatMessageSchema = z.object({
-    role: z.enum(['user', 'assistant']),
-    content: z.string(),
-});
-export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-
 export const CandidateRecordSchema = z.object({
     cvName: z.string(),
     cvContent: z.string(),
@@ -222,3 +223,31 @@ export const ParseCvOutputSchema = CvDatabaseRecordSchema.omit({
     createdAt: true,
 });
 export type ParseCvOutput = z.infer<typeof ParseCvOutputSchema>;
+
+// For Suitability/Relevance Checker
+export type SuitablePosition = {
+    candidateEmail: string;
+    candidateName: string;
+    assessment: AssessmentSession;
+};
+
+export const FindSuitablePositionsInputSchema = z.object({
+  candidate: CvDatabaseRecordSchema.describe('The candidate to find positions for.'),
+  assessmentSessions: z.array(AssessmentSessionSchema).describe('A list of all available assessment sessions (jobs).'),
+  existingSuitablePositions: z.array(z.object({ // Cannot use SuitablePosition type directly due to circular reference issues with Zod/TS
+      candidateEmail: z.string(),
+      candidateName: z.string(),
+      assessment: AssessmentSessionSchema,
+  })).describe('A list of positions already identified as suitable to avoid duplicates.'),
+});
+export type FindSuitablePositionsInput = z.infer<typeof FindSuitablePositionsInputSchema>;
+
+
+export const FindSuitablePositionsOutputSchema = z.object({
+  newlyFoundPositions: z.array(z.object({ // Cannot use SuitablePosition type directly here
+      candidateEmail: z.string(),
+      candidateName: z.string(),
+      assessment: AssessmentSessionSchema,
+  })).describe('A list of newly identified suitable positions for the candidate.'),
+});
+export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;

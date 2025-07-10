@@ -13,6 +13,7 @@ import {z} from 'zod';
 import {
     QueryKnowledgeBaseInputSchema,
     QueryKnowledgeBaseOutputSchema,
+    type ChatMessage,
     type QueryKnowledgeBaseInput,
     type QueryKnowledgeBaseOutput,
 } from '@/lib/types';
@@ -26,6 +27,7 @@ export async function queryKnowledgeBase(input: QueryKnowledgeBaseInput): Promis
 
 const SummarizedDataSchema = z.object({
     query: z.string(),
+    chatHistory: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).optional(),
     currentDate: z.string(),
     knowledgeBase: z.any() // Using any to avoid schema complexity in the prompt definition
 });
@@ -35,38 +37,38 @@ const prompt = ai.definePrompt({
   input: {schema: SummarizedDataSchema},
   output: {schema: QueryKnowledgeBaseOutputSchema},
   config: { temperature: 0.1 },
-  prompt: `You are an expert recruitment data analyst. Your task is to answer a specific question based on the entire knowledge base provided to you. The knowledge base has two main parts:
-
-1.  **assessmentSessions**: A JSON array of "Assessment Sessions". Each session contains a job description and a list of candidates who were assessed against it.
-2.  **cvDatabase**: A JSON array of all individual candidate records stored in the system, identified by their email. This is the master list of all candidates.
+  prompt: `You are an expert recruitment data analyst. Your task is to answer a specific question based on the entire knowledge base provided to you, maintaining the context of the ongoing conversation.
 
 **Knowledge Base Context:**
-*   An "Assessment Session" contains: a unique \`sessionId\`, job details, and a list of candidates assessed for that job, including their name, score, recommendation, and full CV text.
-*   The "cvDatabase" contains: candidate contact details (\`email\`), their full CV content (\`cvContent\`), and their CV parsed into a structured format (\`structuredContent\`).
+*   "Assessment Sessions": Contains all job descriptions and the candidates assessed for each.
+*   "CV Database": The master list of all individual candidates in the system.
 
 **Important Reasoning Rules:**
-*   **Use the Right Data Source:** For questions about specific assessments (e.g., "Who scored highest for the developer job?"), use the \`assessmentSessions\`. For general questions about candidates (e.g., "Do we have any candidates with a PMP certification?"), you MUST search the entire \`cvDatabase\`.
-*   **Calculate Experience for Current Roles:** If the user's question involves calculating work experience, you MUST use the CV content to find the employment dates. When a candidate's experience is listed as "Present", "Current", or "To Date", you must use today's date ({{{currentDate}}}) as the end date for that role when calculating their total years of experience.
-*   **Handle Overlapping Experience:** When calculating total years of experience, you MUST identify all distinct employment periods from the CV. If there are overlapping date ranges (e.g., working two jobs at the same time), merge them to avoid double-counting. The total experience should be the sum of the unique, non-overlapping time periods.
+*   **Use Conversation History**: Refer to the \`chatHistory\` to understand the context of the user's current query. Answer follow-up questions based on previous interactions.
+*   **Calculate Experience for Current Roles**: When a candidate's experience is listed as "Present" or "Current", use today's date ({{{currentDate}}}) as the end date.
+*   **Handle Overlapping Experience**: When calculating total years of experience, merge overlapping date ranges to avoid double-counting.
 
 **Your Task:**
-- Analyze the user's query and the provided data.
-- Formulate a concise and accurate answer based *only* on the information in the knowledge base.
-- If the answer requires aggregating data (e.g., "How many candidates know Python?"), do the aggregation and present the result clearly.
-- If the answer cannot be found in the provided data at all, state that clearly.
-- Use Markdown for all formatting (lists, bolding, tables).
-- **Linking Rules (VERY IMPORTANT):**
-    - When you mention a candidate by name, you MUST also create a Markdown link to their profile in the CV Database. The link format MUST be \`[Candidate Name](/cv-database?email=CANDIDATE_EMAIL_HERE)\`. Use the \`email\` field from the \`cvDatabase\` for the link.
-    - When you mention an assessment session, you MUST create a Markdown link to it. The format MUST be \`[Assessment Name](/assessment?sessionId=SESSION_ID_HERE)\`. Use the \`sessionId\` from the \`assessmentSessions\` for the link.
-    - If a candidate is mentioned in the context of an assessment, provide both links. For example: "Yes, [Jane Doe](/cv-database?email=jane.d@example.com) was assessed for the [Senior Developer Role](/assessment?sessionId=xyz-123)."
+-   Analyze the user's query, the chat history, and the provided data.
+-   Formulate a concise and accurate answer based *only* on the information in the knowledge base and conversation.
+-   If the answer cannot be found, state that clearly.
+-   Use Markdown for formatting (lists, bolding, tables).
+-   **Linking Rules (VERY IMPORTANT):**
+    -   When you mention a candidate, link to their profile: \`[Candidate Name](/cv-database?email=CANDIDATE_EMAIL_HERE)\`.
+    -   When you mention an assessment, link to it: \`[Assessment Name](/assessment?sessionId=SESSION_ID_HERE)\`.
 
-**User's Question:**
+**Conversation History:**
+{{#each chatHistory}}
+- {{{this.role}}}: {{{this.content}}}
+{{/each}}
+
+**User's Current Question:**
 "{{{query}}}"
 
 **Knowledge Base (JSON):**
 {{{json knowledgeBase}}}
 
-Your answer must be helpful and directly address the user's question, using only the provided data.
+Your answer must be helpful and directly address the user's question, using only the provided data and conversation context.
 `,
 });
 
@@ -78,7 +80,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
   },
   async (input: QueryKnowledgeBaseInput) => {
     
-    const { query, sessions, cvDatabase } = input;
+    const { query, sessions, cvDatabase, chatHistory } = input;
     
     // Create a summarized version of the data to pass to the prompt
     const knowledgeBase = {
@@ -113,6 +115,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
 
     const {output} = await withRetry(() => prompt({
         query: query,
+        chatHistory: chatHistory,
         knowledgeBase,
         currentDate,
     }));
