@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ProgressLoaderProps {
   title: string;
@@ -15,10 +16,11 @@ interface ProgressLoaderProps {
 
 interface ProcessingItemProps {
     message: string;
-    status: 'processing' | 'done' | 'error';
+    status: 'processing' | 'done' | 'error' | 'queued';
+    isActive: boolean;
 }
 
-const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
+const ProcessingItem = ({ message, status, isActive }: ProcessingItemProps) => {
     const steps = [
         "Reviewing CV content...",
         "Assessing against job requirements...",
@@ -28,7 +30,7 @@ const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
     useEffect(() => {
-        if (status === 'processing') {
+        if (status === 'processing' && isActive) {
             const randomDelay = 1200 + Math.random() * 600;
             const interval = setInterval(() => {
                 setCurrentStepIndex(prev => {
@@ -42,8 +44,10 @@ const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
             }, randomDelay);
 
             return () => clearInterval(interval);
+        } else if (!isActive) {
+            setCurrentStepIndex(0);
         }
-    }, [status, steps.length]);
+    }, [status, isActive, steps.length]);
     
     const displayText = steps[Math.min(currentStepIndex, steps.length - 1)];
 
@@ -64,6 +68,18 @@ const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
             </div>
         );
     }
+    
+    if (status === 'queued') {
+        return (
+             <div className="flex items-start gap-3 text-sm">
+                <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1">
+                    <p className="text-foreground font-medium truncate">{message}</p>
+                    <p className="text-muted-foreground text-xs truncate">Queued...</p>
+                </div>
+            </div>
+        );
+    }
 
     // 'processing' status
     return (
@@ -71,7 +87,9 @@ const ProcessingItem = ({ message, status }: ProcessingItemProps) => {
             <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0 mt-0.5" />
             <div className="flex-1">
                 <p className="text-foreground font-medium truncate">{message}</p>
-                <p className="text-muted-foreground text-xs truncate">{displayText}</p>
+                <p className={cn("text-muted-foreground text-xs truncate", !isActive && "text-transparent")}>
+                    {isActive ? displayText : "Queued..."}
+                </p>
             </div>
         </div>
     );
@@ -90,6 +108,8 @@ export default function ProgressLoader({
     const totalItems = statusList.length;
     const doneCount = statusList.filter(s => s.status === 'done' || s.status === 'error').length;
     const progress = totalItems > 0 ? (doneCount / totalItems) * 100 : 0;
+
+    const currentlyProcessingIndex = statusList.findIndex(s => s.status === 'processing');
     
     return (
       <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
@@ -98,13 +118,22 @@ export default function ProgressLoader({
         </div>
         <Progress value={progress} className="w-full h-2" />
         <div className="mt-4 p-3 bg-background rounded-md max-h-60 overflow-y-auto space-y-3">
-            {statusList.map((item) => (
-                <ProcessingItem
-                    key={item.message}
-                    message={item.message}
-                    status={item.status}
-                />
-            ))}
+            {statusList.map((item, index) => {
+                const isActive = index === currentlyProcessingIndex;
+                let displayStatus: ProcessingItemProps['status'] = item.status;
+                if (item.status === 'processing' && !isActive && currentlyProcessingIndex !== -1) {
+                    displayStatus = 'queued';
+                }
+
+                return (
+                    <ProcessingItem
+                        key={item.message}
+                        message={item.message}
+                        status={displayStatus}
+                        isActive={isActive}
+                    />
+                );
+            })}
         </div>
       </div>
     );
