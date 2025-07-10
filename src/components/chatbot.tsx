@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, X, Send, Loader2, MessageSquare } from "lucide-react";
+import { Bot, X, Send, Loader2, MessageSquare, Eraser } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Link from "next/link";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
@@ -61,18 +62,24 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // Pass the entire chat history to the flow
       const result = await queryKnowledgeBase({ query, sessions, cvDatabase, chatHistory: newChatHistory });
       const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch (error: any) {
       console.error("Error querying knowledge base:", error);
       toast({ variant: "destructive", title: "Chat Error", description: error.message || "An unexpected error occurred." });
-      setChatHistory(prev => prev.slice(0, -1)); // Remove the user message if the call fails
+      setChatHistory(prev => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleClearChat = () => {
+    setChatHistory([initialMessage]);
+    toast({ description: "Chat history cleared." });
+  };
+  
+  const hasChatHistory = chatHistory.length > 1;
 
   return (
     <>
@@ -95,6 +102,20 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                 <MessageSquare className="text-primary"/>
                 Recruitment Assistant
               </CardTitle>
+              {hasChatHistory && (
+                  <TooltipProvider>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={handleClearChat}>
+                                  <Eraser className="w-4 h-4"/>
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                              <p>Clear chat history</p>
+                          </TooltipContent>
+                      </Tooltip>
+                  </TooltipProvider>
+              )}
             </CardHeader>
             <CardContent ref={chatContainerRef} className="h-96 overflow-y-auto space-y-4 pr-4">
               {chatHistory.map((msg, i) => (
@@ -110,7 +131,7 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                           components={{
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                             ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
+                            ol: ({node, ordered, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
                             a: ({node, ...props}) => {
                                 const { href, children, ...rest } = props;
                                 const url = href || '';
