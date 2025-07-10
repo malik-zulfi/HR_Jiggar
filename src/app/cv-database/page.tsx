@@ -348,66 +348,66 @@ export default function CvDatabasePage() {
                                     const suitableCount = suitablePositionsCount.get(cv.email) || 0;
                                     return (
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
-                                        <div className="flex items-center w-full">
-                                            <AccordionTrigger className="flex-1 px-4 py-3 text-left hover:no-underline hover:bg-muted/50">
-                                                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                                                    <span className="font-semibold text-primary col-span-2 md:col-span-1">{cv.name}</span>
-                                                    <span className="text-sm text-muted-foreground truncate">{cv.currentTitle || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground truncate">{cv.currentCompany || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground">{cv.totalExperience || 'N/A'}</span>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge>{cv.jobCode}</Badge>
-                                                        <Badge variant="outline" className="font-normal text-muted-foreground">
-                                                            <Clock className="h-3 w-3 mr-1.5" />
-                                                            {new Date(cv.createdAt).toLocaleDateString()}
-                                                        </Badge>
-                                                        {suitableCount > 0 && (
-                                                            <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Badge variant="secondary" className="font-semibold border-primary/50 text-primary cursor-default">
-                                                                            <Briefcase className="h-3 w-3 mr-1.5" />
-                                                                            {suitableCount} Open Position(s)
-                                                                        </Badge>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>This candidate can be assessed for {suitableCount} other open position(s) with the same job code.</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
-                                                        )}
-                                                    </div>
+                                        <AccordionTrigger className="flex-1 px-4 py-3 text-left hover:no-underline hover:bg-muted/50 w-full justify-between">
+                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center mr-4">
+                                                <span className="font-semibold text-primary col-span-2 md:col-span-1">{cv.name}</span>
+                                                <span className="text-sm text-muted-foreground truncate">{cv.currentTitle || 'N/A'}</span>
+                                                <span className="text-sm text-muted-foreground truncate">{cv.currentCompany || 'N/A'}</span>
+                                                <span className="text-sm text-muted-foreground">{cv.totalExperience || 'N/A'}</span>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <Badge>{cv.jobCode}</Badge>
+                                                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                                                        <Clock className="h-3 w-3 mr-1.5" />
+                                                        {new Date(cv.createdAt).toLocaleDateString()}
+                                                    </Badge>
+                                                    {suitableCount > 0 && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Badge variant="secondary" className="font-semibold border-primary/50 text-primary cursor-default">
+                                                                        <Briefcase className="h-3 w-3 mr-1.5" />
+                                                                        {suitableCount} Open Position(s)
+                                                                    </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>This candidate can be assessed for {suitableCount} other open position(s) with the same job code.</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
                                                 </div>
-                                            </AccordionTrigger>
-                                            <AlertDialog>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="mr-4 h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
-                                                            Delete
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
+                                            </div>
+                                            <div onClick={(e) => e.stopPropagation()} className="flex items-center ml-auto pl-2">
+                                                <AlertDialog>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </AccordionTrigger>
                                         <AccordionContent className="p-4 bg-muted/30 border-t">
                                             <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-4 pb-4 border-b">
                                                 <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground"/>{cv.email}</div>
