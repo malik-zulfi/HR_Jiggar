@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Bot, PlusSquare, Database } from "lucide-react";
+import { Bot, PlusSquare, Database, Bell } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   AlertDialog,
@@ -16,8 +16,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SidebarTrigger } from "./ui/sidebar";
 import Link from "next/link";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
-export function Header({ onNewSession }: { onNewSession: () => void }) {
+export function Header({ onNewSession, notificationCount }: { onNewSession: () => void, notificationCount?: number }) {
   return (
     <header className="p-4 border-b bg-card sticky top-0 z-10">
       <div className="container mx-auto flex items-center justify-between">

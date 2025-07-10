@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, AlertTriangle, Bell, Plus, ChevronsUpDown } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Bell, Settings, Wand2 } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CheckRelevanceInput } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,12 +34,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { checkRelevance } from '@/ai/flows/relevance-checker';
 import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
-
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import NotificationPopover from '@/components/notification-popover';
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const HISTORY_STORAGE_KEY = 'jiggar-history';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
+const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
+
 
 type UploadedFile = { name: string; content: string };
 type JobCode = 'OCN' | 'WEX' | 'SAN';
@@ -48,68 +52,6 @@ type Conflict = {
     newRecord: ParseCvOutput & { cvFileName: string; cvContent: string; jobCode: JobCode; };
     existingRecord: CvDatabaseRecord;
 };
-
-const NotificationPopover = ({ positions, onAddCandidate }: {
-    positions: SuitablePosition[];
-    onAddCandidate: (position: SuitablePosition) => void;
-}) => {
-    const handleQuickAdd = (e: React.MouseEvent, position: SuitablePosition) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onAddCandidate(position);
-    };
-
-    if (positions.length === 0) {
-        return (
-            <PopoverContent align="end" className="w-96">
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                    No new suitable positions found for your candidates.
-                </div>
-            </PopoverContent>
-        );
-    }
-
-    return (
-        <PopoverContent align="end" className="w-96 p-0">
-            <div className="p-4 border-b">
-                <h4 className="font-medium">Suitable Position Alerts</h4>
-                <p className="text-sm text-muted-foreground">New relevant roles for candidates in your database.</p>
-            </div>
-            <div className="max-h-96 overflow-y-auto">
-                <div className="flex flex-col">
-                    {positions.map((pos, index) => (
-                        <Link 
-                            key={`${pos.candidateEmail}-${pos.assessment.id}-${index}`} 
-                            href={`/assessment`}
-                            onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, pos.assessment.id)}
-                            className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 last:border-b-0"
-                        >
-                            <div className="flex-1 overflow-hidden">
-                                <p className="font-semibold truncate">{pos.candidateName}</p>
-                                <p className="text-sm text-muted-foreground truncate" title={pos.assessment.analyzedJd.jobTitle}>
-                                    is a good fit for <span className="font-medium text-primary">{pos.assessment.analyzedJd.jobTitle}</span>
-                                </p>
-                            </div>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-primary" onClick={(e) => handleQuickAdd(e, pos)}>
-                                            <Plus />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Quick-add to this assessment</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        </Link>
-                    ))}
-                </div>
-            </div>
-        </PopoverContent>
-    );
-};
-
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
@@ -129,6 +71,7 @@ export default function CvDatabasePage() {
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
     const [isCheckingRelevance, setIsCheckingRelevance] = useState(false);
     const [hasCheckedRelevance, setHasCheckedRelevance] = useState(false);
+    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
 
     useEffect(() => {
@@ -155,7 +98,6 @@ export default function CvDatabasePage() {
              toast({ description: `Upload for ${currentConflict.newRecord.name} was skipped.` });
         }
         
-        // Move to the next conflict
         const newQueue = conflictQueue.slice(1);
         setConflictQueue(newQueue);
         setCurrentConflict(newQueue[0] || null);
@@ -164,7 +106,6 @@ export default function CvDatabasePage() {
     useEffect(() => {
         setIsClient(true);
         try {
-            // Load CV Database
             const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
             if (savedCvDbJSON) {
                 const parsedCvDb = JSON.parse(savedCvDbJSON);
@@ -177,7 +118,6 @@ export default function CvDatabasePage() {
                 }
             }
 
-            // Load Assessment History
             const savedHistoryJSON = localStorage.getItem(HISTORY_STORAGE_KEY);
             if (savedHistoryJSON) {
                 const parsedHistory = JSON.parse(savedHistoryJSON);
@@ -190,11 +130,13 @@ export default function CvDatabasePage() {
                 }
             }
             
-             // Load Suitable Positions
             const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
             if (savedSuitablePositions) {
                 setSuitablePositions(JSON.parse(savedSuitablePositions));
             }
+            
+            const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
+            setIsRelevanceCheckEnabled(relevanceEnabled);
 
 
             const params = new URLSearchParams(window.location.search);
@@ -228,6 +170,19 @@ export default function CvDatabasePage() {
             localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
         }
     }, [suitablePositions, isClient]);
+    
+    const handleRelevanceToggle = (enabled: boolean) => {
+        setIsRelevanceCheckEnabled(enabled);
+        if (isClient) {
+            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
+            if (enabled && !hasCheckedRelevance) {
+                calculateSuitablePositions();
+            }
+            if (!enabled) {
+                setSuitablePositions([]);
+            }
+        }
+    };
 
     const calculateSuitablePositions = useCallback(async () => {
         if (!history.length || !cvDatabase.length || isCheckingRelevance) {
@@ -305,11 +260,11 @@ export default function CvDatabasePage() {
     }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast]);
     
     useEffect(() => {
-        if(isClient && cvDatabase.length > 0 && history.length > 0 && !hasCheckedRelevance) {
+        if(isClient && cvDatabase.length > 0 && history.length > 0 && !hasCheckedRelevance && isRelevanceCheckEnabled) {
            calculateSuitablePositions();
            setHasCheckedRelevance(true);
         }
-    }, [isClient, cvDatabase, history, hasCheckedRelevance, calculateSuitablePositions]);
+    }, [isClient, cvDatabase, history, hasCheckedRelevance, isRelevanceCheckEnabled, calculateSuitablePositions]);
 
 
     const filteredCvs = useMemo(() => {
@@ -379,7 +334,6 @@ export default function CvDatabasePage() {
                         },
                         existingRecord,
                     });
-                    // Mark as done for progress bar, conflict handles the final state.
                     setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
                 } else {
                     const record: CvDatabaseRecord = {
@@ -395,7 +349,7 @@ export default function CvDatabasePage() {
                         dbMap.set(record.email, record);
                         return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                     });
-                    dbEmails.set(record.email, record); // Update map for current batch
+                    dbEmails.set(record.email, record);
                     successCount++;
                     setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
                 }
@@ -512,6 +466,46 @@ export default function CvDatabasePage() {
                         <h1 className="text-xl font-bold text-foreground">CV Database</h1>
                     </Link>
                     <div className='flex items-center gap-2'>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <Settings className="h-5 w-5" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-80">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Settings</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                            Manage background AI features.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center space-x-2 rounded-md border p-4">
+                                        <Wand2 className="h-5 w-5 text-primary" />
+                                        <div className="flex-1 space-y-1">
+                                            <p className="text-sm font-medium leading-none">
+                                            AI Relevance Check
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                            Automatically find relevant jobs for candidates.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={isRelevanceCheckEnabled}
+                                            onCheckedChange={handleRelevanceToggle}
+                                        />
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      onClick={calculateSuitablePositions}
+                                      disabled={!isRelevanceCheckEnabled || isCheckingRelevance}
+                                    >
+                                      {isCheckingRelevance ? 'Checking...' : 'Run Check Manually'}
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
                          <Popover>
                             <PopoverTrigger asChild>
                                 <Button variant="ghost" size="icon" className="relative">
@@ -575,7 +569,7 @@ export default function CvDatabasePage() {
                             )}
                         </CardContent>
                         <CardFooter>
-                             <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode || isProcessing}>
+                             <Button onClick={handleProcessCvs} disabled={(cvsToUpload.length === 0 || !jobCode) && !isProcessing}>
                                 {isProcessing ? (
                                     <><Bot className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
                                 ) : (
@@ -587,7 +581,7 @@ export default function CvDatabasePage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Users/> Candidate Records ({filteredCvs.length})</CardTitle>
+                            <CardTitle className="flex items-center gap-2"><Database/> Candidate Records ({filteredCvs.length})</CardTitle>
                             <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -619,7 +613,7 @@ export default function CvDatabasePage() {
                                                             <Clock className="h-3 w-3 mr-1.5" />
                                                             {new Date(cv.createdAt).toLocaleDateString()}
                                                         </Badge>
-                                                        {suitableCount > 0 && (
+                                                        {suitableCount > 0 && isRelevanceCheckEnabled && (
                                                             <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>

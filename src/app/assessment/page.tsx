@@ -1,16 +1,20 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from 'next/link';
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Bell, Plus } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage, CvDatabaseRecord } from "@/lib/types";
+
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
@@ -31,10 +35,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import NotificationPopover from "@/components/notification-popover";
+
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
+const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
+
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
@@ -47,6 +55,7 @@ function AssessmentPageContent() {
 
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
+  const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
@@ -152,11 +161,18 @@ function AssessmentPageContent() {
             setCvDatabase(validDb);
         }
       }
+      
+      // Load Suitable Positions
+      const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
+      if (savedSuitablePositions) {
+          setSuitablePositions(JSON.parse(savedSuitablePositions));
+      }
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       localStorage.removeItem(CV_DB_STORAGE_KEY);
+      localStorage.removeItem(SUITABLE_POSITIONS_KEY);
     }
   }, []);
 
@@ -179,10 +195,66 @@ function AssessmentPageContent() {
       localStorage.removeItem(CV_DB_STORAGE_KEY);
     }
   }, [cvDatabase]);
+
+  useEffect(() => {
+    localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
+  }, [suitablePositions]);
   
   useEffect(() => {
     setSelectedCandidates(new Set());
   }, [activeSessionId]);
+
+  const handleQuickAddToAssessment = useCallback(async (position: SuitablePosition) => {
+    const { candidateEmail, assessment } = position;
+    const candidateDbRecord = cvDatabase.find(c => c.email === candidateEmail);
+
+    if (!candidateDbRecord) {
+        toast({ variant: 'destructive', description: "Could not find candidate record in the database." });
+        return;
+    }
+    
+    toast({ description: `Assessing ${candidateDbRecord.name} for ${assessment.analyzedJd.jobTitle}...` });
+
+    try {
+        const analysis = await analyzeCVAgainstJD({ 
+            jobDescriptionCriteria: assessment.analyzedJd, 
+            cv: candidateDbRecord.cvContent 
+        });
+
+        const newCandidateRecord: CandidateRecord = {
+            cvName: candidateDbRecord.cvFileName,
+            cvContent: candidateDbRecord.cvContent,
+            analysis,
+            isStale: false,
+        };
+
+        const updatedHistory = history.map(session => {
+            if (session.id === assessment.id) {
+                const newCandidates = [...session.candidates, newCandidateRecord]
+                    .sort((a,b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                return { ...session, candidates: newCandidates };
+            }
+            return session;
+        });
+        
+        setHistory(updatedHistory);
+        
+        setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidateEmail && p.assessment.id === assessment.id)));
+
+        toast({
+            title: 'Assessment Complete',
+            description: `${candidateDbRecord.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
+            action: (
+                <button onClick={() => setActiveSessionId(assessment.id)} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                    View
+                </button>
+            ),
+        });
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: `Failed to assess ${candidateDbRecord.name}`, description: error.message });
+    }
+  }, [cvDatabase, history, toast]);
 
 
   const handleNewSession = () => {
@@ -778,7 +850,7 @@ function AssessmentPageContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header onNewSession={handleNewSession} />
+      <Header onNewSession={handleNewSession} notificationCount={suitablePositions.length} />
       <div 
           className="flex flex-1 w-full"
           style={ { "--sidebar-width": "18rem", "--sidebar-width-collapsed": "3.5rem" } as React.CSSProperties }
@@ -844,11 +916,26 @@ function AssessmentPageContent() {
                   )}
 
                   <div className="flex flex-col flex-1 min-h-0">
-                      <div className="p-4 space-y-2 border-b border-sidebar-border">
+                        <div className="p-4 space-y-2 border-b border-sidebar-border flex items-center justify-between">
                           <h3 className="font-semibold flex items-center gap-2">
                               <History className="w-5 h-5"/>
                               Assessments
                           </h3>
+                           <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                                        <Bell className="h-5 w-5" />
+                                        {suitablePositions.length > 0 && (
+                                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
+                                                {suitablePositions.length}
+                                            </span>
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <NotificationPopover positions={suitablePositions} onAddCandidate={handleQuickAddToAssessment} />
+                            </Popover>
+                        </div>
+                        <div className='p-4 pt-0 border-b border-sidebar-border'>
                           <SidebarInput
                               placeholder="Search assessments..."
                               value={searchQuery}
