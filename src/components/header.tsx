@@ -11,7 +11,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import NotificationPopover from "@/components/notification-popover";
 import { cn } from '@/lib/utils';
-import type { SuitablePosition } from '@/lib/types';
+import type { SuitablePosition, CvDatabaseRecord, AssessmentSession } from '@/lib/types';
+import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface HeaderProps {
@@ -140,5 +142,3 @@ export function Header({
     </header>
   );
 }
-
-    

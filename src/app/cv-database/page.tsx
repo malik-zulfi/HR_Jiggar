@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2, X } from "lucide-react";
-import type { CvDatabaseRecord, AssessmentSession, SuitablePosition } from '@/lib/types';
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2, X, PlusCircle, ArrowUpDown } from "lucide-react";
+import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CandidateRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FileUploader from '@/components/file-uploader';
@@ -25,6 +25,7 @@ import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 import { Header } from '@/components/header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -42,6 +43,8 @@ type Conflict = {
     existingRecord: CvDatabaseRecord;
 };
 type RelevanceCheckStatus = Record<string, boolean>;
+type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direction: 'ascending' | 'descending'; };
+
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
@@ -53,6 +56,7 @@ export default function CvDatabasePage() {
     const [processingStatus, setProcessingStatus] = useState<CvProcessingStatus>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
+    const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'createdAt', direction: 'descending' });
     
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
@@ -62,6 +66,31 @@ export default function CvDatabasePage() {
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
     const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
+
+    const assessmentCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        history.forEach(session => {
+            session.candidates.forEach(candidate => {
+                const emailMatch = candidate.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+                if (emailMatch) {
+                    const email = emailMatch[0].toLowerCase();
+                    counts.set(email, (counts.get(email) || 0) + 1);
+                }
+            });
+        });
+        return counts;
+    }, [history]);
+
+    const handleSort = (column: SortDescriptor['column']) => {
+        if (sortDescriptor.column === column) {
+            setSortDescriptor({
+                ...sortDescriptor,
+                direction: sortDescriptor.direction === 'ascending' ? 'descending' : 'ascending'
+            });
+        } else {
+            setSortDescriptor({ column, direction: 'descending' });
+        }
+    };
 
 
     useEffect(() => {
@@ -217,20 +246,36 @@ export default function CvDatabasePage() {
           .join(' ');
     }
 
-    const filteredCvs = useMemo(() => {
-        if (!searchTerm.trim()) {
-            return cvDatabase;
-        }
-        const lowerSearch = searchTerm.toLowerCase();
-        return cvDatabase.filter(cv => 
-            cv.name.toLowerCase().includes(lowerSearch) ||
-            cv.email.toLowerCase().includes(lowerSearch) ||
-            cv.jobCode.toLowerCase().includes(lowerSearch) ||
-            cv.currentTitle?.toLowerCase().includes(lowerSearch) ||
-            cv.currentCompany?.toLowerCase().includes(lowerSearch) ||
-            cv.structuredContent.skills?.some(s => s.toLowerCase().includes(lowerSearch))
-        );
-    }, [cvDatabase, searchTerm]);
+    const sortedAndFilteredCvs = useMemo(() => {
+        const filtered = searchTerm.trim() 
+            ? cvDatabase.filter(cv => 
+                cv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.jobCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.structuredContent.skills?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
+              ) 
+            : cvDatabase;
+
+        return [...filtered].sort((a, b) => {
+            const aVal = a[sortDescriptor.column];
+            const bVal = b[sortDescriptor.column];
+
+            // Handle experience sorting (string to number)
+            if (sortDescriptor.column === 'totalExperience') {
+                const aYears = parseFloat(a.totalExperience || '0');
+                const bYears = parseFloat(b.totalExperience || '0');
+                return sortDescriptor.direction === 'ascending' ? aYears - bYears : bYears - aYears;
+            }
+
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+            
+            const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+            return sortDescriptor.direction === 'ascending' ? comparison : -comparison;
+        });
+    }, [cvDatabase, searchTerm, sortDescriptor]);
 
     const handleCvUpload = (files: UploadedFile[]) => {
         setCvsToUpload(prev => [...prev, ...files]);
@@ -336,26 +381,18 @@ export default function CvDatabasePage() {
         });
     };
 
-    const handleQuickAddToAssessment = useCallback(async (position: SuitablePosition) => {
-        const { candidateEmail, assessment } = position;
-        const candidateDbRecord = cvDatabase.find(c => c.email === candidateEmail);
-
-        if (!candidateDbRecord) {
-            toast({ variant: 'destructive', description: "Could not find candidate record in the database." });
-            return;
-        }
-        
-        toast({ description: `Assessing ${candidateDbRecord.name} for ${assessment.analyzedJd.jobTitle}...` });
+    const handleQuickAddToAssessment = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession) => {
+        toast({ description: `Assessing ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
 
         try {
             const analysis = await analyzeCVAgainstJD({ 
                 jobDescriptionCriteria: assessment.analyzedJd, 
-                cv: candidateDbRecord.cvContent 
+                cv: candidate.cvContent 
             });
 
-            const newCandidateRecord = {
-                cvName: candidateDbRecord.cvFileName,
-                cvContent: candidateDbRecord.cvContent,
+            const newCandidateRecord: CandidateRecord = {
+                cvName: candidate.cvFileName,
+                cvContent: candidate.cvContent,
                 analysis,
                 isStale: false,
             };
@@ -372,11 +409,11 @@ export default function CvDatabasePage() {
             localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
             setHistory(updatedHistory);
             
-            setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidateEmail && p.assessment.id === assessment.id)));
+            setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidate.email && p.assessment.id === assessment.id)));
 
             toast({
                 title: 'Assessment Complete',
-                description: `${candidateDbRecord.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
+                description: `${candidate.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
                 action: (
                     <Link href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id)}>
                         <Button variant="outline" size="sm">View</Button>
@@ -385,10 +422,15 @@ export default function CvDatabasePage() {
             });
 
         } catch (error: any) {
-            toast({ variant: 'destructive', title: `Failed to assess ${candidateDbRecord.name}`, description: error.message });
+            toast({ variant: 'destructive', title: `Failed to assess ${candidate.name}`, description: error.message });
         }
 
-    }, [cvDatabase, history, toast]);
+    }, [history, toast]);
+    
+    const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
+        closePopover();
+        await handleQuickAddToAssessment(candidate, assessment);
+    };
 
     useEffect(() => {
         const hasFinishedTasks = Object.values(processingStatus).some(s => s.status === 'done' || s.status === 'error');
@@ -418,7 +460,10 @@ export default function CvDatabasePage() {
                 activePage="cv-database"
                 notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
                 suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
-                onAddCandidate={handleQuickAddToAssessment}
+                onAddCandidate={(position) => {
+                    const candidate = cvDatabase.find(c => c.email === position.candidateEmail);
+                    if (candidate) handleQuickAddToAssessment(candidate, position.assessment);
+                }}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
             />
@@ -494,17 +539,25 @@ export default function CvDatabasePage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[25%]">Name</TableHead>
+                                            <TableHead className="w-[20%]" onClick={() => handleSort('name')}>
+                                                <div className="flex items-center gap-2 cursor-pointer">Name <ArrowUpDown className="h-4 w-4" /></div>
+                                            </TableHead>
                                             <TableHead className="w-[25%]">Current Position</TableHead>
-                                            <TableHead className="w-[15%]">Experience</TableHead>
+                                            <TableHead className="w-[10%]" onClick={() => handleSort('totalExperience')}>
+                                                <div className="flex items-center gap-2 cursor-pointer">Experience <ArrowUpDown className="h-4 w-4" /></div>
+                                            </TableHead>
                                             <TableHead className="w-[10%]">Job Code</TableHead>
-                                            <TableHead className="w-[15%]">Date Added</TableHead>
-                                            <TableHead className="w-[10%] text-right">Actions</TableHead>
+                                            <TableHead className="w-[10%]">Status</TableHead>
+                                            <TableHead className="w-[10%]" onClick={() => handleSort('createdAt')}>
+                                                <div className="flex items-center gap-2 cursor-pointer">Date Added <ArrowUpDown className="h-4 w-4" /></div>
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredCvs.length > 0 ? filteredCvs.map(cv => {
+                                        {sortedAndFilteredCvs.length > 0 ? sortedAndFilteredCvs.map(cv => {
                                             const isChecking = relevanceCheckStatus[cv.email];
+                                            const count = assessmentCounts.get(cv.email.toLowerCase()) || 0;
                                             return (
                                                 <TableRow key={cv.email} onClick={() => setSelectedCv(cv)} className="cursor-pointer">
                                                     <TableCell className="font-medium text-primary truncate" title={cv.name}>
@@ -515,9 +568,20 @@ export default function CvDatabasePage() {
                                                     </TableCell>
                                                     <TableCell>{cv.totalExperience || 'N/A'}</TableCell>
                                                     <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
+                                                            <span className="text-xs text-muted-foreground">{count > 0 ? `In ${count} assessment(s)` : 'Not Assessed'}</span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                             <AddCandidatePopover
+                                                                candidate={cv}
+                                                                assessments={history}
+                                                                onAdd={handleAddFromPopover}
+                                                            />
                                                              <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
@@ -568,7 +632,7 @@ export default function CvDatabasePage() {
                                             )
                                         }) : (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center">
+                                                <TableCell colSpan={7} className="h-24 text-center">
                                                     {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
                                                 </TableCell>
                                             </TableRow>
@@ -636,4 +700,67 @@ export default function CvDatabasePage() {
     );
 }
 
+const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
+    candidate: CvDatabaseRecord;
+    assessments: AssessmentSession[];
+    onAdd: (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => void;
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const compatibleAssessments = useMemo(() => {
+        const assessedSessionIds = new Set<string>();
+        assessments.forEach(session => {
+            if (session.candidates.some(c => c.cvContent.toLowerCase().includes(candidate.email.toLowerCase()))) {
+                assessedSessionIds.add(session.id);
+            }
+        });
+
+        return assessments.filter(session =>
+            session.analyzedJd.code === candidate.jobCode && !assessedSessionIds.has(session.id)
+        );
+    }, [candidate, assessments]);
+
+    return (
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary">
+                                <PlusCircle className="h-4 w-4" />
+                            </Button>
+                        </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Add to an assessment</p></TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+            <PopoverContent className="w-80 p-2">
+                <div className="grid gap-4">
+                    <div className="space-y-1">
+                        <h4 className="font-medium leading-none">Add <span className="text-primary">{candidate.name}</span> to...</h4>
+                        <p className="text-sm text-muted-foreground">
+                            Showing compatible assessments.
+                        </p>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                        {compatibleAssessments.length > 0 ? (
+                            compatibleAssessments.map(session => (
+                                <button
+                                    key={session.id}
+                                    onClick={() => onAdd(candidate, session, () => setIsOpen(false))}
+                                    className="w-full text-left p-2 rounded-md hover:bg-secondary flex flex-col"
+                                >
+                                    <span className="font-medium truncate">{session.analyzedJd.jobTitle}</span>
+                                    <span className="text-xs text-muted-foreground">{session.jdName}</span>
+                                </button>
+                            ))
+                        ) : (
+                            <p className="p-2 text-sm text-center text-muted-foreground">No compatible unassessed positions found.</p>
+                        )}
+                    </div>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+};
     
