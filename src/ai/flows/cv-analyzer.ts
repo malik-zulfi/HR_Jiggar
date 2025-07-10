@@ -58,7 +58,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Analysis Steps:**
 
-1.  **Extract Key Details:** First, extract the candidate's full name and their primary email address from the CV. Format the name in Title Case (e.g., "John Doe").
+1.  **Extract Key Details:** First, extract the candidate's full name and their primary email address from the CV. Format the name in Title Case (e.g., "John Doe"). If you cannot find an email, return an empty string for the email field.
 
 2.  **Assess Each Requirement:**
     *   For each requirement in the job description criteria, assess the candidate's CV.
@@ -134,8 +134,8 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         currentDate
     }));
 
-    if (!partialOutput) {
-        throw new Error("CV analysis failed to return an output.");
+    if (!partialOutput || !partialOutput.candidateName) {
+        throw new Error("CV analysis failed to return the candidate's name.");
     }
     
     const output: AnalyzeCVAgainstJDOutput = {

@@ -147,9 +147,29 @@ function AssessmentPage() {
         const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
 
         for (const cv of candidatesToProcess) {
+            let analysis;
+            let dbRecord: CvDatabaseRecord | null = null;
             try {
+                // First, try to fully parse the CV for database entry.
+                if (isValidJobCode) {
+                    try {
+                        const parsedCvData = await parseCv({ cvText: cv.content });
+                        dbRecord = {
+                            ...parsedCvData,
+                            jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                            cvFileName: cv.name,
+                            cvContent: cv.content,
+                            createdAt: new Date().toISOString(),
+                        };
+                        addOrUpdateCvInDatabase(dbRecord);
+                    } catch (parseError: any) {
+                        console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
+                        toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: `${parseError.message} Assessment will continue without adding to database.` });
+                    }
+                }
+                
                 // Always analyze against JD
-                const analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
+                analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
                 
                 const candidateRecord: CandidateRecord = {
                     cvName: cv.name,
@@ -160,8 +180,8 @@ function AssessmentPage() {
 
                 setHistory(prev => prev.map(session => {
                     if (session.id === sessionId) {
-                        const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName));
-                        if (existingNames.has(candidateRecord.analysis.candidateName)) {
+                        const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName.toLowerCase()));
+                        if (existingNames.has(candidateRecord.analysis.candidateName.toLowerCase())) {
                             toast({ variant: 'destructive', description: `Candidate ${candidateRecord.analysis.candidateName} already exists in this session.` });
                             return session;
                         }
@@ -171,24 +191,6 @@ function AssessmentPage() {
                     }
                     return session;
                 }));
-
-                // Also add to central CV database if job code is valid
-                if (isValidJobCode) {
-                    try {
-                        const parsedCvData = await parseCv({ cvText: cv.content });
-                        const dbRecord: CvDatabaseRecord = {
-                            ...parsedCvData,
-                            jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
-                            cvFileName: cv.name,
-                            cvContent: cv.content,
-                            createdAt: new Date().toISOString(),
-                        };
-                        addOrUpdateCvInDatabase(dbRecord);
-                    } catch (parseError: any) {
-                        console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
-                        toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: parseError.message });
-                    }
-                }
 
                 setNewCvProcessingStatus(prev => ({
                     ...prev,
@@ -1278,3 +1280,4 @@ export default AssessmentPage;
     
 
     
+
