@@ -117,8 +117,7 @@ export default function CvDatabasePage() {
             session.candidates.forEach(candidate => {
                 let email = candidate.analysis.email?.toLowerCase();
                 if (!email) {
-                    const candidateNameLower = candidate.analysis.candidateName.toLowerCase();
-                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidateNameLower);
+                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidate.analysis.candidateName.toLowerCase());
                     if (dbRecord) {
                         email = dbRecord.email.toLowerCase();
                     }
@@ -429,6 +428,11 @@ export default function CvDatabasePage() {
                     if (candidateEmail) {
                         return !emailsToDeleteSet.has(candidateEmail);
                     }
+                    // Fallback for older data without email in analysis
+                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidate.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                        return !emailsToDeleteSet.has(dbRecord.email.toLowerCase());
+                    }
                     return true;
                 });
                 return { ...session, candidates: updatedCandidates, summary: updatedCandidates.length > 0 ? session.summary : null };
@@ -673,35 +677,19 @@ export default function CvDatabasePage() {
                                                     <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
                                                     <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-1">
                                                              <AddCandidatePopover
                                                                 candidate={cv}
                                                                 assessments={assessmentMap.get(cv.email.toLowerCase()) || []}
                                                                 allAssessments={history}
                                                                 onAdd={handleAddFromPopover}
                                                             />
-                                                             <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                                                            onClick={() => handleNewCandidateAdded(cv)}
-                                                                            disabled={!isRelevanceCheckEnabled || isChecking}
-                                                                        >
-                                                                            {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p>{isRelevanceCheckEnabled ? "Check relevance for this candidate" : "Enable AI Relevance Check in settings"}</p></TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
                                                             <AlertDialog>
                                                                 <TooltipProvider>
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
                                                                             <AlertDialogTrigger asChild>
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
                                                                             </AlertDialogTrigger>
@@ -919,7 +907,9 @@ const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddT
                         <div className="space-y-1">
                             <h4 className="font-medium leading-none">Add {selectedCount} Candidates to...</h4>
                             <p className="text-sm text-muted-foreground">
-                                {commonAssessments.length > 0 ? "Showing assessments compatible with all selected candidates." : "Selected candidates have mixed job codes or are already in all compatible assessments."}
+                                {commonAssessments.length > 0 
+                                    ? "Showing assessments compatible with all selected candidates." 
+                                    : "Selected candidates have mixed job codes or are already in all compatible assessments."}
                             </p>
                         </div>
                         <div className="max-h-64 overflow-y-auto">
