@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown, AlertTriangle, ListFilter } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CandidateRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,11 +22,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
-import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 import { Header } from '@/components/header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -33,6 +34,7 @@ const HISTORY_STORAGE_KEY = 'jiggar-history';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
+const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 
 type UploadedFile = { name: string; content: string };
@@ -44,10 +46,16 @@ type Conflict = {
 };
 type RelevanceCheckStatus = Record<string, boolean>;
 type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direction: 'ascending' | 'descending'; };
-
+type CandidateAssessmentInfo = {
+    sessionId: string;
+    sessionName: string;
+    jobTitle: string;
+    score: number;
+};
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [isClient, setIsClient] = useState(false);
     const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
     const [history, setHistory] = useState<AssessmentSession[]>([]);
@@ -66,20 +74,70 @@ export default function CvDatabasePage() {
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
     const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
+    const [selectedCvEmails, setSelectedCvEmails] = useState<Set<string>>(new Set());
 
-    const assessmentCounts = useMemo(() => {
-        const counts = new Map<string, number>();
+    const sortedAndFilteredCvs = useMemo(() => {
+        const filtered = searchTerm.trim() 
+            ? cvDatabase.filter(cv => 
+                cv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.jobCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.structuredContent.skills?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
+              ) 
+            : cvDatabase;
+
+        return [...filtered].sort((a, b) => {
+            const aVal = a[sortDescriptor.column];
+            const bVal = b[sortDescriptor.column];
+
+            // Handle experience sorting (string to number)
+            if (sortDescriptor.column === 'totalExperience') {
+                const aYears = parseFloat(a.totalExperience || '0');
+                const bYears = parseFloat(b.totalExperience || '0');
+                return sortDescriptor.direction === 'ascending' ? aYears - bYears : bYears - aYears;
+            }
+
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+            
+            const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+            return sortDescriptor.direction === 'ascending' ? comparison : -comparison;
+        });
+    }, [cvDatabase, searchTerm, sortDescriptor]);
+    
+    const assessmentMap = useMemo(() => {
+        const map = new Map<string, CandidateAssessmentInfo[]>();
+        if (cvDatabase.length === 0 || history.length === 0) {
+            return map;
+        }
+
         history.forEach(session => {
             session.candidates.forEach(candidate => {
-                const emailMatch = candidate.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
-                if (emailMatch) {
-                    const email = emailMatch[0].toLowerCase();
-                    counts.set(email, (counts.get(email) || 0) + 1);
+                let email = candidate.analysis.email?.toLowerCase();
+                if (!email) {
+                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidate.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                        email = dbRecord.email.toLowerCase();
+                    }
+                }
+
+                if (email) {
+                    if (!map.has(email)) {
+                        map.set(email, []);
+                    }
+                    map.get(email)!.push({
+                        sessionId: session.id,
+                        sessionName: session.jdName,
+                        jobTitle: session.analyzedJd.jobTitle || 'N/A',
+                        score: candidate.analysis.alignmentScore,
+                    });
                 }
             });
         });
-        return counts;
-    }, [history]);
+        return map;
+    }, [history, cvDatabase]);
 
     const handleSort = (column: SortDescriptor['column']) => {
         if (sortDescriptor.column === column) {
@@ -131,17 +189,18 @@ export default function CvDatabasePage() {
         setIsClient(true);
         try {
             const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
+            let cvsFromStorage: CvDatabaseRecord[] = [];
             if (savedCvDbJSON) {
                 const parsedCvDb = JSON.parse(savedCvDbJSON);
                 if (Array.isArray(parsedCvDb)) {
-                    const validDb = parsedCvDb.map(record => {
+                    cvsFromStorage = parsedCvDb.map(record => {
                         const result = CvDatabaseRecordSchema.safeParse(record);
                         if (result.success) {
                             result.data.name = toTitleCase(result.data.name);
                         }
                         return result.success ? result.data : null;
                     }).filter((r): r is CvDatabaseRecord => r !== null);
-                    setCvDatabase(validDb.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                    setCvDatabase(cvsFromStorage.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                 }
             }
 
@@ -169,7 +228,7 @@ export default function CvDatabasePage() {
             const params = new URLSearchParams(window.location.search);
             const emailToOpen = params.get('email');
             if (emailToOpen) {
-                const cvToOpen = cvDatabase.find(cv => cv.email === emailToOpen);
+                const cvToOpen = cvsFromStorage.find(cv => cv.email === emailToOpen);
                 if (cvToOpen) {
                     setSelectedCv(cvToOpen);
                 }
@@ -177,7 +236,7 @@ export default function CvDatabasePage() {
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, [isClient]);
+    }, []);
 
     useEffect(() => {
         if (isClient) {
@@ -188,6 +247,16 @@ export default function CvDatabasePage() {
             }
         }
     }, [cvDatabase, isClient]);
+    
+    useEffect(() => {
+        if (isClient) {
+            if (history.length > 0) {
+                localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+            } else {
+                localStorage.removeItem(HISTORY_STORAGE_KEY);
+            }
+        }
+    }, [history, isClient]);
 
     useEffect(() => {
         if (isClient) {
@@ -245,37 +314,6 @@ export default function CvDatabasePage() {
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
     }
-
-    const sortedAndFilteredCvs = useMemo(() => {
-        const filtered = searchTerm.trim() 
-            ? cvDatabase.filter(cv => 
-                cv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.jobCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.currentTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.currentCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.structuredContent.skills?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
-              ) 
-            : cvDatabase;
-
-        return [...filtered].sort((a, b) => {
-            const aVal = a[sortDescriptor.column];
-            const bVal = b[sortDescriptor.column];
-
-            // Handle experience sorting (string to number)
-            if (sortDescriptor.column === 'totalExperience') {
-                const aYears = parseFloat(a.totalExperience || '0');
-                const bYears = parseFloat(b.totalExperience || '0');
-                return sortDescriptor.direction === 'ascending' ? aYears - bYears : bYears - aYears;
-            }
-
-            if (aVal === null || aVal === undefined) return 1;
-            if (bVal === null || bVal === undefined) return -1;
-            
-            const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
-            return sortDescriptor.direction === 'ascending' ? comparison : -comparison;
-        });
-    }, [cvDatabase, searchTerm, sortDescriptor]);
 
     const handleCvUpload = (files: UploadedFile[]) => {
         setCvsToUpload(prev => [...prev, ...files]);
@@ -374,58 +412,47 @@ export default function CvDatabasePage() {
 
     }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded]);
     
-    const handleDeleteCv = (emailToDelete: string) => {
-        setCvDatabase(prev => prev.filter(cv => cv.email !== emailToDelete));
+    const handleDeleteCv = (emailsToDelete: string[]) => {
+        if (emailsToDelete.length === 0) return;
+
+        const emailsToDeleteSet = new Set(emailsToDelete.map(e => e.toLowerCase()));
+        
+        // Remove from CV Database
+        setCvDatabase(prev => prev.filter(cv => !emailsToDeleteSet.has(cv.email.toLowerCase())));
+
+        // Remove from all assessments in history
+        setHistory(prevHistory => {
+            return prevHistory.map(session => {
+                const updatedCandidates = session.candidates.filter(candidate => {
+                    const candidateEmail = candidate.analysis.email?.toLowerCase();
+                    if (candidateEmail) {
+                        return !emailsToDeleteSet.has(candidateEmail);
+                    }
+                    // Fallback for older data without email in analysis
+                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidate.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                        return !emailsToDeleteSet.has(dbRecord.email.toLowerCase());
+                    }
+                    return true;
+                });
+                return { ...session, candidates: updatedCandidates, summary: updatedCandidates.length > 0 ? session.summary : null };
+            });
+        });
+        
+        setSelectedCvEmails(new Set());
+
         toast({
-            description: "Candidate record deleted from the database.",
+            description: `${emailsToDelete.length} candidate record(s) deleted from the database and all assessments.`,
         });
     };
 
     const handleQuickAddToAssessment = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession) => {
-        toast({ description: `Assessing ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
-
-        try {
-            const analysis = await analyzeCVAgainstJD({ 
-                jobDescriptionCriteria: assessment.analyzedJd, 
-                cv: candidate.cvContent 
-            });
-
-            const newCandidateRecord: CandidateRecord = {
-                cvName: candidate.cvFileName,
-                cvContent: candidate.cvContent,
-                analysis,
-                isStale: false,
-            };
-
-            const updatedHistory = history.map(session => {
-                if (session.id === assessment.id) {
-                    const newCandidates = [...session.candidates, newCandidateRecord]
-                        .sort((a,b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                    return { ...session, candidates: newCandidates };
-                }
-                return session;
-            });
-            
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
-            setHistory(updatedHistory);
-            
-            setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidate.email && p.assessment.id === assessment.id)));
-
-            toast({
-                title: 'Assessment Complete',
-                description: `${candidate.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
-                action: (
-                    <Link href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id)}>
-                        <Button variant="outline" size="sm">View</Button>
-                    </Link>
-                ),
-            });
-
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: `Failed to assess ${candidate.name}`, description: error.message });
-        }
-
-    }, [history, toast]);
+        toast({ description: `Navigating to assess ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
+        const pendingAssessment = { candidate, assessment };
+        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingAssessment));
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+        router.push('/assessment');
+    }, [router, toast]);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
@@ -450,7 +477,26 @@ export default function CvDatabasePage() {
             return () => clearTimeout(cleanupTimeout);
         }
     }, [processingStatus, isProcessing]);
+    
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedCvEmails(new Set(sortedAndFilteredCvs.map(cv => cv.email)));
+        } else {
+            setSelectedCvEmails(new Set());
+        }
+    };
 
+    const handleSelectOne = (email: string, checked: boolean) => {
+        setSelectedCvEmails(prev => {
+            const newSet = new Set(prev);
+            if (checked) {
+                newSet.add(email);
+            } else {
+                newSet.delete(email);
+            }
+            return newSet;
+        });
+    };
     
     if (!isClient) return null;
 
@@ -521,16 +567,29 @@ export default function CvDatabasePage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Database/> Candidate Records ({cvDatabase.length})</CardTitle>
-                            <div className="flex justify-between items-center">
-                                <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
-                                <div className="relative w-full max-w-sm">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input 
-                                        placeholder="Search by name, email, title, skills, code..."
-                                        className="pl-9"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                             <div className="flex justify-between items-center gap-4">
+                                <CardDescription>Browse, search, and manage all candidates in the database.</CardDescription>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className="relative w-full max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input 
+                                            placeholder="Search database..."
+                                            className="pl-9"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    {selectedCvEmails.size > 0 && (
+                                        <BulkActions
+                                            selectedEmails={selectedCvEmails}
+                                            candidates={cvDatabase}
+                                            assessments={history}
+                                            toast={toast}
+                                            onDelete={handleDeleteCv}
+                                            onAddToAssessment={handleQuickAddToAssessment}
+                                            onClear={() => setSelectedCvEmails(new Set())}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
@@ -539,6 +598,13 @@ export default function CvDatabasePage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-12 px-3">
+                                                <Checkbox
+                                                  checked={selectedCvEmails.size > 0 && selectedCvEmails.size === sortedAndFilteredCvs.length}
+                                                  indeterminate={selectedCvEmails.size > 0 && selectedCvEmails.size < sortedAndFilteredCvs.length}
+                                                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                                />
+                                            </TableHead>
                                             <TableHead className="w-12">Status</TableHead>
                                             <TableHead onClick={() => handleSort('name')} className="w-1/4">
                                                 <div className="flex items-center gap-2 cursor-pointer">Name <ArrowUpDown className="h-4 w-4" /></div>
@@ -557,25 +623,52 @@ export default function CvDatabasePage() {
                                     <TableBody>
                                         {sortedAndFilteredCvs.length > 0 ? sortedAndFilteredCvs.map(cv => {
                                             const isChecking = relevanceCheckStatus[cv.email];
-                                            const count = assessmentCounts.get(cv.email.toLowerCase()) || 0;
+                                            const candidateAssessments = assessmentMap.get(cv.email.toLowerCase()) || [];
+                                            const count = candidateAssessments.length;
                                             return (
-                                                <TableRow key={cv.email} onClick={() => setSelectedCv(cv)} className="cursor-pointer">
-                                                    <TableCell>
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <TooltipTrigger>
-                                                                    <div className="flex items-center">
-                                                                        <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
-                                                                        {count > 0 && <sup className="font-bold text-xs -ml-1 text-muted-foreground">{count}</sup>}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>{count > 0 ? `In ${count} assessment(s)` : 'Not yet assessed'}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
+                                                <TableRow 
+                                                  key={cv.email}
+                                                  data-state={selectedCvEmails.has(cv.email) ? 'selected' : ''}
+                                                >
+                                                    <TableCell className="px-3">
+                                                        <Checkbox
+                                                            checked={selectedCvEmails.has(cv.email)}
+                                                            onCheckedChange={(checked) => handleSelectOne(cv.email, !!checked)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
                                                     </TableCell>
-                                                    <TableCell className="font-medium text-primary truncate" title={cv.name}>
+                                                    <TableCell>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild disabled={count === 0} onClick={(e) => e.stopPropagation()}>
+                                                                <div className={cn("flex items-center", count > 0 && "cursor-pointer")}>
+                                                                    <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
+                                                                    {count > 0 && <sup className="font-bold text-xs -ml-1 text-muted-foreground">{count}</sup>}
+                                                                </div>
+                                                            </PopoverTrigger>
+                                                            {count > 0 && (
+                                                                <PopoverContent className="w-96 p-2">
+                                                                    <div className="space-y-1 mb-2 p-2">
+                                                                        <h4 className="font-medium leading-none">Assessments for {cv.name}</h4>
+                                                                        <p className="text-sm text-muted-foreground">Quick links to view assessments.</p>
+                                                                    </div>
+                                                                    <div className="max-h-60 overflow-y-auto">
+                                                                        {candidateAssessments.map(a => (
+                                                                            <Link key={a.sessionId} href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, a.sessionId)}>
+                                                                                <div className="p-2 rounded-md hover:bg-secondary flex justify-between items-center">
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="font-semibold text-sm truncate">{a.jobTitle}</span>
+                                                                                        <span className="text-xs text-muted-foreground truncate">{a.sessionName}</span>
+                                                                                    </div>
+                                                                                    <Badge variant={a.score >= 75 ? "default" : a.score >= 40 ? "secondary" : "destructive"}>{a.score}%</Badge>
+                                                                                </div>
+                                                                            </Link>
+                                                                        ))}
+                                                                    </div>
+                                                                </PopoverContent>
+                                                            )}
+                                                        </Popover>
+                                                    </TableCell>
+                                                    <TableCell className="font-medium text-primary truncate cursor-pointer" title={cv.name} onClick={() => setSelectedCv(cv)}>
                                                         {cv.name}
                                                     </TableCell>
                                                     <TableCell className="truncate" title={cv.currentTitle || 'N/A'}>
@@ -585,51 +678,36 @@ export default function CvDatabasePage() {
                                                     <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
                                                     <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-1">
                                                              <AddCandidatePopover
                                                                 candidate={cv}
-                                                                assessments={history}
+                                                                assessments={assessmentMap.get(cv.email.toLowerCase()) || []}
+                                                                allAssessments={history}
                                                                 onAdd={handleAddFromPopover}
                                                             />
-                                                             <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                                                            onClick={() => handleNewCandidateAdded(cv)}
-                                                                            disabled={!isRelevanceCheckEnabled || isChecking}
-                                                                        >
-                                                                            {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p>{isRelevanceCheckEnabled ? "Check relevance for this candidate" : "Enable AI Relevance Check in settings"}</p></TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
                                                             <AlertDialog>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <TooltipProvider>
-                                                                        <Tooltip>
-                                                                            <TooltipTrigger asChild>
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
-                                                                            </TooltipTrigger>
-                                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                                        </Tooltip>
-                                                                    </TooltipProvider>
-                                                                </AlertDialogTrigger>
+                                                                            </AlertDialogTrigger>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                                         <AlertDialogDescription>
-                                                                            This action cannot be undone. This will permanently delete the record for <span className="font-bold">{cv.name}</span>.
+                                                                            This action cannot be undone. This will permanently delete the record for <span className="font-bold">{cv.name}</span> and remove them from all assessments.
                                                                         </AlertDialogDescription>
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>
                                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                                        <AlertDialogAction onClick={() => handleDeleteCv([cv.email])} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
                                                                             Delete
                                                                         </AlertDialogAction>
                                                                     </AlertDialogFooter>
@@ -641,7 +719,7 @@ export default function CvDatabasePage() {
                                             )
                                         }) : (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="h-24 text-center">
+                                                <TableCell colSpan={8} className="h-24 text-center">
                                                     {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
                                                 </TableCell>
                                             </TableRow>
@@ -709,25 +787,20 @@ export default function CvDatabasePage() {
     );
 }
 
-const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
+const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: {
     candidate: CvDatabaseRecord;
-    assessments: AssessmentSession[];
+    assessments: CandidateAssessmentInfo[];
+    allAssessments: AssessmentSession[];
     onAdd: (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     
     const compatibleAssessments = useMemo(() => {
-        const assessedSessionIds = new Set<string>();
-        assessments.forEach(session => {
-            if (session.candidates.some(c => c.cvContent.toLowerCase().includes(candidate.email.toLowerCase()))) {
-                assessedSessionIds.add(session.id);
-            }
-        });
-
-        return assessments.filter(session =>
+        const assessedSessionIds = new Set(assessments.map(a => a.sessionId));
+        return allAssessments.filter(session =>
             session.analyzedJd.code === candidate.jobCode && !assessedSessionIds.has(session.id)
         );
-    }, [candidate, assessments]);
+    }, [candidate, assessments, allAssessments]);
 
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -773,5 +846,116 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     );
 };
     
-
+const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete, onAddToAssessment, onClear }: {
+    selectedEmails: Set<string>;
+    candidates: CvDatabaseRecord[];
+    assessments: AssessmentSession[];
+    toast: (options: { description: string, title?: string, variant?: 'default' | 'destructive' }) => void;
+    onDelete: (emails: string[]) => void;
+    onAddToAssessment: (candidate: CvDatabaseRecord, assessment: AssessmentSession) => void;
+    onClear: () => void;
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
     
+    const selectedCount = selectedEmails.size;
+    const selectedCandidates = candidates.filter(c => selectedEmails.has(c.email));
+    
+    // Find assessments that *all* selected candidates could potentially be added to.
+    const commonAssessments = useMemo(() => {
+        if (selectedCandidates.length === 0) return [];
+        
+        const firstCandidateJobCode = selectedCandidates[0].jobCode;
+        if (!selectedCandidates.every(c => c.jobCode === firstCandidateJobCode)) {
+            return []; // Return empty if job codes are mixed
+        }
+        
+        return assessments.filter(session => {
+            if (session.analyzedJd.code !== firstCandidateJobCode) return false;
+            
+            // Check if *any* of the selected candidates are already in this session
+            const sessionEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+            return !selectedCandidates.some(sel => sessionEmails.has(sel.email.toLowerCase()));
+        });
+
+    }, [selectedCandidates, assessments]);
+
+    const handleBulkAdd = (assessment: AssessmentSession) => {
+        toast({ description: `Adding ${selectedCount} candidates to "${assessment.analyzedJd.jobTitle}". You will be redirected.` });
+        let i = 0;
+        for (const candidate of selectedCandidates) {
+            // Only redirect on the last one
+            if (i === selectedCandidates.length - 1) {
+                onAddToAssessment(candidate, assessment);
+            } else {
+                const pendingAssessment = { candidate, assessment };
+                localStorage.setItem(`${PENDING_ASSESSMENT_KEY}_${i}`, JSON.stringify(pendingAssessment));
+            }
+            i++;
+        }
+        onClear();
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="flex items-center gap-2 border-l pl-2">
+            <span className="text-sm font-medium">{selectedCount} selected</span>
+            
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add to Assessment</Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-2">
+                    <div className="grid gap-4">
+                        <div className="space-y-1">
+                            <h4 className="font-medium leading-none">Add {selectedCount} Candidates to...</h4>
+                            <p className="text-sm text-muted-foreground">
+                                {commonAssessments.length > 0 
+                                    ? "Showing assessments compatible with all selected candidates." 
+                                    : "Selected candidates have mixed job codes or are already in all compatible assessments."}
+                            </p>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            {commonAssessments.length > 0 ? (
+                                commonAssessments.map(session => (
+                                    <button
+                                        key={session.id}
+                                        onClick={() => handleBulkAdd(session)}
+                                        className="w-full text-left p-2 rounded-md hover:bg-secondary flex flex-col"
+                                    >
+                                        <span className="font-medium truncate">{session.analyzedJd.jobTitle}</span>
+                                        <span className="text-xs text-muted-foreground">{session.jdName}</span>
+                                    </button>
+                                ))
+                            ) : (
+                                <p className="p-2 text-sm text-center text-muted-foreground">No common assessments found.</p>
+                            )}
+                        </div>
+                    </div>
+                </PopoverContent>
+            </Popover>
+
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the selected {selectedCount} candidate(s) and remove them from all assessments. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onDelete(Array.from(selectedEmails))} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClear}>
+                <X className="h-4 w-4"/>
+            </Button>
+        </div>
+    );
+};

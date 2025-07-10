@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History } from 'lucide-react';
+import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History, UserX } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate, CvDatabaseRecord } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -115,9 +115,10 @@ export default function DashboardPage() {
     }, [history, filters.code]);
 
     const stats = useMemo(() => {
+        // Core metrics based on filtered history
         const totalPositions = filteredHistory.length;
-        const totalCandidates = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
-
+        const totalCandidatesInAssessments = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
+        
         const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
                 ...candidate.analysis,
@@ -126,29 +127,67 @@ export default function DashboardPage() {
                 sessionId: session.id,
             }))
         );
-
         const top5Candidates = allCandidates.sort((a, b) => b.alignmentScore - a.alignmentScore).slice(0, 5);
 
-        const assessmentsByCode = filteredHistory.reduce<Record<string, number>>((acc, session) => {
-            const code = session.analyzedJd.code || 'Not Specified';
+        // Metrics based on filtered CV Database
+        const filteredCvDatabase = cvDatabase.filter(cv => {
+            const codeMatch = filters.code === 'all' || cv.jobCode === filters.code;
+            if (!codeMatch) return false;
+
+            if (filters.department !== 'all') {
+                const isCodeInDept = history.some(s => s.analyzedJd.code === cv.jobCode && s.analyzedJd.department === filters.department);
+                return isCodeInDept;
+            }
+            return true;
+        });
+
+        const totalInDb = filteredCvDatabase.length;
+
+        const allAssessedEmailsInFilter = new Set<string>();
+        filteredHistory.forEach(session => {
+            session.candidates.forEach(c => {
+                if (c.analysis.email) {
+                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
+                } else {
+                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
+                    }
+                }
+            });
+        });
+
+        const unassessedCount = filteredCvDatabase.filter(cv => !allAssessedEmailsInFilter.has(cv.email.toLowerCase())).length;
+        
+        const candidatesByCode = filteredCvDatabase.reduce<Record<string, number>>((acc, cv) => {
+            const code = cv.jobCode || 'Not Specified';
             if (!acc[code]) {
                 acc[code] = 0;
             }
-            acc[code] += session.candidates?.length || 0;
+            acc[code]++;
             return acc;
         }, {});
 
-        const chartDataByCode = Object.entries(assessmentsByCode)
+        const chartDataByCode = Object.entries(candidatesByCode)
             .map(([name, count]) => ({ name, count }))
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
 
-        const recent5Assessments = history
+        // Recent assessments based on filtered history
+        const recent5Assessments = filteredHistory
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5);
 
-        return { totalPositions, totalCandidates, top5Candidates, chartDataByCode, recent5Assessments };
-    }, [filteredHistory, history]);
+        return { 
+            totalPositions, 
+            totalCandidatesInAssessments, 
+            top5Candidates, 
+            chartDataByCode, 
+            recent5Assessments, 
+            totalInDb,
+            unassessedCount,
+        };
+    }, [filteredHistory, cvDatabase, history, filters.code, filters.department]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
@@ -232,22 +271,28 @@ export default function DashboardPage() {
                                 <Users className="h-4 w-4 text-accent" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-accent">{stats.totalCandidates}</div>
+                                <div className="text-2xl font-bold text-accent">{stats.totalCandidatesInAssessments}</div>
                                 <p className="text-xs text-muted-foreground">Total CVs processed across all positions</p>
                             </CardContent>
                         </Card>
-                         <Card className="col-span-full md:col-span-2 flex flex-col justify-between">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">CV Database</CardTitle>
-                                <CardDescription>Manage your central repository of candidate CVs.</CardDescription>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Candidates in DB</CardTitle>
+                                <Database className="h-4 w-4 text-green-600" />
                             </CardHeader>
-                            <CardContent className="flex-1 flex items-end">
-                                <Link href="/cv-database" passHref className='w-full'>
-                                    <Button className="w-full">
-                                        <Database className="mr-2 h-4 w-4"/>
-                                        Open CV Database
-                                    </Button>
-                                </Link>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-green-600">{stats.totalInDb}</div>
+                                <p className="text-xs text-muted-foreground">Total unique CVs in the database</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Not Assessed</CardTitle>
+                                <UserX className="h-4 w-4 text-orange-600" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-orange-600">{stats.unassessedCount}</div>
+                                <p className="text-xs text-muted-foreground">Candidates in DB yet to be assessed</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -297,7 +342,7 @@ export default function DashboardPage() {
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
-                                <CardDescription>Visual breakdown of candidates by job code.</CardDescription>
+                                <CardDescription>Visual breakdown of all candidates in the database by job code.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div>
