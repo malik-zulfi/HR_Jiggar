@@ -23,6 +23,8 @@ interface HeaderProps {
     onAddCandidate?: (position: SuitablePosition) => void;
     isRelevanceCheckEnabled?: boolean;
     onRelevanceCheckToggle?: (enabled: boolean) => void;
+    onManualCheck?: () => void;
+    manualCheckStatus?: 'idle' | 'loading' | 'done';
 }
 
 export function Header({ 
@@ -32,6 +34,8 @@ export function Header({
     onAddCandidate = () => {},
     isRelevanceCheckEnabled = false,
     onRelevanceCheckToggle = () => {},
+    onManualCheck = () => {},
+    manualCheckStatus = 'idle',
 }: HeaderProps) {
     const pathname = usePathname();
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : 'dashboard');
@@ -95,20 +99,22 @@ export function Header({
                                 Manage background AI features.
                             </p>
                         </div>
-                        <div className="flex items-center space-x-2 rounded-md border p-4">
-                            <Wand2 className="h-5 w-5 text-primary" />
-                            <div className="flex-1 space-y-1">
-                                <p className="text-sm font-medium leading-none">
-                                AI Relevance Check
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                Automatically find relevant jobs for candidates.
-                                </p>
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center space-x-2 rounded-md border p-4">
+                                <Wand2 className="h-5 w-5 text-primary" />
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">
+                                    AI Relevance Check
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                    Automatically find relevant jobs for candidates.
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={isRelevanceCheckEnabled}
+                                    onCheckedChange={onRelevanceCheckToggle}
+                                />
                             </div>
-                            <Switch
-                                checked={isRelevanceCheckEnabled}
-                                onCheckedChange={onRelevanceCheckToggle}
-                            />
                         </div>
                     </div>
                 </PopoverContent>
@@ -142,3 +148,5 @@ export function Header({
     </header>
   );
 }
+
+    

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2 } from "lucide-react";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, ChatMessage, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
@@ -17,6 +17,7 @@ import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
 import { queryCandidate } from "@/ai/flows/query-candidate";
 import { parseCv } from "@/ai/flows/cv-parser";
+import { findSuitablePositionsForCandidate } from "@/ai/flows/find-suitable-positions";
 
 import { Header } from "@/components/header";
 import JdAnalysis from "@/components/jd-analysis";
@@ -43,6 +44,7 @@ const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
+type RelevanceCheckStatus = Record<string, boolean>;
 
 
 function AssessmentPage() {
@@ -69,6 +71,7 @@ function AssessmentPage() {
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
   
   const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
+  const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
 
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -678,7 +681,7 @@ function AssessmentPage() {
       toast({ description: "Candidate summary generated." });
     } catch (error: any) {
       console.error("Error generating summary:", error);
-      toast({ variant: "destructive", title: "Summary Error", description: error.message || "An unexpected error occurred. Please check the console." });
+      toast({ variant: "destructive", title: "Summary Error", description: error.message || "An unexpected error occurred." });
     } finally {
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(null);
@@ -816,7 +819,7 @@ function AssessmentPage() {
             setChatQueryLoading(null);
         }
     };
-
+    
     const handleClearChatHistory = (candidateNameToClear: string) => {
         if (!activeSessionId) return;
 
@@ -847,16 +850,56 @@ function AssessmentPage() {
   const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
   const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
 
+  const handleManualRelevanceCheck = useCallback(async () => {
+    setManualCheckStatus('loading');
+    toast({ description: "Running relevance check on all existing candidates..." });
+
+    try {
+        let allNewPositions: SuitablePosition[] = [];
+        for (const candidate of cvDatabase) {
+            const result = await findSuitablePositionsForCandidate({
+                candidate,
+                assessmentSessions: history,
+                existingSuitablePositions: suitablePositions,
+            });
+            if (result.newlyFoundPositions.length > 0) {
+                allNewPositions.push(...result.newlyFoundPositions);
+            }
+        }
+        
+        if (allNewPositions.length > 0) {
+            setSuitablePositions(prev => {
+                const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+                const uniqueNewPositions = allNewPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
+                return [...prev, ...uniqueNewPositions];
+            });
+            toast({ title: "Relevance Check Complete", description: `Found ${allNewPositions.length} new potential matches.` });
+        } else {
+            toast({ title: "Relevance Check Complete", description: "No new relevant positions found for existing candidates." });
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: "Manual Check Failed", description: error.message });
+    } finally {
+        setManualCheckStatus('done');
+         setTimeout(() => setManualCheckStatus('idle'), 3000);
+    }
+  }, [cvDatabase, history, suitablePositions, toast]);
+
   return (
     <div className="flex flex-col min-h-screen bg-secondary/40">
       <Header
         activePage="assessment"
-        onNewSession={handleNewSession}
         notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
         suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
         onAddCandidate={handleQuickAddToAssessment}
         isRelevanceCheckEnabled={isRelevanceCheckEnabled}
-        onRelevanceCheckToggle={setIsRelevanceCheckEnabled}
+        onRelevanceCheckToggle={(enabled) => {
+            setIsRelevanceCheckEnabled(enabled);
+            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
+            if(!enabled) setSuitablePositions([]);
+        }}
+        onManualCheck={handleManualRelevanceCheck}
+        manualCheckStatus={manualCheckStatus}
       />
       <main className="flex-1 p-4 md:p-8">
         <div className="container mx-auto space-y-6">
@@ -1221,4 +1264,6 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
+    
+
     
