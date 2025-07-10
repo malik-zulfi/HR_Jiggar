@@ -140,16 +140,16 @@ export default function DashboardPage() {
 
         const top5Candidates = allCandidates.sort((a, b) => b.alignmentScore - a.alignmentScore).slice(0, 5);
 
-        const assessmentsByCode = filteredHistory.reduce<Record<string, number>>((acc, session) => {
-            const code = session.analyzedJd.code || 'Not Specified';
+        const candidatesByCode = cvDatabase.reduce<Record<string, number>>((acc, cv) => {
+            const code = cv.jobCode || 'Not Specified';
             if (!acc[code]) {
                 acc[code] = 0;
             }
-            acc[code] += session.candidates?.length || 0;
+            acc[code]++;
             return acc;
         }, {});
 
-        const chartDataByCode = Object.entries(assessmentsByCode)
+        const chartDataByCode = Object.entries(candidatesByCode)
             .map(([name, count]) => ({ name, count }))
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
@@ -322,7 +322,7 @@ export default function DashboardPage() {
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
-                                <CardDescription>Visual breakdown of candidates by job code.</CardDescription>
+                                <CardDescription>Visual breakdown of all candidates in the database by job code.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div>
@@ -405,3 +405,4 @@ export default function DashboardPage() {
         </div>
     );
 }
+
