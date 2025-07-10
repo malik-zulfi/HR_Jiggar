@@ -348,14 +348,14 @@ export default function CvDatabasePage() {
                                     const suitableCount = suitablePositionsCount.get(cv.email) || 0;
                                     return (
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
-                                        <div className="flex w-full items-center px-4 py-1 hover:bg-muted/50">
-                                            <AccordionTrigger className="flex-1 py-2 text-left hover:no-underline [&>svg]:ml-auto">
-                                                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center mr-4">
-                                                    <span className="font-semibold text-primary col-span-2 md:col-span-1">{cv.name}</span>
-                                                    <span className="text-sm text-muted-foreground truncate">{cv.currentTitle || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground truncate">{cv.currentCompany || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground">{cv.totalExperience || 'N/A'}</span>
-                                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <div className="flex w-full items-center px-4 hover:bg-muted/50">
+                                            <AccordionTrigger className="flex-1 py-3 text-left hover:no-underline [&>svg]:ml-auto">
+                                                <div className="flex-1 grid grid-cols-12 gap-x-4 items-center mr-4 w-full">
+                                                    <span className="font-semibold text-primary col-span-3 truncate" title={cv.name}>{cv.name}</span>
+                                                    <span className="text-sm text-muted-foreground col-span-3 truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
+                                                    <span className="text-sm text-muted-foreground col-span-2 truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
+                                                    <span className="text-sm text-muted-foreground col-span-1">{cv.totalExperience || 'N/A'}</span>
+                                                    <div className="flex items-center gap-2 flex-wrap col-span-3">
                                                         <Badge>{cv.jobCode}</Badge>
                                                         <Badge variant="outline" className="font-normal text-muted-foreground">
                                                             <Clock className="h-3 w-3 mr-1.5" />
@@ -432,3 +432,4 @@ export default function CvDatabasePage() {
         </div>
     );
 }
+
