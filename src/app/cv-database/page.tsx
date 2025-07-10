@@ -584,6 +584,7 @@ export default function CvDatabasePage() {
                                             selectedEmails={selectedCvEmails}
                                             candidates={cvDatabase}
                                             assessments={history}
+                                            toast={toast}
                                             onDelete={handleDeleteCv}
                                             onAddToAssessment={handleQuickAddToAssessment}
                                             onClear={() => setSelectedCvEmails(new Set())}
@@ -845,10 +846,11 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
     );
 };
     
-const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddToAssessment, onClear }: {
+const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete, onAddToAssessment, onClear }: {
     selectedEmails: Set<string>;
     candidates: CvDatabaseRecord[];
     assessments: AssessmentSession[];
+    toast: (options: { description: string, title?: string, variant?: 'default' | 'destructive' }) => void;
     onDelete: (emails: string[]) => void;
     onAddToAssessment: (candidate: CvDatabaseRecord, assessment: AssessmentSession) => void;
     onClear: () => void;
