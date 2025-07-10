@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, ChevronsUpDown } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession } from '@/lib/types';
-import { CvDatabaseRecordSchema, AssessmentSessionSchema } from '@/lib/types';
+import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FileUploader from '@/components/file-uploader';
 import { parseCv } from '@/ai/flows/cv-parser';
@@ -30,12 +30,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const HISTORY_STORAGE_KEY = 'jiggar-history';
 type UploadedFile = { name: string; content: string };
 type JobCode = 'OCN' | 'WEX' | 'SAN';
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', message: string }>;
+type Conflict = {
+    newRecord: ParseCvOutput & { cvFileName: string; cvContent: string; jobCode: JobCode; };
+    existingRecord: CvDatabaseRecord;
+};
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
@@ -48,6 +53,39 @@ export default function CvDatabasePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
     const [openAccordion, setOpenAccordion] = useState<string>();
+    
+    const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
+    const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
+
+    useEffect(() => {
+        if (conflictQueue.length > 0 && !currentConflict) {
+            setCurrentConflict(conflictQueue[0]);
+        }
+    }, [conflictQueue, currentConflict]);
+
+    const resolveConflict = (action: 'replace' | 'skip') => {
+        if (!currentConflict) return;
+        
+        if (action === 'replace') {
+            const finalRecord: CvDatabaseRecord = {
+                ...currentConflict.newRecord,
+                createdAt: new Date().toISOString(),
+            };
+            setCvDatabase(prevDb => {
+                const dbMap = new Map(prevDb.map(c => [c.email, c]));
+                dbMap.set(finalRecord.email, finalRecord);
+                return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            });
+            toast({ description: `Record for ${finalRecord.name} was replaced.` });
+        } else {
+             toast({ description: `Upload for ${currentConflict.newRecord.name} was skipped.` });
+        }
+        
+        // Move to the next conflict
+        const newQueue = conflictQueue.slice(1);
+        setConflictQueue(newQueue);
+        setCurrentConflict(newQueue[0] || null);
+    };
 
     useEffect(() => {
         setIsClient(true);
@@ -178,42 +216,56 @@ export default function CvDatabasePage() {
         }
 
         const filesToProcess = [...cvsToUpload];
-        // Clear the uploader for the next batch
         setCvsToUpload([]);
         setCvResetKey(key => key + 1);
 
         const newStatus = filesToProcess.reduce((acc, cv) => {
-            // Prevent re-adding a file that might be in a different uploader batch but already processing
             if (!processingStatus[cv.name]) {
                 acc[cv.name] = { status: 'processing', message: cv.name };
             }
             return acc;
         }, {} as CvProcessingStatus);
-
         setProcessingStatus(prev => ({ ...prev, ...newStatus }));
 
+        const dbEmails = new Map(cvDatabase.map(c => [c.email, c]));
         let successCount = 0;
+        const newConflicts: Conflict[] = [];
 
         for (const cv of filesToProcess) {
             try {
                 const parsedData = await parseCv({ cvText: cv.content });
                 
-                const record: CvDatabaseRecord = {
-                    ...parsedData,
-                    jobCode: currentJobCode,
-                    cvFileName: cv.name,
-                    cvContent: cv.content,
-                    createdAt: new Date().toISOString(),
-                };
-                
-                setCvDatabase(prevDb => {
-                    const dbMap = new Map(prevDb.map(c => [c.email, c]));
-                    dbMap.set(record.email, record);
-                    return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                });
-
-                successCount++;
-                setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
+                const existingRecord = dbEmails.get(parsedData.email);
+                if (existingRecord) {
+                    newConflicts.push({
+                        newRecord: {
+                            ...parsedData,
+                            jobCode: currentJobCode,
+                            cvFileName: cv.name,
+                            cvContent: cv.content,
+                        },
+                        existingRecord,
+                    });
+                    // Mark as done for progress bar, conflict handles the final state.
+                    setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
+                } else {
+                    const record: CvDatabaseRecord = {
+                        ...parsedData,
+                        jobCode: currentJobCode,
+                        cvFileName: cv.name,
+                        cvContent: cv.content,
+                        createdAt: new Date().toISOString(),
+                    };
+                    
+                    setCvDatabase(prevDb => {
+                        const dbMap = new Map(prevDb.map(c => [c.email, c]));
+                        dbMap.set(record.email, record);
+                        return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    });
+                    dbEmails.set(record.email, record); // Update map for current batch
+                    successCount++;
+                    setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
+                }
             } catch (error: any) {
                 console.error(`Failed to parse ${cv.name}:`, error);
                 toast({ variant: 'destructive', title: `Parsing Failed for ${cv.name}`, description: error.message });
@@ -222,9 +274,16 @@ export default function CvDatabasePage() {
         }
         
         if (successCount > 0) {
-            toast({ description: `${successCount} CV(s) processed and added/updated in the database.` });
+            toast({ description: `${successCount} new CV(s) processed and added to the database.` });
         }
-    }, [cvsToUpload, jobCode, toast, processingStatus]);
+        if (newConflicts.length > 0) {
+            setConflictQueue(prev => [...prev, ...newConflicts]);
+            toast({
+                title: `${newConflicts.length} Conflict(s) Detected`,
+                description: "Some CVs match existing records. Please resolve the conflicts.",
+            });
+        }
+    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase]);
     
     const handleDeleteCv = (emailToDelete: string) => {
         setCvDatabase(prev => prev.filter(cv => cv.email !== emailToDelete));
@@ -234,7 +293,6 @@ export default function CvDatabasePage() {
     };
 
     useEffect(() => {
-        // This effect will run to clean up completed/errored tasks from the display
         const hasFinishedTasks = Object.values(processingStatus).some(s => s.status === 'done' || s.status === 'error');
         if (hasFinishedTasks && !isProcessing) {
             const cleanupTimeout = setTimeout(() => {
@@ -281,7 +339,7 @@ export default function CvDatabasePage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><FileUp /> Add New Candidates</CardTitle>
-                            <CardDescription>Upload CVs and tag them with a job code to add them to the central database. If a candidate's email already exists, their record will be updated.</CardDescription>
+                            <CardDescription>Upload CVs and tag them with a job code to add them to the central database. If a candidate's email already exists, you will be asked to confirm the replacement.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid md:grid-cols-3 gap-4 items-end">
@@ -317,9 +375,9 @@ export default function CvDatabasePage() {
                             )}
                         </CardContent>
                         <CardFooter>
-                            <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode}>
+                            <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode || isProcessing}>
                                 {isProcessing ? (
-                                    <><Bot className="mr-2 h-4 w-4" /> Add to Queue</>
+                                    <><Bot className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
                                 ) : (
                                     <><Bot className="mr-2 h-4 w-4" /> Process & Add to Database</>
                                 )}
@@ -329,7 +387,7 @@ export default function CvDatabasePage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Users/> Candidate Records ({cvDatabase.length})</CardTitle>
+                            <CardTitle className="flex items-center gap-2"><Users/> Candidate Records ({filteredCvs.length})</CardTitle>
                             <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -350,7 +408,7 @@ export default function CvDatabasePage() {
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
                                         <div className="flex w-full items-center px-4 hover:bg-muted/50">
                                             <AccordionTrigger className="flex-1 py-3 text-left hover:no-underline [&>svg]:ml-auto">
-                                                <div className="flex-1 grid grid-cols-12 gap-x-4 items-center mr-4 w-full">
+                                                <div className="grid grid-cols-12 gap-x-4 items-center mr-4 w-full">
                                                     <span className="font-semibold text-primary col-span-3 truncate" title={cv.name}>{cv.name}</span>
                                                     <span className="text-sm text-muted-foreground col-span-3 truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
                                                     <span className="text-sm text-muted-foreground col-span-2 truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
@@ -429,7 +487,39 @@ export default function CvDatabasePage() {
                     </Card>
                 </div>
             </main>
+            
+            <Dialog open={!!currentConflict} onOpenChange={(isOpen) => { if (!isOpen) setCurrentConflict(null); }}>
+                {currentConflict && (
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" /> Replace Existing Candidate?</DialogTitle>
+                            <DialogDescription>
+                                A candidate with the email <span className="font-bold text-foreground">{currentConflict.existingRecord.email}</span> already exists. Do you want to replace the existing record with the new CV you've uploaded?
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid grid-cols-2 gap-4 text-sm my-4">
+                            <div className="p-3 border rounded-md">
+                                <h4 className="font-semibold mb-2">Existing Record</h4>
+                                <p className="truncate" title={currentConflict.existingRecord.cvFileName}><span className="text-muted-foreground">File:</span> {currentConflict.existingRecord.cvFileName}</p>
+                                <p><span className="text-muted-foreground">Added:</span> {new Date(currentConflict.existingRecord.createdAt).toLocaleDateString()}</p>
+                                <p><span className="text-muted-foreground">Code:</span> <Badge variant="secondary">{currentConflict.existingRecord.jobCode}</Badge></p>
+                            </div>
+                            <div className="p-3 border rounded-md bg-amber-50 border-amber-200">
+                                <h4 className="font-semibold mb-2 text-amber-900">New Upload</h4>
+                                <p className="truncate" title={currentConflict.newRecord.cvFileName}><span className="text-amber-800/80">File:</span> {currentConflict.newRecord.cvFileName}</p>
+                                <p><span className="text-amber-800/80">Uploading:</span> {new Date().toLocaleDateString()}</p>
+                                <p><span className="text-amber-800/80">Code:</span> <Badge>{currentConflict.newRecord.jobCode}</Badge></p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => resolveConflict('skip')}>Skip This CV</Button>
+                            <Button onClick={() => resolveConflict('replace')} className="bg-amber-500 hover:bg-amber-600">Replace Record</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                )}
+            </Dialog>
         </div>
     );
 }
 
+    
