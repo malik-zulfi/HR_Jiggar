@@ -9,4 +9,4 @@ import '@/ai/flows/name-extractor.ts';
 import '@/ai/flows/query-candidate.ts';
 import '@/ai/flows/query-knowledge-base.ts';
 import '@/ai/flows/cv-parser.ts';
-import '@/ai/flows/relevance-checker.ts';
+import '@/ai/flows/find-suitable-positions.ts';

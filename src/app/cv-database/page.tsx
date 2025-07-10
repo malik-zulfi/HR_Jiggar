@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Settings, Wand2, LayoutDashboard, GanttChartSquare } from "lucide-react";
-import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CheckRelevanceInput } from '@/lib/types';
+import type { CvDatabaseRecord, AssessmentSession, SuitablePosition } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FileUploader from '@/components/file-uploader';
@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { checkRelevance } from '@/ai/flows/relevance-checker';
+import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
 import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 import { Header } from '@/components/header';
 
@@ -67,7 +67,6 @@ export default function CvDatabasePage() {
     
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
     const [isCheckingRelevance, setIsCheckingRelevance] = useState(false);
-    const [hasCheckedRelevance, setHasCheckedRelevance] = useState(false);
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
 
@@ -80,17 +79,18 @@ export default function CvDatabasePage() {
     const resolveConflict = (action: 'replace' | 'skip') => {
         if (!currentConflict) return;
         
+        let newRecord: CvDatabaseRecord | null = null;
         if (action === 'replace') {
-            const finalRecord: CvDatabaseRecord = {
+            newRecord = {
                 ...currentConflict.newRecord,
                 createdAt: new Date().toISOString(),
             };
             setCvDatabase(prevDb => {
                 const dbMap = new Map(prevDb.map(c => [c.email, c]));
-                dbMap.set(finalRecord.email, finalRecord);
+                dbMap.set(newRecord!.email, newRecord!);
                 return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             });
-            toast({ description: `Record for ${finalRecord.name} was replaced.` });
+            toast({ description: `Record for ${newRecord.name} was replaced.` });
         } else {
              toast({ description: `Upload for ${currentConflict.newRecord.name} was skipped.` });
         }
@@ -98,6 +98,10 @@ export default function CvDatabasePage() {
         const newQueue = conflictQueue.slice(1);
         setConflictQueue(newQueue);
         setCurrentConflict(newQueue[0] || null);
+        
+        if (newRecord) {
+            handleNewCandidateAdded(newRecord);
+        }
     };
 
     useEffect(() => {
@@ -175,95 +179,43 @@ export default function CvDatabasePage() {
         setIsRelevanceCheckEnabled(enabled);
         if (isClient) {
             localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
-            if (enabled && !hasCheckedRelevance) {
-                calculateSuitablePositions();
-            }
             if (!enabled) {
                 setSuitablePositions([]);
             }
         }
     };
 
-    const calculateSuitablePositions = useCallback(async () => {
-        if (!isRelevanceCheckEnabled || !history.length || !cvDatabase.length || isCheckingRelevance) {
+    const handleNewCandidateAdded = useCallback(async (candidate: CvDatabaseRecord) => {
+        if (!isRelevanceCheckEnabled || history.length === 0) {
             return;
         }
 
         setIsCheckingRelevance(true);
-        toast({ description: "Checking for new suitable positions for your candidates..." });
+        toast({ description: `Checking for suitable positions for ${candidate.name}...` });
 
-        const sessionsByJobCode = new Map<string, AssessmentSession[]>();
-        history.forEach(session => {
-            const code = session.analyzedJd.code;
-            if (code) {
-                const list = sessionsByJobCode.get(code) || [];
-                list.push(session);
-                sessionsByJobCode.set(code, list);
-            }
-        });
+        try {
+            const result = await findSuitablePositionsForCandidate({
+                candidate,
+                assessmentSessions: history,
+                existingSuitablePositions: suitablePositions
+            });
 
-        const newSuitablePositions: SuitablePosition[] = [];
-        const checkedPairs = new Set(suitablePositions.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-
-        const relevanceChecks: Promise<void>[] = [];
-
-        cvDatabase.forEach(cv => {
-            const potentialSessions = sessionsByJobCode.get(cv.jobCode) || [];
-            potentialSessions.forEach(session => {
-                const isAlreadyAssessed = session.candidates.some(candidateRecord => {
-                    const match = candidateRecord.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
-                    const assessedEmail = match ? match[0].toLowerCase() : null;
-                    return assessedEmail === cv.email.toLowerCase();
+            if (result.newlyFoundPositions.length > 0) {
+                setSuitablePositions(prev => [...prev, ...result.newlyFoundPositions]);
+                toast({
+                    title: "New Opportunities Found!",
+                    description: `Found ${result.newlyFoundPositions.length} new relevant position(s) for ${candidate.name}.`,
                 });
-
-                const pairKey = `${cv.email}-${session.id}`;
-                if (isAlreadyAssessed || checkedPairs.has(pairKey)) {
-                    return;
-                }
-                
-                const check: CheckRelevanceInput = {
-                    cvContent: cv.cvContent,
-                    jobDescription: `Job Title: ${session.analyzedJd.jobTitle}\nDepartment: ${session.analyzedJd.department || 'N/A'}`
-                };
-
-                relevanceChecks.push(
-                    checkRelevance(check).then(result => {
-                        if (result.isRelevant) {
-                            newSuitablePositions.push({
-                                candidateEmail: cv.email,
-                                candidateName: cv.name,
-                                assessment: session,
-                            });
-                        }
-                        checkedPairs.add(pairKey);
-                    }).catch(error => {
-                        console.error(`Relevance check failed for ${cv.name} and ${session.jdName}:`, error);
-                    })
-                );
-            });
-        });
-
-        await Promise.all(relevanceChecks);
-        
-        if (newSuitablePositions.length > 0) {
-            setSuitablePositions(prev => [...prev, ...newSuitablePositions]);
-            toast({
-                title: "New Opportunities Found!",
-                description: `Found ${newSuitablePositions.length} new relevant positions for candidates in your database.`,
-            });
-        } else {
-            toast({ description: "No new relevant positions found at this time." });
+            } else {
+                toast({ description: `No new relevant positions found for ${candidate.name} at this time.` });
+            }
+        } catch (error: any) {
+            console.error(`Relevance check failed for ${candidate.name}:`, error);
+            toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
+        } finally {
+            setIsCheckingRelevance(false);
         }
-        
-        setIsCheckingRelevance(false);
-        setHasCheckedRelevance(true);
-    }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast, isRelevanceCheckEnabled]);
-    
-    useEffect(() => {
-        if(isClient && cvDatabase.length > 0 && history.length > 0 && !hasCheckedRelevance && isRelevanceCheckEnabled) {
-           calculateSuitablePositions();
-        }
-    }, [isClient, cvDatabase, history, hasCheckedRelevance, isRelevanceCheckEnabled, calculateSuitablePositions]);
+    }, [isRelevanceCheckEnabled, history, suitablePositions, toast]);
 
     const toTitleCase = (str: string): string => {
         if (!str) return '';
@@ -325,6 +277,7 @@ export default function CvDatabasePage() {
         const dbEmails = new Map(cvDatabase.map(c => [c.email, c]));
         let successCount = 0;
         const newConflicts: Conflict[] = [];
+        const newRecords: CvDatabaseRecord[] = [];
 
         for (const cv of filesToProcess) {
             try {
@@ -359,6 +312,7 @@ export default function CvDatabasePage() {
                         return Array.from(dbMap.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                     });
                     dbEmails.set(record.email, record);
+                    newRecords.push(record);
                     successCount++;
                     setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: record.name } }));
                 }
@@ -379,7 +333,10 @@ export default function CvDatabasePage() {
                 description: "Some CVs match existing records. Please resolve the conflicts.",
             });
         }
-    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase]);
+        
+        newRecords.forEach(handleNewCandidateAdded);
+
+    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded]);
     
     const handleDeleteCv = (emailToDelete: string) => {
         setCvDatabase(prev => prev.filter(cv => cv.email !== emailToDelete));
@@ -473,7 +430,6 @@ export default function CvDatabasePage() {
                 onAddCandidate={handleQuickAddToAssessment}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
-                onRunRelevanceCheck={calculateSuitablePositions}
                 isCheckingRelevance={isCheckingRelevance}
             />
             <main className="flex-1 p-4 md:p-8">
