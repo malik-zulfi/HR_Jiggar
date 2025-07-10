@@ -222,3 +222,22 @@ export const ParseCvOutputSchema = CvDatabaseRecordSchema.omit({
     createdAt: true,
 });
 export type ParseCvOutput = z.infer<typeof ParseCvOutputSchema>;
+
+// For Relevance Checker
+export const CheckRelevanceInputSchema = z.object({
+  cvContent: z.string().describe("The full text content of the candidate's CV."),
+  jobDescription: z.string().describe('The job description to check relevance against. This should be concise, containing the job title and key responsibilities/skills.'),
+});
+export type CheckRelevanceInput = z.infer<typeof CheckRelevanceInputSchema>;
+
+export const CheckRelevanceOutputSchema = z.object({
+  isRelevant: z.boolean().describe('Whether the candidate is considered relevant for the job.'),
+  reason: z.string().describe('A brief reason for the relevance decision.'),
+});
+export type CheckRelevanceOutput = z.infer<typeof CheckRelevanceOutputSchema>;
+
+export type SuitablePosition = {
+    candidateEmail: string;
+    candidateName: string;
+    assessment: AssessmentSession;
+};
