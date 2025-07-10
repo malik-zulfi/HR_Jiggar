@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown, AlertTriangle } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown, AlertTriangle, ListFilter } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CandidateRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +26,7 @@ import { Header } from '@/components/header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -45,7 +46,12 @@ type Conflict = {
 };
 type RelevanceCheckStatus = Record<string, boolean>;
 type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direction: 'ascending' | 'descending'; };
-
+type CandidateAssessmentInfo = {
+    sessionId: string;
+    sessionName: string;
+    jobTitle: string;
+    score: number;
+};
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
@@ -68,19 +74,48 @@ export default function CvDatabasePage() {
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
     const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
+    const [selectedCvEmails, setSelectedCvEmails] = useState<Set<string>>(new Set());
 
-    const assessmentCounts = useMemo(() => {
-        const counts = new Map<string, number>();
+    const sortedAndFilteredCvs = useMemo(() => {
+        const filtered = searchTerm.trim() 
+            ? cvDatabase.filter(cv => 
+                cv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.jobCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.currentCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                cv.structuredContent.skills?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
+              ) 
+            : cvDatabase;
+
+        return [...filtered].sort((a, b) => {
+            const aVal = a[sortDescriptor.column];
+            const bVal = b[sortDescriptor.column];
+
+            // Handle experience sorting (string to number)
+            if (sortDescriptor.column === 'totalExperience') {
+                const aYears = parseFloat(a.totalExperience || '0');
+                const bYears = parseFloat(b.totalExperience || '0');
+                return sortDescriptor.direction === 'ascending' ? aYears - bYears : bYears - aYears;
+            }
+
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+            
+            const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+            return sortDescriptor.direction === 'ascending' ? comparison : -comparison;
+        });
+    }, [cvDatabase, searchTerm, sortDescriptor]);
+    
+    const assessmentMap = useMemo(() => {
+        const map = new Map<string, CandidateAssessmentInfo[]>();
         if (cvDatabase.length === 0 || history.length === 0) {
-            return counts;
+            return map;
         }
-
-        const emailToNameMap = new Map(cvDatabase.map(cv => [cv.email.toLowerCase(), cv.name.toLowerCase()]));
 
         history.forEach(session => {
             session.candidates.forEach(candidate => {
                 let email = candidate.analysis.email?.toLowerCase();
-
                 if (!email) {
                     const candidateNameLower = candidate.analysis.candidateName.toLowerCase();
                     const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidateNameLower);
@@ -90,11 +125,19 @@ export default function CvDatabasePage() {
                 }
 
                 if (email) {
-                    counts.set(email, (counts.get(email) || 0) + 1);
+                    if (!map.has(email)) {
+                        map.set(email, []);
+                    }
+                    map.get(email)!.push({
+                        sessionId: session.id,
+                        sessionName: session.jdName,
+                        jobTitle: session.analyzedJd.jobTitle || 'N/A',
+                        score: candidate.analysis.alignmentScore,
+                    });
                 }
             });
         });
-        return counts;
+        return map;
     }, [history, cvDatabase]);
 
     const handleSort = (column: SortDescriptor['column']) => {
@@ -273,37 +316,6 @@ export default function CvDatabasePage() {
           .join(' ');
     }
 
-    const sortedAndFilteredCvs = useMemo(() => {
-        const filtered = searchTerm.trim() 
-            ? cvDatabase.filter(cv => 
-                cv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.jobCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.currentTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.currentCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                cv.structuredContent.skills?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
-              ) 
-            : cvDatabase;
-
-        return [...filtered].sort((a, b) => {
-            const aVal = a[sortDescriptor.column];
-            const bVal = b[sortDescriptor.column];
-
-            // Handle experience sorting (string to number)
-            if (sortDescriptor.column === 'totalExperience') {
-                const aYears = parseFloat(a.totalExperience || '0');
-                const bYears = parseFloat(b.totalExperience || '0');
-                return sortDescriptor.direction === 'ascending' ? aYears - bYears : bYears - aYears;
-            }
-
-            if (aVal === null || aVal === undefined) return 1;
-            if (bVal === null || bVal === undefined) return -1;
-            
-            const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
-            return sortDescriptor.direction === 'ascending' ? comparison : -comparison;
-        });
-    }, [cvDatabase, searchTerm, sortDescriptor]);
-
     const handleCvUpload = (files: UploadedFile[]) => {
         setCvsToUpload(prev => [...prev, ...files]);
     };
@@ -401,50 +413,41 @@ export default function CvDatabasePage() {
 
     }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded]);
     
-    const handleDeleteCv = (emailToDelete: string) => {
+    const handleDeleteCv = (emailsToDelete: string[]) => {
+        if (emailsToDelete.length === 0) return;
+
+        const emailsToDeleteSet = new Set(emailsToDelete.map(e => e.toLowerCase()));
+        
         // Remove from CV Database
-        setCvDatabase(prev => prev.filter(cv => cv.email !== emailToDelete));
+        setCvDatabase(prev => prev.filter(cv => !emailsToDeleteSet.has(cv.email.toLowerCase())));
 
         // Remove from all assessments in history
         setHistory(prevHistory => {
             return prevHistory.map(session => {
                 const updatedCandidates = session.candidates.filter(candidate => {
-                    if (candidate.analysis.email) {
-                        return candidate.analysis.email.toLowerCase() !== emailToDelete.toLowerCase();
+                    const candidateEmail = candidate.analysis.email?.toLowerCase();
+                    if (candidateEmail) {
+                        return !emailsToDeleteSet.has(candidateEmail);
                     }
-                    // Fallback for older data that may not have the email in the analysis
-                    const candidateName = candidate.analysis.candidateName;
-                    const dbRecord = cvDatabase.find(dbCv => dbCv.name === candidateName);
-                    if (dbRecord) {
-                        return dbRecord.email.toLowerCase() !== emailToDelete.toLowerCase();
-                    }
-                    return !candidate.cvContent.toLowerCase().includes(emailToDelete.toLowerCase());
+                    return true;
                 });
                 return { ...session, candidates: updatedCandidates, summary: updatedCandidates.length > 0 ? session.summary : null };
             });
         });
+        
+        setSelectedCvEmails(new Set());
 
         toast({
-            description: "Candidate record deleted from the database and all assessments.",
+            description: `${emailsToDelete.length} candidate record(s) deleted from the database and all assessments.`,
         });
     };
 
     const handleQuickAddToAssessment = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession) => {
-        // This function now only sets up the navigation and state passing.
-        // The actual assessment logic is handled on the AssessmentPage.
-        
         toast({ description: `Navigating to assess ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
-
-        const pendingAssessment = {
-            candidate,
-            assessment
-        };
-
+        const pendingAssessment = { candidate, assessment };
         localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingAssessment));
         localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
-        
         router.push('/assessment');
-
     }, [router, toast]);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
@@ -470,7 +473,26 @@ export default function CvDatabasePage() {
             return () => clearTimeout(cleanupTimeout);
         }
     }, [processingStatus, isProcessing]);
+    
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedCvEmails(new Set(sortedAndFilteredCvs.map(cv => cv.email)));
+        } else {
+            setSelectedCvEmails(new Set());
+        }
+    };
 
+    const handleSelectOne = (email: string, checked: boolean) => {
+        setSelectedCvEmails(prev => {
+            const newSet = new Set(prev);
+            if (checked) {
+                newSet.add(email);
+            } else {
+                newSet.delete(email);
+            }
+            return newSet;
+        });
+    };
     
     if (!isClient) return null;
 
@@ -541,16 +563,28 @@ export default function CvDatabasePage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Database/> Candidate Records ({cvDatabase.length})</CardTitle>
-                            <div className="flex justify-between items-center">
-                                <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
-                                <div className="relative w-full max-w-sm">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input 
-                                        placeholder="Search by name, email, title, skills, code..."
-                                        className="pl-9"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                             <div className="flex justify-between items-center gap-4">
+                                <CardDescription>Browse, search, and manage all candidates in the database.</CardDescription>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className="relative w-full max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input 
+                                            placeholder="Search database..."
+                                            className="pl-9"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    {selectedCvEmails.size > 0 && (
+                                        <BulkActions
+                                            selectedEmails={selectedCvEmails}
+                                            candidates={cvDatabase}
+                                            assessments={history}
+                                            onDelete={handleDeleteCv}
+                                            onAddToAssessment={handleQuickAddToAssessment}
+                                            onClear={() => setSelectedCvEmails(new Set())}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
@@ -559,6 +593,13 @@ export default function CvDatabasePage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-12 px-3">
+                                                <Checkbox
+                                                  checked={selectedCvEmails.size > 0 && selectedCvEmails.size === sortedAndFilteredCvs.length}
+                                                  indeterminate={selectedCvEmails.size > 0 && selectedCvEmails.size < sortedAndFilteredCvs.length}
+                                                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                                />
+                                            </TableHead>
                                             <TableHead className="w-12">Status</TableHead>
                                             <TableHead onClick={() => handleSort('name')} className="w-1/4">
                                                 <div className="flex items-center gap-2 cursor-pointer">Name <ArrowUpDown className="h-4 w-4" /></div>
@@ -577,25 +618,52 @@ export default function CvDatabasePage() {
                                     <TableBody>
                                         {sortedAndFilteredCvs.length > 0 ? sortedAndFilteredCvs.map(cv => {
                                             const isChecking = relevanceCheckStatus[cv.email];
-                                            const count = assessmentCounts.get(cv.email.toLowerCase()) || 0;
+                                            const candidateAssessments = assessmentMap.get(cv.email.toLowerCase()) || [];
+                                            const count = candidateAssessments.length;
                                             return (
-                                                <TableRow key={cv.email} onClick={() => setSelectedCv(cv)} className="cursor-pointer">
-                                                    <TableCell>
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <TooltipTrigger>
-                                                                    <div className="flex items-center">
-                                                                        <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
-                                                                        {count > 0 && <sup className="font-bold text-xs -ml-1 text-muted-foreground">{count}</sup>}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>{count > 0 ? `In ${count} assessment(s)` : 'Not yet assessed'}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
+                                                <TableRow 
+                                                  key={cv.email}
+                                                  data-state={selectedCvEmails.has(cv.email) ? 'selected' : ''}
+                                                >
+                                                    <TableCell className="px-3">
+                                                        <Checkbox
+                                                            checked={selectedCvEmails.has(cv.email)}
+                                                            onCheckedChange={(checked) => handleSelectOne(cv.email, !!checked)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
                                                     </TableCell>
-                                                    <TableCell className="font-medium text-primary truncate" title={cv.name}>
+                                                    <TableCell>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild disabled={count === 0} onClick={(e) => e.stopPropagation()}>
+                                                                <div className={cn("flex items-center", count > 0 && "cursor-pointer")}>
+                                                                    <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
+                                                                    {count > 0 && <sup className="font-bold text-xs -ml-1 text-muted-foreground">{count}</sup>}
+                                                                </div>
+                                                            </PopoverTrigger>
+                                                            {count > 0 && (
+                                                                <PopoverContent className="w-96 p-2">
+                                                                    <div className="space-y-1 mb-2 p-2">
+                                                                        <h4 className="font-medium leading-none">Assessments for {cv.name}</h4>
+                                                                        <p className="text-sm text-muted-foreground">Quick links to view assessments.</p>
+                                                                    </div>
+                                                                    <div className="max-h-60 overflow-y-auto">
+                                                                        {candidateAssessments.map(a => (
+                                                                            <Link key={a.sessionId} href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, a.sessionId)}>
+                                                                                <div className="p-2 rounded-md hover:bg-secondary flex justify-between items-center">
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="font-semibold text-sm truncate">{a.jobTitle}</span>
+                                                                                        <span className="text-xs text-muted-foreground truncate">{a.sessionName}</span>
+                                                                                    </div>
+                                                                                    <Badge variant={a.score >= 75 ? "default" : a.score >= 40 ? "secondary" : "destructive"}>{a.score}%</Badge>
+                                                                                </div>
+                                                                            </Link>
+                                                                        ))}
+                                                                    </div>
+                                                                </PopoverContent>
+                                                            )}
+                                                        </Popover>
+                                                    </TableCell>
+                                                    <TableCell className="font-medium text-primary truncate cursor-pointer" title={cv.name} onClick={() => setSelectedCv(cv)}>
                                                         {cv.name}
                                                     </TableCell>
                                                     <TableCell className="truncate" title={cv.currentTitle || 'N/A'}>
@@ -608,7 +676,8 @@ export default function CvDatabasePage() {
                                                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                                                              <AddCandidatePopover
                                                                 candidate={cv}
-                                                                assessments={history}
+                                                                assessments={assessmentMap.get(cv.email.toLowerCase()) || []}
+                                                                allAssessments={history}
                                                                 onAdd={handleAddFromPopover}
                                                             />
                                                              <TooltipProvider>
@@ -649,7 +718,7 @@ export default function CvDatabasePage() {
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>
                                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                                        <AlertDialogAction onClick={() => handleDeleteCv([cv.email])} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
                                                                             Delete
                                                                         </AlertDialogAction>
                                                                     </AlertDialogFooter>
@@ -661,7 +730,7 @@ export default function CvDatabasePage() {
                                             )
                                         }) : (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="h-24 text-center">
+                                                <TableCell colSpan={8} className="h-24 text-center">
                                                     {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
                                                 </TableCell>
                                             </TableRow>
@@ -729,36 +798,20 @@ export default function CvDatabasePage() {
     );
 }
 
-const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
+const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: {
     candidate: CvDatabaseRecord;
-    assessments: AssessmentSession[];
+    assessments: CandidateAssessmentInfo[];
+    allAssessments: AssessmentSession[];
     onAdd: (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     
     const compatibleAssessments = useMemo(() => {
-        const assessedSessionIds = new Set<string>();
-        
-        const candidateEmailLower = candidate.email.toLowerCase();
-
-        assessments.forEach(session => {
-            session.candidates.forEach(c => {
-                const assessedEmail = c.analysis.email?.toLowerCase();
-                // Prioritize checking the reliable email field first
-                if (assessedEmail && assessedEmail === candidateEmailLower) {
-                    assessedSessionIds.add(session.id);
-                } 
-                // Fallback for old data: check by name.
-                else if (!assessedEmail && c.analysis.candidateName.toLowerCase() === candidate.name.toLowerCase()) {
-                    assessedSessionIds.add(session.id);
-                }
-            });
-        });
-
-        return assessments.filter(session =>
+        const assessedSessionIds = new Set(assessments.map(a => a.sessionId));
+        return allAssessments.filter(session =>
             session.analyzedJd.code === candidate.jobCode && !assessedSessionIds.has(session.id)
         );
-    }, [candidate, assessments]);
+    }, [candidate, assessments, allAssessments]);
 
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -804,12 +857,113 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     );
 };
     
-
+const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddToAssessment, onClear }: {
+    selectedEmails: Set<string>;
+    candidates: CvDatabaseRecord[];
+    assessments: AssessmentSession[];
+    onDelete: (emails: string[]) => void;
+    onAddToAssessment: (candidate: CvDatabaseRecord, assessment: AssessmentSession) => void;
+    onClear: () => void;
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
     
-
-
-
-
+    const selectedCount = selectedEmails.size;
+    const selectedCandidates = candidates.filter(c => selectedEmails.has(c.email));
     
+    // Find assessments that *all* selected candidates could potentially be added to.
+    const commonAssessments = useMemo(() => {
+        if (selectedCandidates.length === 0) return [];
+        
+        const firstCandidateJobCode = selectedCandidates[0].jobCode;
+        if (!selectedCandidates.every(c => c.jobCode === firstCandidateJobCode)) {
+            return []; // Return empty if job codes are mixed
+        }
+        
+        return assessments.filter(session => {
+            if (session.analyzedJd.code !== firstCandidateJobCode) return false;
+            
+            // Check if *any* of the selected candidates are already in this session
+            const sessionEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+            return !selectedCandidates.some(sel => sessionEmails.has(sel.email.toLowerCase()));
+        });
 
-    
+    }, [selectedCandidates, assessments]);
+
+    const handleBulkAdd = (assessment: AssessmentSession) => {
+        toast({ description: `Adding ${selectedCount} candidates to "${assessment.analyzedJd.jobTitle}". You will be redirected.` });
+        let i = 0;
+        for (const candidate of selectedCandidates) {
+            // Only redirect on the last one
+            if (i === selectedCandidates.length - 1) {
+                onAddToAssessment(candidate, assessment);
+            } else {
+                const pendingAssessment = { candidate, assessment };
+                localStorage.setItem(`${PENDING_ASSESSMENT_KEY}_${i}`, JSON.stringify(pendingAssessment));
+            }
+            i++;
+        }
+        onClear();
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="flex items-center gap-2 border-l pl-2">
+            <span className="text-sm font-medium">{selectedCount} selected</span>
+            
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add to Assessment</Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-2">
+                    <div className="grid gap-4">
+                        <div className="space-y-1">
+                            <h4 className="font-medium leading-none">Add {selectedCount} Candidates to...</h4>
+                            <p className="text-sm text-muted-foreground">
+                                {commonAssessments.length > 0 ? "Showing assessments compatible with all selected candidates." : "Selected candidates have mixed job codes or are already in all compatible assessments."}
+                            </p>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            {commonAssessments.length > 0 ? (
+                                commonAssessments.map(session => (
+                                    <button
+                                        key={session.id}
+                                        onClick={() => handleBulkAdd(session)}
+                                        className="w-full text-left p-2 rounded-md hover:bg-secondary flex flex-col"
+                                    >
+                                        <span className="font-medium truncate">{session.analyzedJd.jobTitle}</span>
+                                        <span className="text-xs text-muted-foreground">{session.jdName}</span>
+                                    </button>
+                                ))
+                            ) : (
+                                <p className="p-2 text-sm text-center text-muted-foreground">No common assessments found.</p>
+                            )}
+                        </div>
+                    </div>
+                </PopoverContent>
+            </Popover>
+
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the selected {selectedCount} candidate(s) and remove them from all assessments. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onDelete(Array.from(selectedEmails))} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClear}>
+                <X className="h-4 w-4"/>
+            </Button>
+        </div>
+    );
+};
