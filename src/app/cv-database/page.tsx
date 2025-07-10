@@ -430,4 +430,3 @@ export default function CvDatabasePage() {
         </div>
     );
 }
-
