@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, ChevronsUpDown, AlertTriangle, Bell, Plus } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, AlertTriangle, Bell, Plus } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CheckRelevanceInput } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -304,10 +303,10 @@ export default function CvDatabasePage() {
     }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast]);
     
     useEffect(() => {
-        if(isClient) {
+        if(isClient && cvDatabase.length > 0 && history.length > 0) {
            calculateSuitablePositions();
         }
-    }, [isClient, cvDatabase, history]);
+    }, [isClient, cvDatabase, history, calculateSuitablePositions]);
 
 
     const filteredCvs = useMemo(() => {
@@ -610,10 +609,10 @@ export default function CvDatabasePage() {
                                                     <span className="font-semibold text-primary col-span-3 truncate" title={cv.name}>{cv.name}</span>
                                                     <span className="text-sm text-muted-foreground col-span-3 truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
                                                     <span className="text-sm text-muted-foreground col-span-2 truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground col-span-1">{cv.totalExperience || 'N/A'}</span>
+                                                    <span className="text-sm text-muted-foreground col-span-1 truncate">{cv.totalExperience || 'N/A'}</span>
                                                     <div className="flex items-center gap-2 flex-wrap col-span-3">
                                                         <Badge>{cv.jobCode}</Badge>
-                                                        <Badge variant="outline" className="font-normal text-muted-foreground">
+                                                        <Badge variant="outline" className="font-normal text-muted-foreground truncate">
                                                             <Clock className="h-3 w-3 mr-1.5" />
                                                             {new Date(cv.createdAt).toLocaleDateString()}
                                                         </Badge>
