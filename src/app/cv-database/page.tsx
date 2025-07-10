@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2, X, PlusCircle, ArrowUpDown } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CandidateRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -539,19 +539,19 @@ export default function CvDatabasePage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[20%]" onClick={() => handleSort('name')}>
+                                            <TableHead className="w-12">Status</TableHead>
+                                            <TableHead onClick={() => handleSort('name')} className="w-1/4">
                                                 <div className="flex items-center gap-2 cursor-pointer">Name <ArrowUpDown className="h-4 w-4" /></div>
                                             </TableHead>
-                                            <TableHead className="w-[25%]">Current Position</TableHead>
-                                            <TableHead className="w-[10%]" onClick={() => handleSort('totalExperience')}>
+                                            <TableHead className="w-1/4">Current Position</TableHead>
+                                            <TableHead onClick={() => handleSort('totalExperience')} className="w-[15%]">
                                                 <div className="flex items-center gap-2 cursor-pointer">Experience <ArrowUpDown className="h-4 w-4" /></div>
                                             </TableHead>
-                                            <TableHead className="w-[10%]">Job Code</TableHead>
-                                            <TableHead className="w-[10%]">Status</TableHead>
-                                            <TableHead className="w-[10%]" onClick={() => handleSort('createdAt')}>
+                                            <TableHead>Job Code</TableHead>
+                                            <TableHead onClick={() => handleSort('createdAt')} className="w-[15%]">
                                                 <div className="flex items-center gap-2 cursor-pointer">Date Added <ArrowUpDown className="h-4 w-4" /></div>
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right">Actions</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -560,6 +560,21 @@ export default function CvDatabasePage() {
                                             const count = assessmentCounts.get(cv.email.toLowerCase()) || 0;
                                             return (
                                                 <TableRow key={cv.email} onClick={() => setSelectedCv(cv)} className="cursor-pointer">
+                                                    <TableCell>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <div className="flex items-center">
+                                                                        <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
+                                                                        {count > 0 && <sup className="font-bold text-xs -ml-1 text-muted-foreground">{count}</sup>}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{count > 0 ? `In ${count} assessment(s)` : 'Not yet assessed'}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </TableCell>
                                                     <TableCell className="font-medium text-primary truncate" title={cv.name}>
                                                         {cv.name}
                                                     </TableCell>
@@ -568,12 +583,6 @@ export default function CvDatabasePage() {
                                                     </TableCell>
                                                     <TableCell>{cv.totalExperience || 'N/A'}</TableCell>
                                                     <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={cn("text-2xl", count > 0 ? "text-green-500" : "text-red-500")}>•</span>
-                                                            <span className="text-xs text-muted-foreground">{count > 0 ? `In ${count} assessment(s)` : 'Not Assessed'}</span>
-                                                        </div>
-                                                    </TableCell>
                                                     <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
@@ -599,18 +608,18 @@ export default function CvDatabasePage() {
                                                                 </Tooltip>
                                                             </TooltipProvider>
                                                             <AlertDialog>
-                                                                <TooltipProvider>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <AlertDialogTrigger asChild>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
                                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
-                                                                            </AlertDialogTrigger>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                                    </Tooltip>
-                                                                </TooltipProvider>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                </AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -763,4 +772,6 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
         </Popover>
     );
 };
+    
+
     
