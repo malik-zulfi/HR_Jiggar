@@ -213,6 +213,8 @@ const SidebarInset = React.forwardRef<
       data-state={state}
       className={cn(
         "transition-all duration-300 ease-in-out flex-1",
+        "md:data-[state=expanded]:ml-[var(--sidebar-width)]",
+        "md:data-[state=collapsed]:ml-[var(--sidebar-width-collapsed)]",
         className
       )}
       {...props}
