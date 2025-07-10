@@ -115,31 +115,9 @@ export default function DashboardPage() {
     }, [history, filters.code]);
 
     const stats = useMemo(() => {
+        // Core metrics based on filtered history
         const totalPositions = filteredHistory.length;
         const totalCandidatesInAssessments = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
-
-        const allAssessedEmailsInFilter = new Set<string>();
-        filteredHistory.forEach(session => {
-            session.candidates.forEach(c => {
-                if (c.analysis.email) {
-                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
-                } else {
-                    // Fallback for older data that might not have the email in the analysis object
-                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
-                    if (dbRecord) {
-                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
-                    }
-                }
-            });
-        });
-
-        const unassessedCount = cvDatabase.filter(cv => {
-            const jobCodeMatches = filters.code === 'all' || cv.jobCode === filters.code;
-            if (!jobCodeMatches) return false;
-            
-            // Check if this candidate is in any of the *filtered* assessments.
-            return !allAssessedEmailsInFilter.has(cv.email.toLowerCase());
-        }).length;
         
         const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
@@ -149,10 +127,39 @@ export default function DashboardPage() {
                 sessionId: session.id,
             }))
         );
-
         const top5Candidates = allCandidates.sort((a, b) => b.alignmentScore - a.alignmentScore).slice(0, 5);
 
-        const candidatesByCode = cvDatabase.reduce<Record<string, number>>((acc, cv) => {
+        // Metrics based on filtered CV Database
+        const filteredCvDatabase = cvDatabase.filter(cv => {
+            const codeMatch = filters.code === 'all' || cv.jobCode === filters.code;
+            if (!codeMatch) return false;
+
+            if (filters.department !== 'all') {
+                const isCodeInDept = history.some(s => s.analyzedJd.code === cv.jobCode && s.analyzedJd.department === filters.department);
+                return isCodeInDept;
+            }
+            return true;
+        });
+
+        const totalInDb = filteredCvDatabase.length;
+
+        const allAssessedEmailsInFilter = new Set<string>();
+        filteredHistory.forEach(session => {
+            session.candidates.forEach(c => {
+                if (c.analysis.email) {
+                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
+                } else {
+                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
+                    }
+                }
+            });
+        });
+
+        const unassessedCount = filteredCvDatabase.filter(cv => !allAssessedEmailsInFilter.has(cv.email.toLowerCase())).length;
+        
+        const candidatesByCode = filteredCvDatabase.reduce<Record<string, number>>((acc, cv) => {
             const code = cv.jobCode || 'Not Specified';
             if (!acc[code]) {
                 acc[code] = 0;
@@ -166,7 +173,8 @@ export default function DashboardPage() {
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
 
-        const recent5Assessments = history
+        // Recent assessments based on filtered history
+        const recent5Assessments = filteredHistory
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5);
 
@@ -176,10 +184,10 @@ export default function DashboardPage() {
             top5Candidates, 
             chartDataByCode, 
             recent5Assessments, 
-            totalInDb: cvDatabase.length,
+            totalInDb,
             unassessedCount,
         };
-    }, [filteredHistory, history, cvDatabase, filters.code]);
+    }, [filteredHistory, cvDatabase, history, filters.code, filters.department]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
