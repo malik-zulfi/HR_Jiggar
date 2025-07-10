@@ -118,17 +118,21 @@ export default function DashboardPage() {
         const totalPositions = filteredHistory.length;
         const totalCandidatesInAssessments = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
 
-        const allAssessedCandidateEmails = new Set<string>();
-        history.forEach(session => {
+        const allAssessedEmailsInFilter = new Set<string>();
+        filteredHistory.forEach(session => {
             session.candidates.forEach(c => {
                 if (c.analysis.email) {
-                    allAssessedCandidateEmails.add(c.analysis.email.toLowerCase());
+                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
                 }
             });
         });
 
-        const unassessedCount = cvDatabase.filter(cv => !allAssessedCandidateEmails.has(cv.email.toLowerCase())).length;
-
+        const unassessedCount = cvDatabase.filter(cv => {
+            const jobCodeMatches = filters.code === 'all' || cv.jobCode === filters.code;
+            if (!jobCodeMatches) return false;
+            return !allAssessedEmailsInFilter.has(cv.email.toLowerCase());
+        }).length;
+        
         const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
                 ...candidate.analysis,
@@ -167,7 +171,7 @@ export default function DashboardPage() {
             totalInDb: cvDatabase.length,
             unassessedCount,
         };
-    }, [filteredHistory, history, cvDatabase]);
+    }, [filteredHistory, history, cvDatabase, filters.code]);
     
     const handleFilterChange = (filterType: 'code' | 'department', value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
@@ -405,4 +409,3 @@ export default function DashboardPage() {
         </div>
     );
 }
-
