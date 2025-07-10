@@ -6,14 +6,14 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, AlertTriangle, Bell, Plus } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Brain, Search, Clock, Users, Trash2, AlertTriangle, Bell, Plus, ChevronsUpDown } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CheckRelevanceInput } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FileUploader from '@/components/file-uploader';
 import { parseCv } from '@/ai/flows/cv-parser';
 import ProgressLoader from '@/components/progress-loader';
-import { Input } from '@/components/ui/input';
+import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import CvDisplay from '@/components/cv-display';
 import { cn } from '@/lib/utils';
@@ -128,6 +128,7 @@ export default function CvDatabasePage() {
     
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
     const [isCheckingRelevance, setIsCheckingRelevance] = useState(false);
+    const [hasCheckedRelevance, setHasCheckedRelevance] = useState(false);
 
 
     useEffect(() => {
@@ -304,10 +305,11 @@ export default function CvDatabasePage() {
     }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast]);
     
     useEffect(() => {
-        if(isClient && cvDatabase.length > 0 && history.length > 0) {
+        if(isClient && cvDatabase.length > 0 && history.length > 0 && !hasCheckedRelevance) {
            calculateSuitablePositions();
+           setHasCheckedRelevance(true);
         }
-    }, [isClient, cvDatabase, history, calculateSuitablePositions]);
+    }, [isClient, cvDatabase, history, hasCheckedRelevance, calculateSuitablePositions]);
 
 
     const filteredCvs = useMemo(() => {
@@ -635,36 +637,34 @@ export default function CvDatabasePage() {
                                                     </div>
                                                 </div>
                                             </AccordionTrigger>
-                                            <div className="flex items-center pl-2">
-                                                <AlertDialog>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
-                                                                </AlertDialogTrigger>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
+                                            <AlertDialog>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                            Delete
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </div>
                                         <AccordionContent className="p-4 bg-muted/30 border-t">
                                             <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-4 pb-4 border-b">
@@ -719,3 +719,5 @@ export default function CvDatabasePage() {
         </div>
     );
 }
+
+    
