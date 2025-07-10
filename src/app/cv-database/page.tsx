@@ -71,9 +71,24 @@ export default function CvDatabasePage() {
 
     const assessmentCounts = useMemo(() => {
         const counts = new Map<string, number>();
+        if (cvDatabase.length === 0 || history.length === 0) {
+            return counts;
+        }
+
+        const nameToEmailMap = new Map(cvDatabase.map(cv => [cv.name.toLowerCase(), cv.email.toLowerCase()]));
+
         history.forEach(session => {
             session.candidates.forEach(candidate => {
-                const email = candidate.analysis.email;
+                let email = candidate.analysis.email;
+
+                // Backwards compatibility: if email is not on the analysis, find it via name from the database.
+                if (!email) {
+                    const candidateNameLower = candidate.analysis.candidateName.toLowerCase();
+                    if (nameToEmailMap.has(candidateNameLower)) {
+                        email = nameToEmailMap.get(candidateNameLower);
+                    }
+                }
+
                 if (email) {
                     const lowerEmail = email.toLowerCase();
                     counts.set(lowerEmail, (counts.get(lowerEmail) || 0) + 1);
@@ -81,7 +96,7 @@ export default function CvDatabasePage() {
             });
         });
         return counts;
-    }, [history]);
+    }, [history, cvDatabase]);
 
     const handleSort = (column: SortDescriptor['column']) => {
         if (sortDescriptor.column === column) {
@@ -693,9 +708,22 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     
     const compatibleAssessments = useMemo(() => {
         const assessedSessionIds = new Set<string>();
+        const nameToEmailMap = new Map<string, string>();
+
         assessments.forEach(session => {
             session.candidates.forEach(c => {
-                if (c.analysis.email && c.analysis.email.toLowerCase() === candidate.email.toLowerCase()) {
+                let email = c.analysis.email;
+                if (!email) {
+                    if (!nameToEmailMap.has(c.analysis.candidateName.toLowerCase())) {
+                        // This fallback is imperfect but necessary for old data.
+                        // It assumes names are unique, which is not guaranteed.
+                        // The proper fix is adding email to analysis for all new candidates.
+                    }
+                    // For the popover, we can be a bit more aggressive. Let's assume if the name matches, it's the same person.
+                    if(c.analysis.candidateName.toLowerCase() === candidate.name.toLowerCase()){
+                        assessedSessionIds.add(session.id);
+                    }
+                } else if (email.toLowerCase() === candidate.email.toLowerCase()) {
                     assessedSessionIds.add(session.id);
                 }
             });
@@ -752,3 +780,4 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     
 
     
+
