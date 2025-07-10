@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Bell, Settings, Wand2 } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Settings, Wand2, LayoutDashboard, GanttChartSquare } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CheckRelevanceInput } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,12 +31,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { checkRelevance } from '@/ai/flows/relevance-checker';
 import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import NotificationPopover from '@/components/notification-popover';
+import { Header } from '@/components/header';
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const HISTORY_STORAGE_KEY = 'jiggar-history';
@@ -112,6 +109,9 @@ export default function CvDatabasePage() {
                 if (Array.isArray(parsedCvDb)) {
                     const validDb = parsedCvDb.map(record => {
                         const result = CvDatabaseRecordSchema.safeParse(record);
+                        if (result.success) {
+                            result.data.name = toTitleCase(result.data.name);
+                        }
                         return result.success ? result.data : null;
                     }).filter((r): r is CvDatabaseRecord => r !== null);
                     setCvDatabase(validDb.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
@@ -266,6 +266,14 @@ export default function CvDatabasePage() {
         }
     }, [isClient, cvDatabase, history, hasCheckedRelevance, isRelevanceCheckEnabled, calculateSuitablePositions]);
 
+    const toTitleCase = (str: string): string => {
+        if (!str) return '';
+        return str
+          .toLowerCase()
+          .split(/[\s-]+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+    }
 
     const filteredCvs = useMemo(() => {
         if (!searchTerm.trim()) {
@@ -331,6 +339,7 @@ export default function CvDatabasePage() {
                             jobCode: currentJobCode,
                             cvFileName: cv.name,
                             cvContent: cv.content,
+                            name: toTitleCase(parsedData.name),
                         },
                         existingRecord,
                     });
@@ -342,6 +351,7 @@ export default function CvDatabasePage() {
                         cvFileName: cv.name,
                         cvContent: cv.content,
                         createdAt: new Date().toISOString(),
+                        name: toTitleCase(parsedData.name),
                     };
                     
                     setCvDatabase(prevDb => {
@@ -351,7 +361,7 @@ export default function CvDatabasePage() {
                     });
                     dbEmails.set(record.email, record);
                     successCount++;
-                    setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
+                    setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: record.name } }));
                 }
             } catch (error: any) {
                 console.error(`Failed to parse ${cv.name}:`, error);
@@ -457,77 +467,16 @@ export default function CvDatabasePage() {
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
-             <header className="p-4 border-b bg-card shadow-sm sticky top-0 z-10">
-                <div className="container mx-auto flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                            <Database className="w-6 h-6 text-primary" />
-                        </div>
-                        <h1 className="text-xl font-bold text-foreground">CV Database</h1>
-                    </Link>
-                    <div className='flex items-center gap-2'>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                    <Settings className="h-5 w-5" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="end" className="w-80">
-                                <div className="grid gap-4">
-                                    <div className="space-y-2">
-                                        <h4 className="font-medium leading-none">Settings</h4>
-                                        <p className="text-sm text-muted-foreground">
-                                            Manage background AI features.
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center space-x-2 rounded-md border p-4">
-                                        <Wand2 className="h-5 w-5 text-primary" />
-                                        <div className="flex-1 space-y-1">
-                                            <p className="text-sm font-medium leading-none">
-                                            AI Relevance Check
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                            Automatically find relevant jobs for candidates.
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={isRelevanceCheckEnabled}
-                                            onCheckedChange={handleRelevanceToggle}
-                                        />
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      onClick={calculateSuitablePositions}
-                                      disabled={!isRelevanceCheckEnabled || isCheckingRelevance}
-                                    >
-                                      {isCheckingRelevance ? 'Checking...' : 'Run Check Manually'}
-                                    </Button>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-
-                         <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="relative">
-                                    <Bell className="h-5 w-5" />
-                                    {suitablePositions.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-                                            {suitablePositions.length}
-                                        </span>
-                                    )}
-                                </Button>
-                            </PopoverTrigger>
-                            <NotificationPopover positions={suitablePositions} onAddCandidate={handleQuickAddToAssessment} />
-                        </Popover>
-                        <Link href="/" passHref>
-                            <Button variant="outline">Dashboard</Button>
-                        </Link>
-                        <Link href="/assessment" passHref>
-                            <Button>Assessment Tool</Button>
-                        </Link>
-                    </div>
-                </div>
-            </header>
+            <Header
+                activePage="cv-database"
+                notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
+                suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
+                onAddCandidate={handleQuickAddToAssessment}
+                isRelevanceCheckEnabled={isRelevanceCheckEnabled}
+                onRelevanceCheckToggle={handleRelevanceToggle}
+                onRunRelevanceCheck={calculateSuitablePositions}
+                isCheckingRelevance={isCheckingRelevance}
+            />
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto space-y-6">
                     <Card>
@@ -596,42 +545,25 @@ export default function CvDatabasePage() {
                             </div>
                             
                             <Accordion type="single" collapsible className="w-full border rounded-md" value={openAccordion} onValueChange={setOpenAccordion}>
-                                {filteredCvs.length > 0 ? filteredCvs.map(cv => {
-                                    const suitableCount = suitablePositions.filter(p => p.candidateEmail === cv.email).length;
-                                    return (
+                                {filteredCvs.length > 0 ? filteredCvs.map(cv => (
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
                                         <div className="flex w-full items-center px-4 hover:bg-muted/50">
-                                            <AccordionTrigger className="flex-1 py-3 text-left hover:no-underline [&>svg]:ml-auto">
-                                                <div className="grid grid-cols-12 gap-x-4 items-center mr-4 w-full">
-                                                    <span className="font-semibold text-primary col-span-3 truncate" title={cv.name}>{cv.name}</span>
-                                                    <span className="text-sm text-muted-foreground col-span-3 truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground col-span-2 truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
-                                                    <span className="text-sm text-muted-foreground col-span-1 truncate">{cv.totalExperience || 'N/A'}</span>
-                                                    <div className="flex items-center gap-2 flex-wrap col-span-3">
+                                            <AccordionTrigger className="flex-1 py-0 text-left hover:no-underline [&>svg]:ml-auto">
+                                                <div className="grid grid-cols-[2fr,2fr,1.5fr,1fr,1.5fr] gap-x-4 items-center w-full text-sm py-3">
+                                                    <span className="font-semibold text-primary truncate" title={cv.name}>{cv.name}</span>
+                                                    <span className="text-muted-foreground truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
+                                                    <span className="text-muted-foreground truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
+                                                    <span className="text-muted-foreground truncate">{cv.totalExperience || 'N/A'}</span>
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <Badge>{cv.jobCode}</Badge>
                                                         <Badge variant="outline" className="font-normal text-muted-foreground truncate">
                                                             <Clock className="h-3 w-3 mr-1.5" />
                                                             {new Date(cv.createdAt).toLocaleDateString()}
                                                         </Badge>
-                                                        {suitableCount > 0 && isRelevanceCheckEnabled && (
-                                                            <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Badge variant="secondary" className="font-semibold border-primary/50 text-primary cursor-default">
-                                                                            <Briefcase className="h-3 w-3 mr-1.5" />
-                                                                            {suitableCount} Open Position(s)
-                                                                        </Badge>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>This candidate is a potential fit for {suitableCount} other open position(s). Check the bell icon.</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </AccordionTrigger>
-                                            <AlertDialog>
+                                             <AlertDialog>
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -669,7 +601,7 @@ export default function CvDatabasePage() {
                                             <CvDisplay structuredContent={cv.structuredContent} />
                                         </AccordionContent>
                                     </AccordionItem>
-                                )}) : (
+                                )) : (
                                     <div className="text-center p-8 text-muted-foreground">
                                         {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
                                     </div>

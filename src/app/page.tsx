@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Briefcase, Users, Award, Database, BarChart3, ArrowRight, Filter, X, History } from 'lucide-react';
+import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate, CvDatabaseRecord } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,10 +19,12 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 import Chatbot from '@/components/chatbot';
+import { Header } from '@/components/header';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
+const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
@@ -42,6 +44,8 @@ export default function DashboardPage() {
     const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
     const [isClient, setIsClient] = useState(false);
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
+    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
+
 
     useEffect(() => {
         setIsClient(true);
@@ -72,6 +76,9 @@ export default function DashboardPage() {
                     setCvDatabase(validDb);
                 }
             }
+
+            const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
+            setIsRelevanceCheckEnabled(relevanceEnabled);
         } catch (error) {
             console.error("Failed to load state from localStorage", error);
         }
@@ -163,22 +170,7 @@ export default function DashboardPage() {
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
-            <header className="p-4 border-b bg-card shadow-sm sticky top-0 z-10">
-                <div className="container mx-auto flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                            <Bot className="w-6 h-6 text-primary" />
-                        </div>
-                        <h1 className="text-xl font-bold text-foreground">Jiggar Assessment Dashboard</h1>
-                    </Link>
-                    <Link href="/assessment" passHref>
-                        <Button>
-                            Go to Assessment Tool
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                    </Link>
-                </div>
-            </header>
+            <Header activePage="dashboard" />
 
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto">
@@ -249,8 +241,8 @@ export default function DashboardPage() {
                                 <CardTitle className="flex items-center gap-2">CV Database</CardTitle>
                                 <CardDescription>Manage your central repository of candidate CVs.</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <Link href="/cv-database" passHref>
+                            <CardContent className="flex-1 flex items-end">
+                                <Link href="/cv-database" passHref className='w-full'>
                                     <Button className="w-full">
                                         <Database className="mr-2 h-4 w-4"/>
                                         Open CV Database
@@ -384,7 +376,9 @@ export default function DashboardPage() {
                     </Card>
                 </div>
             </main>
-            <Chatbot sessions={history} cvDatabase={cvDatabase} />
+            {isRelevanceCheckEnabled && <Chatbot sessions={history} cvDatabase={cvDatabase} />}
         </div>
     );
 }
+
+    

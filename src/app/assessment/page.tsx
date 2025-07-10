@@ -8,11 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Bell, Plus } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus } from "lucide-react";
 import { Sidebar, SidebarProvider, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarInput, useSidebar } from "@/components/ui/sidebar";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, AnalyzedCandidate, ChatMessage, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
@@ -35,13 +32,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import NotificationPopover from "@/components/notification-popover";
 
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
+const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
@@ -72,6 +69,8 @@ function AssessmentPageContent() {
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
+  
+  const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -167,6 +166,9 @@ function AssessmentPageContent() {
       if (savedSuitablePositions) {
           setSuitablePositions(JSON.parse(savedSuitablePositions));
       }
+      
+      const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
+      setIsRelevanceCheckEnabled(relevanceEnabled);
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
@@ -850,7 +852,14 @@ function AssessmentPageContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header onNewSession={handleNewSession} notificationCount={suitablePositions.length} />
+      <Header
+        onNewSession={handleNewSession}
+        notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
+        suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
+        onAddCandidate={handleQuickAddToAssessment}
+        isRelevanceCheckEnabled={isRelevanceCheckEnabled}
+        onRelevanceCheckToggle={setIsRelevanceCheckEnabled}
+      />
       <div 
           className="flex flex-1 w-full"
           style={ { "--sidebar-width": "18rem", "--sidebar-width-collapsed": "3.5rem" } as React.CSSProperties }
@@ -921,19 +930,6 @@ function AssessmentPageContent() {
                               <History className="w-5 h-5"/>
                               Assessments
                           </h3>
-                           <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="relative h-8 w-8">
-                                        <Bell className="h-5 w-5" />
-                                        {suitablePositions.length > 0 && (
-                                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-                                                {suitablePositions.length}
-                                            </span>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                                <NotificationPopover positions={suitablePositions} onAddCandidate={handleQuickAddToAssessment} />
-                            </Popover>
                         </div>
                         <div className='p-4 pt-0 border-b border-sidebar-border'>
                           <SidebarInput
@@ -1261,3 +1257,5 @@ export default function AssessmentPage() {
         </SidebarProvider>
     )
 }
+
+    
