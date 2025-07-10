@@ -413,6 +413,11 @@ export default function CvDatabasePage() {
                         return candidate.analysis.email.toLowerCase() !== emailToDelete.toLowerCase();
                     }
                     // Fallback for older data that may not have the email in the analysis
+                    const candidateName = candidate.analysis.candidateName;
+                    const dbRecord = cvDatabase.find(dbCv => dbCv.name === candidateName);
+                    if (dbRecord) {
+                        return dbRecord.email.toLowerCase() !== emailToDelete.toLowerCase();
+                    }
                     return !candidate.cvContent.toLowerCase().includes(emailToDelete.toLowerCase());
                 });
                 return { ...session, candidates: updatedCandidates, summary: updatedCandidates.length > 0 ? session.summary : null };
@@ -627,7 +632,11 @@ export default function CvDatabasePage() {
                                                                     <TooltipProvider>
                                                                         <Tooltip>
                                                                             <TooltipTrigger asChild>
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation(); // Prevent row click
+                                                                                }}
+                                                                                >
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
                                                                             </TooltipTrigger>
@@ -803,3 +812,6 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     
 
 
+
+
+    
