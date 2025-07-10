@@ -297,7 +297,7 @@ export default function CvDatabasePage() {
                         <CardFooter>
                             <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode}>
                                 {isProcessing ? (
-                                    <><Bot className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                                    <><Bot className="mr-2 h-4 w-4" /> Add to Queue</>
                                 ) : (
                                     <><Bot className="mr-2 h-4 w-4" /> Process & Add to Database</>
                                 )}
