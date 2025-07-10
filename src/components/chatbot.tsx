@@ -109,7 +109,7 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                           className="text-sm leading-relaxed"
                           components={{
                             p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
+                            ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
                             ol: ({node, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
                             a: ({node, ...props}) => {
                                 const { href, children, ...rest } = props;
