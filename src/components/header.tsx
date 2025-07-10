@@ -17,7 +17,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { SidebarTrigger } from "./ui/sidebar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
@@ -160,8 +159,8 @@ export function Header({
                 <NotificationPopover positions={suitablePositions} onAddCandidate={onAddCandidate} />
             </Popover>
 
-            {onNewSession && (
-                <AlertDialog>
+            {currentPage === 'assessment' && onNewSession && (
+                 <AlertDialog>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -199,5 +198,3 @@ export function Header({
     </header>
   );
 }
-
-    
