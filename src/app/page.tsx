@@ -376,9 +376,7 @@ export default function DashboardPage() {
                     </Card>
                 </div>
             </main>
-            {isRelevanceCheckEnabled && <Chatbot sessions={history} cvDatabase={cvDatabase} />}
+            <Chatbot sessions={history} cvDatabase={cvDatabase} />
         </div>
     );
 }
-
-    
