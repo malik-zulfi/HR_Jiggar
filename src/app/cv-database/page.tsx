@@ -28,6 +28,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
@@ -641,3 +642,5 @@ export default function CvDatabasePage() {
         </div>
     );
 }
+
+    
