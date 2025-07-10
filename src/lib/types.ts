@@ -126,10 +126,17 @@ export type QueryCandidateOutput = z.infer<typeof QueryCandidateOutputSchema>;
 
 
 // For Global Knowledge Base Query
+export const ChatMessageSchema = z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
 export const QueryKnowledgeBaseInputSchema = z.object({
   query: z.string().describe("The user's question about the knowledge base."),
   sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
   cvDatabase: z.array(z.lazy(() => CvDatabaseRecordSchema)).describe("The central database of all parsed CVs, including those not yet assessed."),
+  chatHistory: z.array(ChatMessageSchema).optional().describe('The history of the current conversation.'),
 });
 export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
 
@@ -140,12 +147,6 @@ export type QueryKnowledgeBaseOutput = z.infer<typeof QueryKnowledgeBaseOutputSc
 
 
 // For session history
-export const ChatMessageSchema = z.object({
-    role: z.enum(['user', 'assistant']),
-    content: z.string(),
-});
-export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-
 export const CandidateRecordSchema = z.object({
     cvName: z.string(),
     cvContent: z.string(),

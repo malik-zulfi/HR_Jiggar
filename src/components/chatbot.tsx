@@ -55,18 +55,20 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
     if (!query.trim()) return;
 
     const userMessage: ChatMessage = { role: 'user', content: query };
-    setChatHistory(prev => [...prev, userMessage]);
+    const newChatHistory = [...chatHistory, userMessage];
+    setChatHistory(newChatHistory);
     setQuery('');
     setIsLoading(true);
 
     try {
-      const result = await queryKnowledgeBase({ query, sessions, cvDatabase });
+      // Pass the entire chat history to the flow
+      const result = await queryKnowledgeBase({ query, sessions, cvDatabase, chatHistory: newChatHistory });
       const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch (error: any) {
       console.error("Error querying knowledge base:", error);
       toast({ variant: "destructive", title: "Chat Error", description: error.message || "An unexpected error occurred." });
-      setChatHistory(prev => prev.slice(0, -1));
+      setChatHistory(prev => prev.slice(0, -1)); // Remove the user message if the call fails
     } finally {
       setIsLoading(false);
     }
