@@ -123,6 +123,12 @@ export default function DashboardPage() {
             session.candidates.forEach(c => {
                 if (c.analysis.email) {
                     allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
+                } else {
+                    // Fallback for older data that might not have the email in the analysis object
+                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
+                    }
                 }
             });
         });
@@ -130,6 +136,8 @@ export default function DashboardPage() {
         const unassessedCount = cvDatabase.filter(cv => {
             const jobCodeMatches = filters.code === 'all' || cv.jobCode === filters.code;
             if (!jobCodeMatches) return false;
+            
+            // Check if this candidate is in any of the *filtered* assessments.
             return !allAssessedEmailsInFilter.has(cv.email.toLowerCase());
         }).length;
         
