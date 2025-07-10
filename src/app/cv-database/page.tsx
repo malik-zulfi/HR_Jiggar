@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2 } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2, X } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,26 +14,18 @@ import FileUploader from '@/components/file-uploader';
 import { parseCv } from '@/ai/flows/cv-parser';
 import ProgressLoader from '@/components/progress-loader';
 import { Input } from "@/components/ui/input";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import CvDisplay from '@/components/cv-display';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
 import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 import { Header } from '@/components/header';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const HISTORY_STORAGE_KEY = 'jiggar-history';
@@ -61,7 +53,6 @@ export default function CvDatabasePage() {
     const [processingStatus, setProcessingStatus] = useState<CvProcessingStatus>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
-    const [openAccordion, setOpenAccordion] = useState<string>();
     
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
@@ -69,6 +60,8 @@ export default function CvDatabasePage() {
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
     const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>({});
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
+    
+    const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
 
 
     useEffect(() => {
@@ -147,18 +140,15 @@ export default function CvDatabasePage() {
             const params = new URLSearchParams(window.location.search);
             const emailToOpen = params.get('email');
             if (emailToOpen) {
-                setOpenAccordion(emailToOpen);
-                setTimeout(() => {
-                    const element = document.getElementById(`cv-item-${emailToOpen}`);
-                    if (element) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 500);
+                const cvToOpen = cvDatabase.find(cv => cv.email === emailToOpen);
+                if (cvToOpen) {
+                    setSelectedCv(cvToOpen);
+                }
             }
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, []);
+    }, [isClient]);
 
     useEffect(() => {
         if (isClient) {
@@ -485,109 +475,133 @@ export default function CvDatabasePage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Database/> Candidate Records ({filteredCvs.length})</CardTitle>
-                            <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    placeholder="Search by name, email, title, company, skills, or job code..."
-                                    className="pl-9"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                            <CardTitle className="flex items-center gap-2"><Database/> Candidate Records ({cvDatabase.length})</CardTitle>
+                            <div className="flex justify-between items-center">
+                                <CardDescription>Browse, search, and review all candidates in the database.</CardDescription>
+                                <div className="relative w-full max-w-sm">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input 
+                                        placeholder="Search by name, email, title, skills, code..."
+                                        className="pl-9"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
                             </div>
-                            
-                            <Accordion type="single" collapsible className="w-full border rounded-md" value={openAccordion} onValueChange={setOpenAccordion}>
-                                {filteredCvs.length > 0 ? filteredCvs.map(cv => {
-                                    const isChecking = relevanceCheckStatus[cv.email];
-                                    return (
-                                    <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
-                                        <div className="flex w-full items-center px-4 hover:bg-muted/50">
-                                            <AccordionTrigger className="flex-1 py-0 text-left hover:no-underline [&>svg]:ml-auto">
-                                                <div className="grid grid-cols-[2fr,2fr,1.5fr,1fr,1.5fr] gap-x-4 items-center w-full text-sm py-3">
-                                                    <span className="font-semibold text-primary truncate" title={cv.name}>{cv.name}</span>
-                                                    <span className="text-muted-foreground truncate" title={cv.currentTitle || 'N/A'}>{cv.currentTitle || 'N/A'}</span>
-                                                    <span className="text-muted-foreground truncate" title={cv.currentCompany || 'N/A'}>{cv.currentCompany || 'N/A'}</span>
-                                                    <span className="text-muted-foreground truncate">{cv.totalExperience || 'N/A'}</span>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge>{cv.jobCode}</Badge>
-                                                        <Badge variant="outline" className="font-normal text-muted-foreground truncate">
-                                                            <Clock className="h-3 w-3 mr-1.5" />
-                                                            {new Date(cv.createdAt).toLocaleDateString()}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <div className="flex items-center gap-1 pl-2">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                                                onClick={() => handleNewCandidateAdded(cv)}
-                                                                disabled={!isRelevanceCheckEnabled || isChecking}
-                                                            >
-                                                                {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>{isRelevanceCheckEnabled ? "Check relevance for this candidate" : "Enable AI Relevance Check in settings to use"}</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <AlertDialog>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
-                                                                </AlertDialogTrigger>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </div>
-                                        <AccordionContent className="p-4 bg-muted/30 border-t">
-                                            <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-4 pb-4 border-b">
-                                                <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground"/>{cv.email}</div>
-                                                <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground"/>{cv.contactNumber || 'N/A'}</div>
-                                                {cv.linkedinUrl && <div className="flex items-center gap-2 text-sm"><Linkedin className="w-4 h-4 text-muted-foreground"/><a href={cv.linkedinUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{cv.linkedinUrl}</a></div>}
-                                            </div>
-                                            <CvDisplay structuredContent={cv.structuredContent} />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                    )
-                                }) : (
-                                    <div className="text-center p-8 text-muted-foreground">
-                                        {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
-                                    </div>
-                                )}
-                            </Accordion>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="border rounded-md">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[25%]">Name</TableHead>
+                                            <TableHead className="w-[25%]">Current Position</TableHead>
+                                            <TableHead className="w-[15%]">Experience</TableHead>
+                                            <TableHead className="w-[10%]">Job Code</TableHead>
+                                            <TableHead className="w-[15%]">Date Added</TableHead>
+                                            <TableHead className="w-[10%] text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredCvs.length > 0 ? filteredCvs.map(cv => {
+                                            const isChecking = relevanceCheckStatus[cv.email];
+                                            return (
+                                                <TableRow key={cv.email} onClick={() => setSelectedCv(cv)} className="cursor-pointer">
+                                                    <TableCell className="font-medium text-primary truncate" title={cv.name}>
+                                                        {cv.name}
+                                                    </TableCell>
+                                                    <TableCell className="truncate" title={cv.currentTitle || 'N/A'}>
+                                                        {cv.currentTitle || 'N/A'}
+                                                    </TableCell>
+                                                    <TableCell>{cv.totalExperience || 'N/A'}</TableCell>
+                                                    <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
+                                                    <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                             <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                                                            onClick={() => handleNewCandidateAdded(cv)}
+                                                                            disabled={!isRelevanceCheckEnabled || isChecking}
+                                                                        >
+                                                                            {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent><p>{isRelevanceCheckEnabled ? "Check relevance for this candidate" : "Enable AI Relevance Check in settings"}</p></TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                            <AlertDialog>
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            This action cannot be undone. This will permanently delete the record for <span className="font-bold">{cv.name}</span>.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                                            Delete
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        }) : (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="h-24 text-center">
+                                                    {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
             </main>
             
+            <Sheet open={!!selectedCv} onOpenChange={(isOpen) => { if (!isOpen) setSelectedCv(null); }}>
+                {selectedCv && (
+                    <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+                        <SheetHeader className="pr-10">
+                            <SheetTitle className="text-2xl">{selectedCv.name}</SheetTitle>
+                            <SheetDescription>
+                                {selectedCv.currentTitle} at {selectedCv.currentCompany}
+                            </SheetDescription>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm pt-2">
+                                <div className="flex items-center gap-2 text-muted-foreground"><Mail className="w-4 h-4"/>{selectedCv.email}</div>
+                                <div className="flex items-center gap-2 text-muted-foreground"><Phone className="w-4 h-4"/>{selectedCv.contactNumber || 'N/A'}</div>
+                                {selectedCv.linkedinUrl && <div className="flex items-center gap-2 text-muted-foreground"><Linkedin className="w-4 h-4"/><a href={selectedCv.linkedinUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">LinkedIn Profile</a></div>}
+                            </div>
+                        </SheetHeader>
+                        <div className="py-6">
+                            <CvDisplay structuredContent={selectedCv.structuredContent} />
+                        </div>
+                    </SheetContent>
+                )}
+            </Sheet>
+
             <Dialog open={!!currentConflict} onOpenChange={(isOpen) => { if (!isOpen) setCurrentConflict(null); }}>
                 {currentConflict && (
                     <DialogContent>
@@ -621,7 +635,5 @@ export default function CvDatabasePage() {
         </div>
     );
 }
-
-    
 
     
