@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Settings, Wand2, LayoutDashboard, GanttChartSquare } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, AlertTriangle, Wand2, Loader2 } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -49,6 +49,7 @@ type Conflict = {
     newRecord: ParseCvOutput & { cvFileName: string; cvContent: string; jobCode: JobCode; };
     existingRecord: CvDatabaseRecord;
 };
+type RelevanceCheckStatus = Record<string, boolean>;
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
@@ -66,7 +67,7 @@ export default function CvDatabasePage() {
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
     
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
-    const [isCheckingRelevance, setIsCheckingRelevance] = useState(false);
+    const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>({});
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
 
@@ -190,7 +191,7 @@ export default function CvDatabasePage() {
             return;
         }
 
-        setIsCheckingRelevance(true);
+        setRelevanceCheckStatus(prev => ({ ...prev, [candidate.email]: true }));
         toast({ description: `Checking for suitable positions for ${candidate.name}...` });
 
         try {
@@ -213,51 +214,10 @@ export default function CvDatabasePage() {
             console.error(`Relevance check failed for ${candidate.name}:`, error);
             toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
         } finally {
-            setIsCheckingRelevance(false);
+            setRelevanceCheckStatus(prev => ({ ...prev, [candidate.email]: false }));
         }
     }, [isRelevanceCheckEnabled, history, suitablePositions, toast]);
     
-    const runFullRelevanceCheck = useCallback(async () => {
-        if (!isRelevanceCheckEnabled || history.length === 0 || cvDatabase.length === 0) {
-            toast({ description: "Relevance check is disabled or there are no candidates/jobs to check." });
-            return;
-        }
-
-        setIsCheckingRelevance(true);
-        toast({ description: `Starting full relevance check for all ${cvDatabase.length} candidates... This may take a while.` });
-
-        const allNewPositions: SuitablePosition[] = [];
-
-        for (const candidate of cvDatabase) {
-            try {
-                const result = await findSuitablePositionsForCandidate({
-                    candidate,
-                    assessmentSessions: history,
-                    existingSuitablePositions: [...suitablePositions, ...allNewPositions]
-                });
-                if (result.newlyFoundPositions.length > 0) {
-                    allNewPositions.push(...result.newlyFoundPositions);
-                }
-            } catch (error: any) {
-                console.error(`Relevance check failed for ${candidate.name}:`, error);
-                // Continue with the next candidate
-            }
-        }
-
-        if (allNewPositions.length > 0) {
-            setSuitablePositions(prev => [...prev, ...allNewPositions]);
-            toast({
-                title: "Full Relevance Check Complete!",
-                description: `Found ${allNewPositions.length} new relevant position(s) across your candidate database.`,
-            });
-        } else {
-            toast({ description: "Full relevance check complete. No new relevant positions found." });
-        }
-
-        setIsCheckingRelevance(false);
-
-    }, [isRelevanceCheckEnabled, cvDatabase, history, suitablePositions, toast]);
-
     const toTitleCase = (str: string): string => {
         if (!str) return '';
         return str
@@ -471,8 +431,6 @@ export default function CvDatabasePage() {
                 onAddCandidate={handleQuickAddToAssessment}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
-                onRunRelevanceCheck={runFullRelevanceCheck}
-                isCheckingRelevance={isCheckingRelevance}
             />
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto space-y-6">
@@ -542,7 +500,9 @@ export default function CvDatabasePage() {
                             </div>
                             
                             <Accordion type="single" collapsible className="w-full border rounded-md" value={openAccordion} onValueChange={setOpenAccordion}>
-                                {filteredCvs.length > 0 ? filteredCvs.map(cv => (
+                                {filteredCvs.length > 0 ? filteredCvs.map(cv => {
+                                    const isChecking = relevanceCheckStatus[cv.email];
+                                    return (
                                     <AccordionItem value={cv.email} key={cv.email} id={`cv-item-${cv.email}`}>
                                         <div className="flex w-full items-center px-4 hover:bg-muted/50">
                                             <AccordionTrigger className="flex-1 py-0 text-left hover:no-underline [&>svg]:ml-auto">
@@ -560,34 +520,52 @@ export default function CvDatabasePage() {
                                                     </div>
                                                 </div>
                                             </AccordionTrigger>
-                                            <AlertDialog>
+                                            <div className="flex items-center gap-1 pl-2">
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                                                onClick={() => handleNewCandidateAdded(cv)}
+                                                                disabled={!isRelevanceCheckEnabled || isChecking}
+                                                            >
+                                                                {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
+                                                            </Button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                        <TooltipContent><p>{isRelevanceCheckEnabled ? "Check relevance for this candidate" : "Enable AI Relevance Check in settings to use"}</p></TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
-                                                            Delete
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
+                                                <AlertDialog>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action cannot be undone. This will permanently delete the candidate record for <span className="font-bold">{cv.name}</span> from the database.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteCv(cv.email)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
                                         </div>
                                         <AccordionContent className="p-4 bg-muted/30 border-t">
                                             <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-4 pb-4 border-b">
@@ -598,7 +576,8 @@ export default function CvDatabasePage() {
                                             <CvDisplay structuredContent={cv.structuredContent} />
                                         </AccordionContent>
                                     </AccordionItem>
-                                )) : (
+                                    )
+                                }) : (
                                     <div className="text-center p-8 text-muted-foreground">
                                         {cvDatabase.length > 0 ? "No candidates found matching your search." : "No candidates in the database yet."}
                                     </div>
@@ -642,5 +621,7 @@ export default function CvDatabasePage() {
         </div>
     );
 }
+
+    
 
     
