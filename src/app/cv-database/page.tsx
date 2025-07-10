@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
@@ -216,6 +215,47 @@ export default function CvDatabasePage() {
             setIsCheckingRelevance(false);
         }
     }, [isRelevanceCheckEnabled, history, suitablePositions, toast]);
+    
+    const runFullRelevanceCheck = useCallback(async () => {
+        if (!isRelevanceCheckEnabled || history.length === 0 || cvDatabase.length === 0) {
+            toast({ description: "Relevance check is disabled or there are no candidates/jobs to check." });
+            return;
+        }
+
+        setIsCheckingRelevance(true);
+        toast({ description: `Starting full relevance check for all ${cvDatabase.length} candidates... This may take a while.` });
+
+        const allNewPositions: SuitablePosition[] = [];
+
+        for (const candidate of cvDatabase) {
+            try {
+                const result = await findSuitablePositionsForCandidate({
+                    candidate,
+                    assessmentSessions: history,
+                    existingSuitablePositions: [...suitablePositions, ...allNewPositions]
+                });
+                if (result.newlyFoundPositions.length > 0) {
+                    allNewPositions.push(...result.newlyFoundPositions);
+                }
+            } catch (error: any) {
+                console.error(`Relevance check failed for ${candidate.name}:`, error);
+                // Continue with the next candidate
+            }
+        }
+
+        if (allNewPositions.length > 0) {
+            setSuitablePositions(prev => [...prev, ...allNewPositions]);
+            toast({
+                title: "Full Relevance Check Complete!",
+                description: `Found ${allNewPositions.length} new relevant position(s) across your candidate database.`,
+            });
+        } else {
+            toast({ description: "Full relevance check complete. No new relevant positions found." });
+        }
+
+        setIsCheckingRelevance(false);
+
+    }, [isRelevanceCheckEnabled, cvDatabase, history, suitablePositions, toast]);
 
     const toTitleCase = (str: string): string => {
         if (!str) return '';
@@ -430,6 +470,7 @@ export default function CvDatabasePage() {
                 onAddCandidate={handleQuickAddToAssessment}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
+                onRunRelevanceCheck={runFullRelevanceCheck}
                 isCheckingRelevance={isCheckingRelevance}
             />
             <main className="flex-1 p-4 md:p-8">

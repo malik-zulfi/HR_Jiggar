@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
-import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings, Wand2, Bell } from "lucide-react";
+import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings, Wand2, Bell, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   AlertDialog,
@@ -130,7 +130,11 @@ export function Header({
                             onClick={onRunRelevanceCheck}
                             disabled={!isRelevanceCheckEnabled || isCheckingRelevance}
                         >
-                            {isCheckingRelevance ? 'Checking...' : 'Run Check Manually'}
+                            {isCheckingRelevance ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Checking...</>
+                            ) : (
+                                'Run Check Manually'
+                            )}
                         </Button>
                     </div>
                 </PopoverContent>
@@ -159,7 +163,7 @@ export function Header({
                 <NotificationPopover positions={suitablePositions} onAddCandidate={onAddCandidate} />
             </Popover>
 
-            {currentPage === 'assessment' && onNewSession && (
+            {onNewSession && (
                  <AlertDialog>
                     <TooltipProvider>
                         <Tooltip>
