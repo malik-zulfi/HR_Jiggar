@@ -185,7 +185,7 @@ export default function CvDatabasePage() {
     };
 
     const calculateSuitablePositions = useCallback(async () => {
-        if (!history.length || !cvDatabase.length || isCheckingRelevance) {
+        if (!isRelevanceCheckEnabled || !history.length || !cvDatabase.length || isCheckingRelevance) {
             return;
         }
 
@@ -235,7 +235,7 @@ export default function CvDatabasePage() {
                                 assessment: session,
                             });
                         }
-                        checkedPairs.add(pairKey); // Mark as checked whether relevant or not
+                        checkedPairs.add(pairKey);
                     }).catch(error => {
                         console.error(`Relevance check failed for ${cv.name} and ${session.jdName}:`, error);
                     })
@@ -256,13 +256,12 @@ export default function CvDatabasePage() {
         }
         
         setIsCheckingRelevance(false);
-
-    }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast]);
+        setHasCheckedRelevance(true);
+    }, [cvDatabase, history, suitablePositions, isCheckingRelevance, toast, isRelevanceCheckEnabled]);
     
     useEffect(() => {
         if(isClient && cvDatabase.length > 0 && history.length > 0 && !hasCheckedRelevance && isRelevanceCheckEnabled) {
            calculateSuitablePositions();
-           setHasCheckedRelevance(true);
         }
     }, [isClient, cvDatabase, history, hasCheckedRelevance, isRelevanceCheckEnabled, calculateSuitablePositions]);
 
@@ -563,7 +562,7 @@ export default function CvDatabasePage() {
                                                     </div>
                                                 </div>
                                             </AccordionTrigger>
-                                             <AlertDialog>
+                                            <AlertDialog>
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -645,5 +644,3 @@ export default function CvDatabasePage() {
         </div>
     );
 }
-
-    
