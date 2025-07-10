@@ -40,6 +40,7 @@ const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
+const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
@@ -114,19 +115,117 @@ function AssessmentPage() {
     }));
   }, [reassessStatus]);
 
+  const processAndAnalyzeCandidates = async (
+      candidatesToProcess: UploadedFile[],
+      jd: ExtractJDCriteriaOutput,
+      sessionId: string | null
+    ) => {
+        const initialStatus = candidatesToProcess.reduce((acc, cv) => {
+            acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: cv.name };
+            return acc;
+        }, {} as CvProcessingStatus);
+        setNewCvProcessingStatus(initialStatus);
+
+        let successCount = 0;
+
+        try {
+            toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
+            
+            const jobCode = jd.code;
+            const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
+
+            for (const cv of candidatesToProcess) {
+                try {
+                    // Always analyze against JD
+                    const analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
+                    
+                    const candidateRecord: CandidateRecord = {
+                        cvName: cv.name,
+                        cvContent: cv.content,
+                        analysis,
+                        isStale: false,
+                    };
+
+                    setHistory(prev => prev.map(session => {
+                        if (session.id === sessionId) {
+                            const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName));
+                            if (existingNames.has(candidateRecord.analysis.candidateName)) {
+                                toast({ variant: 'destructive', description: `Candidate ${candidateRecord.analysis.candidateName} already exists in this session.` });
+                                return session;
+                            }
+                            const allCandidates = [...session.candidates, candidateRecord];
+                            allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                            return { ...session, candidates: allCandidates, summary: null };
+                        }
+                        return session;
+                    }));
+
+                    // Also add to central CV database if job code is valid
+                    if (isValidJobCode) {
+                        try {
+                            const parsedCvData = await parseCv({ cvText: cv.content });
+                            const dbRecord: CvDatabaseRecord = {
+                                ...parsedCvData,
+                                jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                                cvFileName: cv.name,
+                                cvContent: cv.content,
+                                createdAt: new Date().toISOString(),
+                            };
+                            addOrUpdateCvInDatabase(dbRecord);
+                        } catch (parseError: any) {
+                            console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
+                            toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: parseError.message });
+                        }
+                    }
+
+                    setNewCvProcessingStatus(prev => ({
+                        ...prev,
+                        [cv.name]: { ...prev[cv.name], status: 'done', candidateName: analysis.candidateName }
+                    }));
+                    successCount++;
+
+                } catch (error: any) {
+                    console.error(`Error analyzing CV for ${cv.name}:`, error);
+                    toast({
+                        variant: "destructive",
+                        title: `Analysis Failed for ${cv.name}`,
+                        description: error.message || "An unexpected error occurred.",
+                    });
+                    setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
+                }
+            }
+
+            if (successCount > 0) {
+                toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
+            }
+
+        } catch (error: any) {
+            console.error("Error analyzing CVs:", error);
+            toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred." });
+        } finally {
+            setTimeout(() => {
+                setNewCvProcessingStatus({});
+                setCvs([]);
+                setCvResetKey(key => key + 1);
+            }, 3000);
+        }
+    };
+
   useEffect(() => {
     try {
       // Load Assessment History
       const savedHistoryJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-      if (intendedSessionId) {
-          localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-      }
+      const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
+
+      if (intendedSessionId) localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (pendingAssessmentJSON) localStorage.removeItem(PENDING_ASSESSMENT_KEY);
       
+      let parsedHistory: AssessmentSession[] = [];
       if (savedHistoryJSON) {
-        const parsedHistory = JSON.parse(savedHistoryJSON);
-        if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
-          const validHistory = parsedHistory.map(sessionData => {
+        const parsed = JSON.parse(savedHistoryJSON);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsedHistory = parsed.map(sessionData => {
             const result = AssessmentSessionSchema.safeParse(sessionData);
             if (result.success) {
                 if (!result.data.originalAnalyzedJd) {
@@ -138,8 +237,8 @@ function AssessmentPage() {
             return null;
           }).filter((s): s is AssessmentSession => s !== null);
 
-          if (validHistory.length > 0) {
-            const sortedHistory = validHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          if (parsedHistory.length > 0) {
+            const sortedHistory = parsedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setHistory(sortedHistory);
             const sessionToActivate = intendedSessionId ? sortedHistory.find(s => s.id === intendedSessionId) : null;
             setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
@@ -170,6 +269,13 @@ function AssessmentPage() {
       
       const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
       setIsRelevanceCheckEnabled(relevanceEnabled);
+      
+      if (pendingAssessmentJSON) {
+          const { candidate, assessment } = JSON.parse(pendingAssessmentJSON);
+          const uploadedFile: UploadedFile = { name: candidate.cvFileName, content: candidate.cvContent };
+          processAndAnalyzeCandidates([uploadedFile], assessment.analyzedJd, assessment.id);
+      }
+
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
@@ -362,100 +468,7 @@ function AssessmentPage() {
     });
   };
 
-  const processAndAnalyzeCandidates = async (
-      candidatesToProcess: UploadedFile[],
-      jd: ExtractJDCriteriaOutput
-    ) => {
-        const initialStatus = candidatesToProcess.reduce((acc, cv) => {
-            acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: cv.name };
-            return acc;
-        }, {} as CvProcessingStatus);
-        setNewCvProcessingStatus(initialStatus);
-
-        let successCount = 0;
-
-        try {
-            toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
-            
-            const jobCode = jd.code;
-            const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
-
-            for (const cv of candidatesToProcess) {
-                try {
-                    // Always analyze against JD
-                    const analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
-                    
-                    const candidateRecord: CandidateRecord = {
-                        cvName: cv.name,
-                        cvContent: cv.content,
-                        analysis,
-                        isStale: false,
-                    };
-
-                    setHistory(prev => prev.map(session => {
-                        if (session.id === activeSessionId) {
-                            const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName));
-                            if (existingNames.has(candidateRecord.analysis.candidateName)) {
-                                toast({ variant: 'destructive', description: `Candidate ${candidateRecord.analysis.candidateName} already exists in this session.` });
-                                return session;
-                            }
-                            const allCandidates = [...session.candidates, candidateRecord];
-                            allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                            return { ...session, candidates: allCandidates, summary: null };
-                        }
-                        return session;
-                    }));
-
-                    // Also add to central CV database if job code is valid
-                    if (isValidJobCode) {
-                        try {
-                            const parsedCvData = await parseCv({ cvText: cv.content });
-                            const dbRecord: CvDatabaseRecord = {
-                                ...parsedCvData,
-                                jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
-                                cvFileName: cv.name,
-                                cvContent: cv.content,
-                                createdAt: new Date().toISOString(),
-                            };
-                            addOrUpdateCvInDatabase(dbRecord);
-                        } catch (parseError: any) {
-                            console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
-                            toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: parseError.message });
-                        }
-                    }
-
-                    setNewCvProcessingStatus(prev => ({
-                        ...prev,
-                        [cv.name]: { ...prev[cv.name], status: 'done', candidateName: analysis.candidateName }
-                    }));
-                    successCount++;
-
-                } catch (error: any) {
-                    console.error(`Error analyzing CV for ${cv.name}:`, error);
-                    toast({
-                        variant: "destructive",
-                        title: `Analysis Failed for ${cv.name}`,
-                        description: error.message || "An unexpected error occurred.",
-                    });
-                    setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
-                }
-            }
-
-            if (successCount > 0) {
-                toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
-            }
-
-        } catch (error: any) {
-            console.error("Error analyzing CVs:", error);
-            toast({ variant: "destructive", title: "Assessment Error", description: error.message || "An unexpected error occurred." });
-        } finally {
-            setTimeout(() => {
-                setNewCvProcessingStatus({});
-                setCvs([]);
-                setCvResetKey(key => key + 1);
-            }, 3000);
-        }
-    };
+  
 
 
   const reAssessCandidates = async (
@@ -612,7 +625,7 @@ function AssessmentPage() {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
-    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd);
+    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd, activeSessionId);
   };
 
   const handleAnalyzeFromDb = async (selectedCvsFromDb: CvDatabaseRecord[]) => {
@@ -624,7 +637,7 @@ function AssessmentPage() {
         content: cv.cvContent,
     }));
     
-    await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd);
+    await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId);
     setIsAddFromDbOpen(false);
   };
   

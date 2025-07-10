@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown } from "lucide-react";
+import { FileUp, Bot, Database, User, Mail, Phone, Linkedin, Briefcase, Search, Clock, Trash2, Wand2, Loader2, X, PlusCircle, ArrowUpDown, AlertTriangle } from "lucide-react";
 import type { CvDatabaseRecord, AssessmentSession, SuitablePosition, CandidateRecord } from '@/lib/types';
 import { CvDatabaseRecordSchema, AssessmentSessionSchema, ParseCvOutput } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,7 +22,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
-import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 import { Header } from '@/components/header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -33,6 +33,7 @@ const HISTORY_STORAGE_KEY = 'jiggar-history';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
+const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 
 type UploadedFile = { name: string; content: string };
@@ -48,6 +49,7 @@ type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direct
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [isClient, setIsClient] = useState(false);
     const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
     const [history, setHistory] = useState<AssessmentSession[]>([]);
@@ -131,17 +133,18 @@ export default function CvDatabasePage() {
         setIsClient(true);
         try {
             const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
+            let cvsFromStorage: CvDatabaseRecord[] = [];
             if (savedCvDbJSON) {
                 const parsedCvDb = JSON.parse(savedCvDbJSON);
                 if (Array.isArray(parsedCvDb)) {
-                    const validDb = parsedCvDb.map(record => {
+                    cvsFromStorage = parsedCvDb.map(record => {
                         const result = CvDatabaseRecordSchema.safeParse(record);
                         if (result.success) {
                             result.data.name = toTitleCase(result.data.name);
                         }
                         return result.success ? result.data : null;
                     }).filter((r): r is CvDatabaseRecord => r !== null);
-                    setCvDatabase(validDb.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                    setCvDatabase(cvsFromStorage.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                 }
             }
 
@@ -169,7 +172,7 @@ export default function CvDatabasePage() {
             const params = new URLSearchParams(window.location.search);
             const emailToOpen = params.get('email');
             if (emailToOpen) {
-                const cvToOpen = cvDatabase.find(cv => cv.email === emailToOpen);
+                const cvToOpen = cvsFromStorage.find(cv => cv.email === emailToOpen);
                 if (cvToOpen) {
                     setSelectedCv(cvToOpen);
                 }
@@ -177,7 +180,7 @@ export default function CvDatabasePage() {
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, [isClient]);
+    }, []);
 
     useEffect(() => {
         if (isClient) {
@@ -382,50 +385,22 @@ export default function CvDatabasePage() {
     };
 
     const handleQuickAddToAssessment = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession) => {
-        toast({ description: `Assessing ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
+        // This function now only sets up the navigation and state passing.
+        // The actual assessment logic is handled on the AssessmentPage.
+        
+        toast({ description: `Navigating to assess ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
 
-        try {
-            const analysis = await analyzeCVAgainstJD({ 
-                jobDescriptionCriteria: assessment.analyzedJd, 
-                cv: candidate.cvContent 
-            });
+        const pendingAssessment = {
+            candidate,
+            assessment
+        };
 
-            const newCandidateRecord: CandidateRecord = {
-                cvName: candidate.cvFileName,
-                cvContent: candidate.cvContent,
-                analysis,
-                isStale: false,
-            };
+        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingAssessment));
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+        
+        router.push('/assessment');
 
-            const updatedHistory = history.map(session => {
-                if (session.id === assessment.id) {
-                    const newCandidates = [...session.candidates, newCandidateRecord]
-                        .sort((a,b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                    return { ...session, candidates: newCandidates };
-                }
-                return session;
-            });
-            
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
-            setHistory(updatedHistory);
-            
-            setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidate.email && p.assessment.id === assessment.id)));
-
-            toast({
-                title: 'Assessment Complete',
-                description: `${candidate.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
-                action: (
-                    <Link href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id)}>
-                        <Button variant="outline" size="sm">View</Button>
-                    </Link>
-                ),
-            });
-
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: `Failed to assess ${candidate.name}`, description: error.message });
-        }
-
-    }, [history, toast]);
+    }, [router, toast]);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
