@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,34 +149,43 @@ export default function CvDatabasePage() {
         setCvsToUpload([]);
     };
     
-    const isProcessing = Object.keys(processingStatus).length > 0;
+    const isProcessing = useMemo(() => Object.values(processingStatus).some(s => s.status === 'processing'), [processingStatus]);
 
-    const handleProcessCvs = async () => {
+    const handleProcessCvs = useCallback(async () => {
         if (cvsToUpload.length === 0) {
             toast({ variant: 'destructive', description: 'Please upload at least one CV.' });
             return;
         }
-        if (!jobCode) {
+        const currentJobCode = jobCode;
+        if (!currentJobCode) {
             toast({ variant: 'destructive', description: 'Please select a job code.' });
             return;
         }
 
-        const initialStatus = cvsToUpload.reduce((acc, cv) => {
-            acc[cv.name] = { status: 'processing', message: cv.name };
+        const filesToProcess = [...cvsToUpload];
+        // Clear the uploader for the next batch
+        setCvsToUpload([]);
+        setCvResetKey(key => key + 1);
+
+        const newStatus = filesToProcess.reduce((acc, cv) => {
+            // Prevent re-adding a file that might be in a different uploader batch but already processing
+            if (!processingStatus[cv.name]) {
+                acc[cv.name] = { status: 'processing', message: cv.name };
+            }
             return acc;
         }, {} as CvProcessingStatus);
-        setProcessingStatus(initialStatus);
+
+        setProcessingStatus(prev => ({ ...prev, ...newStatus }));
 
         let successCount = 0;
-        let errorCount = 0;
 
-        for (const cv of cvsToUpload) {
+        for (const cv of filesToProcess) {
             try {
                 const parsedData = await parseCv({ cvText: cv.content });
                 
                 const record: CvDatabaseRecord = {
                     ...parsedData,
-                    jobCode,
+                    jobCode: currentJobCode,
                     cvFileName: cv.name,
                     cvContent: cv.content,
                     createdAt: new Date().toISOString(),
@@ -191,7 +200,6 @@ export default function CvDatabasePage() {
                 successCount++;
                 setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'done', message: parsedData.name } }));
             } catch (error: any) {
-                errorCount++;
                 console.error(`Failed to parse ${cv.name}:`, error);
                 toast({ variant: 'destructive', title: `Parsing Failed for ${cv.name}`, description: error.message });
                 setProcessingStatus(prev => ({ ...prev, [cv.name]: { status: 'error', message: cv.name } }));
@@ -201,17 +209,28 @@ export default function CvDatabasePage() {
         if (successCount > 0) {
             toast({ description: `${successCount} CV(s) processed and added/updated in the database.` });
         }
-        
-        const cleanupDelay = errorCount === 0 ? 2000 : 5000;
-        setTimeout(() => {
-            setProcessingStatus({});
-            if (errorCount === 0) {
-                setCvsToUpload([]);
-                setJobCode(null);
-                setCvResetKey(key => key + 1);
-            }
-        }, cleanupDelay);
-    };
+    }, [cvsToUpload, jobCode, toast, processingStatus]);
+
+    useEffect(() => {
+        // This effect will run to clean up completed/errored tasks from the display
+        const hasFinishedTasks = Object.values(processingStatus).some(s => s.status === 'done' || s.status === 'error');
+        if (hasFinishedTasks && !isProcessing) {
+            const cleanupTimeout = setTimeout(() => {
+                setProcessingStatus(prev => {
+                    const newStatus: CvProcessingStatus = {};
+                    for (const key in prev) {
+                        if (prev[key].status === 'processing') {
+                            newStatus[key] = prev[key];
+                        }
+                    }
+                    return newStatus;
+                });
+            }, 3000);
+
+            return () => clearTimeout(cleanupTimeout);
+        }
+    }, [processingStatus, isProcessing]);
+
     
     if (!isClient) return null;
 
@@ -242,46 +261,48 @@ export default function CvDatabasePage() {
                             <CardTitle className="flex items-center gap-2"><FileUp /> Add New Candidates</CardTitle>
                             <CardDescription>Upload CVs and tag them with a job code to add them to the central database. If a candidate's email already exists, their record will be updated.</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            {isProcessing ? (
-                                <ProgressLoader title="Processing CVs..." statusList={Object.values(processingStatus)} />
-                            ) : (
-                                <div className="grid md:grid-cols-3 gap-4 items-end">
-                                    <div className="md:col-span-2">
-                                        <FileUploader
-                                            key={cvResetKey}
-                                            id="cv-db-uploader"
-                                            label="Upload CV Files"
-                                            acceptedFileTypes=".pdf,.docx,.txt"
-                                            onFileUpload={handleCvUpload}
-                                            onFileClear={handleCvClear}
-                                            multiple
-                                        />
-                                    </div>
-                                    <div className="grid gap-1.5">
-                                        <label className="text-sm font-medium">Job Code</label>
-                                        <Select value={jobCode || ''} onValueChange={(v) => setJobCode(v as JobCode)}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a job code..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="OCN">OCN</SelectItem>
-                                                <SelectItem value="WEX">WEX</SelectItem>
-                                                <SelectItem value="SAN">SAN</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                        <CardContent className="space-y-4">
+                            <div className="grid md:grid-cols-3 gap-4 items-end">
+                                <div className="md:col-span-2">
+                                    <FileUploader
+                                        key={cvResetKey}
+                                        id="cv-db-uploader"
+                                        label="Upload CV Files"
+                                        acceptedFileTypes=".pdf,.docx,.txt"
+                                        onFileUpload={handleCvUpload}
+                                        onFileClear={handleCvClear}
+                                        multiple
+                                    />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <label className="text-sm font-medium">Job Code</label>
+                                    <Select value={jobCode || ''} onValueChange={(v) => setJobCode(v as JobCode)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a job code..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="OCN">OCN</SelectItem>
+                                            <SelectItem value="WEX">WEX</SelectItem>
+                                            <SelectItem value="SAN">SAN</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            {Object.keys(processingStatus).length > 0 && (
+                                <div className="mt-4">
+                                  <ProgressLoader title="Processing CVs..." statusList={Object.values(processingStatus)} />
                                 </div>
                             )}
                         </CardContent>
-                        {!isProcessing && (
-                            <CardFooter>
-                                <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode}>
-                                    <Bot className="mr-2 h-4 w-4" />
-                                    Process and Add to Database
-                                </Button>
-                            </CardFooter>
-                        )}
+                        <CardFooter>
+                            <Button onClick={handleProcessCvs} disabled={cvsToUpload.length === 0 || !jobCode}>
+                                {isProcessing ? (
+                                    <><Bot className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                                ) : (
+                                    <><Bot className="mr-2 h-4 w-4" /> Process & Add to Database</>
+                                )}
+                            </Button>
+                        </CardFooter>
                     </Card>
 
                     <Card>
