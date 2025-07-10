@@ -58,7 +58,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Analysis Steps:**
 
-1.  **Extract Candidate Name:** First, extract the candidate's full name from the CV. Format the name in Title Case (e.g., "John Doe").
+1.  **Extract Key Details:** First, extract the candidate's full name and their primary email address from the CV. Format the name in Title Case (e.g., "John Doe").
 
 2.  **Assess Each Requirement:**
     *   For each requirement in the job description criteria, assess the candidate's CV.

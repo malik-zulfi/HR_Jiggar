@@ -73,10 +73,10 @@ export default function CvDatabasePage() {
         const counts = new Map<string, number>();
         history.forEach(session => {
             session.candidates.forEach(candidate => {
-                const emailMatch = candidate.cvContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
-                if (emailMatch) {
-                    const email = emailMatch[0].toLowerCase();
-                    counts.set(email, (counts.get(email) || 0) + 1);
+                const email = candidate.analysis.email;
+                if (email) {
+                    const lowerEmail = email.toLowerCase();
+                    counts.set(lowerEmail, (counts.get(lowerEmail) || 0) + 1);
                 }
             });
         });
@@ -694,9 +694,11 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
     const compatibleAssessments = useMemo(() => {
         const assessedSessionIds = new Set<string>();
         assessments.forEach(session => {
-            if (session.candidates.some(c => c.cvContent.toLowerCase().includes(candidate.email.toLowerCase()))) {
-                assessedSessionIds.add(session.id);
-            }
+            session.candidates.forEach(c => {
+                if (c.analysis.email && c.analysis.email.toLowerCase() === candidate.email.toLowerCase()) {
+                    assessedSessionIds.add(session.id);
+                }
+            });
         });
 
         return assessments.filter(session =>

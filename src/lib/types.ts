@@ -37,6 +37,7 @@ export type AlignmentDetail = z.infer<typeof AlignmentDetailSchema>;
 
 export const AnalyzeCVAgainstJDOutputSchema = z.object({
   candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
+  email: z.string().email().optional().describe("The candidate's primary email address, extracted from the CV."),
   alignmentScore: z.number().describe('The overall alignment score of the candidate, from 0 to 100.'),
   alignmentSummary: z
     .string()
