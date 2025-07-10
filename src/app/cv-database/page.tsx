@@ -75,22 +75,22 @@ export default function CvDatabasePage() {
             return counts;
         }
 
-        const nameToEmailMap = new Map(cvDatabase.map(cv => [cv.name.toLowerCase(), cv.email.toLowerCase()]));
+        const emailToNameMap = new Map(cvDatabase.map(cv => [cv.email.toLowerCase(), cv.name.toLowerCase()]));
 
         history.forEach(session => {
             session.candidates.forEach(candidate => {
-                let email = candidate.analysis.email;
+                let email = candidate.analysis.email?.toLowerCase();
 
                 if (!email) {
                     const candidateNameLower = candidate.analysis.candidateName.toLowerCase();
-                    if (nameToEmailMap.has(candidateNameLower)) {
-                        email = nameToEmailMap.get(candidateNameLower);
+                    const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidateNameLower);
+                    if (dbRecord) {
+                        email = dbRecord.email.toLowerCase();
                     }
                 }
 
                 if (email) {
-                    const lowerEmail = email.toLowerCase();
-                    counts.set(lowerEmail, (counts.get(lowerEmail) || 0) + 1);
+                    counts.set(email, (counts.get(email) || 0) + 1);
                 }
             });
         });
@@ -605,7 +605,7 @@ export default function CvDatabasePage() {
                                                     <TableCell><Badge variant="secondary">{cv.jobCode}</Badge></TableCell>
                                                     <TableCell>{new Date(cv.createdAt).toLocaleDateString()}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-1">
                                                              <AddCandidatePopover
                                                                 candidate={cv}
                                                                 assessments={history}
@@ -618,7 +618,7 @@ export default function CvDatabasePage() {
                                                                             variant="ghost"
                                                                             size="icon"
                                                                             className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                                                            onClick={() => handleNewCandidateAdded(cv)}
+                                                                            onClick={(e) => { e.stopPropagation(); handleNewCandidateAdded(cv); }}
                                                                             disabled={!isRelevanceCheckEnabled || isChecking}
                                                                         >
                                                                             {isChecking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4" />}
@@ -628,22 +628,18 @@ export default function CvDatabasePage() {
                                                                 </Tooltip>
                                                             </TooltipProvider>
                                                             <AlertDialog>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <TooltipProvider>
-                                                                        <Tooltip>
-                                                                            <TooltipTrigger asChild>
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation(); // Prevent row click
-                                                                                }}
-                                                                                >
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
-                                                                            </TooltipTrigger>
-                                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                                        </Tooltip>
-                                                                    </TooltipProvider>
-                                                                </AlertDialogTrigger>
+                                                                            </AlertDialogTrigger>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -719,7 +715,7 @@ export default function CvDatabasePage() {
                                 <h4 className="font-semibold mb-2 text-amber-900">New Upload</h4>
                                 <p className="truncate" title={currentConflict.newRecord.cvFileName}><span className="text-amber-800/80">File:</span> {currentConflict.newRecord.cvFileName}</p>
                                 <p><span className="text-amber-800/80">Uploading:</span> {new Date().toLocaleDateString()}</p>
-                                <p><span className="text-amber-800/80">Code:</span> <Badge>{currentConflict.newRecord.jobCode}</Badge></p>
+                                <p><span className="text-amber-800/80">Code:</span> <Badge>{currentConflict.newRecord.jobCode}</p>
                             </div>
                         </div>
                         <DialogFooter>
@@ -813,5 +809,7 @@ const AddCandidatePopover = ({ candidate, assessments, onAdd }: {
 
 
 
+
+    
 
     
