@@ -446,17 +446,20 @@ export default function CvDatabasePage() {
         });
     };
 
-    const handleQuickAddToAssessment = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession) => {
-        toast({ description: `Navigating to assess ${candidate.name} for ${assessment.analyzedJd.jobTitle}...` });
-        const pendingAssessment = { candidate, assessment };
-        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingAssessment));
+    const handleQuickAddToAssessment = useCallback(async (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
+        if (candidates.length === 0) return;
+        toast({ description: `Adding ${candidates.length} candidate(s) to "${assessment.analyzedJd.jobTitle}"...` });
+        
+        const pendingQueue = candidates.map(candidate => ({ candidate, assessment }));
+
+        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingQueue));
         localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
         router.push('/assessment');
     }, [router, toast]);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
-        await handleQuickAddToAssessment(candidate, assessment);
+        await handleQuickAddToAssessment([candidate], assessment);
     };
 
     useEffect(() => {
@@ -508,7 +511,7 @@ export default function CvDatabasePage() {
                 suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
                 onAddCandidate={(position) => {
                     const candidate = cvDatabase.find(c => c.email === position.candidateEmail);
-                    if (candidate) handleQuickAddToAssessment(candidate, position.assessment);
+                    if (candidate) handleQuickAddToAssessment([candidate], position.assessment);
                 }}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
@@ -581,7 +584,7 @@ export default function CvDatabasePage() {
                                     </div>
                                     {selectedCvEmails.size > 0 && (
                                         <BulkActions
-                                            selectedEmails={selectedCvEmails}
+                                            selectedEmails={Array.from(selectedCvEmails)}
                                             candidates={cvDatabase}
                                             assessments={history}
                                             toast={toast}
@@ -686,18 +689,18 @@ export default function CvDatabasePage() {
                                                                 onAdd={handleAddFromPopover}
                                                             />
                                                             <AlertDialog>
-                                                                <TooltipProvider>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <AlertDialogTrigger asChild>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
                                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                                                                     <Trash2 className="h-4 w-4" />
                                                                                 </Button>
-                                                                            </AlertDialogTrigger>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>Delete Candidate</p></TooltipContent>
-                                                                    </Tooltip>
-                                                                </TooltipProvider>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent><p>Delete Candidate</p></TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                </AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -847,18 +850,18 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
 };
     
 const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete, onAddToAssessment, onClear }: {
-    selectedEmails: Set<string>;
+    selectedEmails: string[];
     candidates: CvDatabaseRecord[];
     assessments: AssessmentSession[];
     toast: (options: { description: string, title?: string, variant?: 'default' | 'destructive' }) => void;
     onDelete: (emails: string[]) => void;
-    onAddToAssessment: (candidate: CvDatabaseRecord, assessment: AssessmentSession) => void;
+    onAddToAssessment: (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => void;
     onClear: () => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     
-    const selectedCount = selectedEmails.size;
-    const selectedCandidates = candidates.filter(c => selectedEmails.has(c.email));
+    const selectedCount = selectedEmails.length;
+    const selectedCandidates = candidates.filter(c => selectedEmails.includes(c.email));
     
     // Find assessments that *all* selected candidates could potentially be added to.
     const commonAssessments = useMemo(() => {
@@ -880,18 +883,7 @@ const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete,
     }, [selectedCandidates, assessments]);
 
     const handleBulkAdd = (assessment: AssessmentSession) => {
-        toast({ description: `Adding ${selectedCount} candidates to "${assessment.analyzedJd.jobTitle}". You will be redirected.` });
-        let i = 0;
-        for (const candidate of selectedCandidates) {
-            // Only redirect on the last one
-            if (i === selectedCandidates.length - 1) {
-                onAddToAssessment(candidate, assessment);
-            } else {
-                const pendingAssessment = { candidate, assessment };
-                localStorage.setItem(`${PENDING_ASSESSMENT_KEY}_${i}`, JSON.stringify(pendingAssessment));
-            }
-            i++;
-        }
+        onAddToAssessment(selectedCandidates, assessment);
         onClear();
         setIsOpen(false);
     };
@@ -947,7 +939,7 @@ const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete,
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onDelete(Array.from(selectedEmails))} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
+                        <AlertDialogAction onClick={() => onDelete(selectedEmails)} className={cn(Button, "bg-destructive hover:bg-destructive/90")}>
                             Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>

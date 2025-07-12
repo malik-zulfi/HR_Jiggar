@@ -128,7 +128,20 @@ function AssessmentPage() {
     }
   }, [newCvProcessingStatus]);
 
-  const processAndAnalyzeCandidates = async (
+  const addOrUpdateCvInDatabase = useCallback((parsedCv: CvDatabaseRecord) => {
+    setCvDatabase(prevDb => {
+        const existingCvIndex = prevDb.findIndex(c => c.email === parsedCv.email);
+        if (existingCvIndex !== -1) {
+            const updatedDb = [...prevDb];
+            updatedDb[existingCvIndex] = parsedCv;
+            return updatedDb;
+        } else {
+            return [...prevDb, parsedCv];
+        }
+    });
+  }, []);
+
+  const processAndAnalyzeCandidates = useCallback(async (
       candidatesToProcess: UploadedFile[],
       jd: ExtractJDCriteriaOutput,
       sessionId: string | null
@@ -147,15 +160,14 @@ function AssessmentPage() {
         const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
 
         for (const cv of candidatesToProcess) {
-            let analysis;
-            let dbRecord: CvDatabaseRecord | null = null;
             try {
-                // First, try to fully parse the CV for database entry.
+                let parsedData = null;
+                 // Attempt to parse first to get structured data for DB and analysis
                 if (isValidJobCode) {
                     try {
-                        const parsedCvData = await parseCv({ cvText: cv.content });
-                        dbRecord = {
-                            ...parsedCvData,
+                        parsedData = await parseCv({ cvText: cv.content });
+                        const dbRecord: CvDatabaseRecord = {
+                            ...parsedData,
                             jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
                             cvFileName: cv.name,
                             cvContent: cv.content,
@@ -163,14 +175,20 @@ function AssessmentPage() {
                         };
                         addOrUpdateCvInDatabase(dbRecord);
                     } catch (parseError: any) {
-                        console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
-                        toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: `${parseError.message} Assessment will continue without adding to database.` });
+                        toast({ 
+                            variant: 'destructive', 
+                            title: `DB Entry Skipped: ${cv.name}`, 
+                            description: `${parseError.message}. Assessment will proceed.` 
+                        });
                     }
                 }
                 
-                // Always analyze against JD
-                analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
-                
+                const analysis = await analyzeCVAgainstJD({ 
+                    jobDescriptionCriteria: jd, 
+                    cv: cv.content,
+                    parsedCv: parsedData, // Pass parsed data if available
+                });
+
                 const candidateRecord: CandidateRecord = {
                     cvName: cv.name,
                     cvContent: cv.content,
@@ -212,7 +230,7 @@ function AssessmentPage() {
         if (successCount > 0) {
             toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
         }
-    };
+    }, [toast, addOrUpdateCvInDatabase]);
 
   useEffect(() => {
     try {
@@ -222,7 +240,6 @@ function AssessmentPage() {
       const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
 
       if (intendedSessionId) localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-      if (pendingAssessmentJSON) localStorage.removeItem(PENDING_ASSESSMENT_KEY);
       
       let parsedHistory: AssessmentSession[] = [];
       if (savedHistoryJSON) {
@@ -239,15 +256,6 @@ function AssessmentPage() {
             }
             return null;
           }).filter((s): s is AssessmentSession => s !== null);
-
-          if (parsedHistory.length > 0) {
-            const sortedHistory = parsedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            setHistory(sortedHistory);
-            const sessionToActivate = intendedSessionId ? sortedHistory.find(s => s.id === intendedSessionId) : null;
-            setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
-          } else {
-             localStorage.removeItem(LOCAL_STORAGE_KEY);
-          }
         }
       }
       
@@ -273,20 +281,47 @@ function AssessmentPage() {
       const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
       setIsRelevanceCheckEnabled(relevanceEnabled);
       
+      const sessionToActivate = intendedSessionId && parsedHistory.length > 0
+          ? parsedHistory.find(s => s.id === intendedSessionId)
+          : null;
+      const sortedHistory = parsedHistory.length > 0
+          ? parsedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          : [];
+      
+      setHistory(sortedHistory);
+      setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+      
+      // Handle pending assessments (single or bulk)
       if (pendingAssessmentJSON) {
-          const { candidate, assessment } = JSON.parse(pendingAssessmentJSON);
-          const uploadedFile: UploadedFile = { name: candidate.cvFileName, content: candidate.cvContent };
-          processAndAnalyzeCandidates([uploadedFile], assessment.analyzedJd, assessment.id);
+          try {
+              const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
+              if (Array.isArray(pendingItems) && pendingItems.length > 0) {
+                  const firstItem = pendingItems[0];
+                  // Use the just-loaded history to find the assessment
+                  const assessment = sortedHistory.find(s => s.id === firstItem.assessment.id);
+                  if (assessment) {
+                      const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
+                          name: item.candidate.cvFileName,
+                          content: item.candidate.cvContent,
+                      }));
+                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id);
+                  }
+              }
+          } catch(e) {
+              console.error("Could not parse pending assessments", e);
+          } finally {
+              localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+          }
       }
-
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       localStorage.removeItem(CV_DB_STORAGE_KEY);
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
+      localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, []);
+  }, [processAndAnalyzeCandidates]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -330,7 +365,8 @@ function AssessmentPage() {
     try {
         const analysis = await analyzeCVAgainstJD({ 
             jobDescriptionCriteria: assessment.analyzedJd, 
-            cv: candidateDbRecord.cvContent 
+            cv: candidateDbRecord.cvContent,
+            parsedCv: candidateDbRecord, // Pass the full DB record
         });
 
         const newCandidateRecord: CandidateRecord = {
@@ -457,22 +493,6 @@ function AssessmentPage() {
   const handleCvClear = () => {
     setCvs([]);
   }
-  
-  const addOrUpdateCvInDatabase = (parsedCv: CvDatabaseRecord) => {
-    setCvDatabase(prevDb => {
-        const existingCvIndex = prevDb.findIndex(c => c.email === parsedCv.email);
-        if (existingCvIndex !== -1) {
-            const updatedDb = [...prevDb];
-            updatedDb[existingCvIndex] = parsedCv;
-            return updatedDb;
-        } else {
-            return [...prevDb, parsedCv];
-        }
-    });
-  };
-
-  
-
 
   const reAssessCandidates = async (
     jd: ExtractJDCriteriaOutput,
@@ -489,9 +509,12 @@ function AssessmentPage() {
 
     try {
       toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
+      
+      const dbRecordsMap = new Map(cvDatabase.map(cv => [cv.cvContent, cv]));
 
-      const analysisPromises = candidatesToReassess.map(oldCandidate =>
-        analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
+      const analysisPromises = candidatesToReassess.map(oldCandidate => {
+        const parsedCv = dbRecordsMap.get(oldCandidate.cvContent);
+        return analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent, parsedCv })
           .then(result => {
             setReassessStatus(prev => ({
               ...prev,
@@ -516,7 +539,7 @@ function AssessmentPage() {
             });
             return oldCandidate;
           })
-      );
+      });
 
       const updatedCandidates = await Promise.all(analysisPromises);
 
@@ -1280,4 +1303,3 @@ export default AssessmentPage;
     
 
     
-
