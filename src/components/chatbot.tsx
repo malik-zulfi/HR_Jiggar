@@ -136,37 +136,37 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                                 const { href, children, ...rest } = props;
                                 const url = href || '';
 
+                                const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+                                    e.preventDefault();
+                                    setIsOpen(false);
+                                    window.location.href = path; // Force a full page reload
+                                };
+
                                 if (url.startsWith('/assessment?sessionId=')) {
                                     const sessionId = url.split('sessionId=')[1];
-                                    const handleViewInTool = () => {
-                                        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
-                                        setIsOpen(false);
-                                    };
+                                    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
                                     return (
-                                        <Link
+                                        <a
                                             href="/assessment"
-                                            onClick={handleViewInTool}
+                                            onClick={(e) => handleNavigation(e, '/assessment')}
                                             className="font-semibold text-primary underline hover:no-underline cursor-pointer"
                                             {...rest}
                                         >
                                             {children}
-                                        </Link>
+                                        </a>
                                     );
                                 }
 
                                 if (url.startsWith('/cv-database?email=')) {
-                                    const handleViewCv = () => {
-                                        setIsOpen(false);
-                                    };
-                                    return (
-                                        <Link
+                                     return (
+                                        <a
                                             href={url}
-                                            onClick={handleViewCv}
+                                            onClick={(e) => handleNavigation(e, url)}
                                             className="font-semibold text-primary underline hover:no-underline cursor-pointer"
                                             {...rest}
                                         >
                                             {children}
-                                        </Link>
+                                        </a>
                                     );
                                 }
                               

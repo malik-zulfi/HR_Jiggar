@@ -448,12 +448,15 @@ export default function CvDatabasePage() {
 
     const handleQuickAddToAssessment = useCallback(async (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
         if (candidates.length === 0) return;
-        toast({ description: `Adding ${candidates.length} candidate(s) to "${assessment.analyzedJd.jobTitle}"...` });
         
         const pendingQueue = candidates.map(candidate => ({ candidate, assessment }));
 
         localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingQueue));
         localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+        
+        toast({ description: `Adding ${candidates.length} candidate(s) to "${assessment.analyzedJd.jobTitle}"...` });
+        
+        // Use router.push to navigate which works better with Next.js App Router
         router.push('/assessment');
     }, [router, toast]);
     
@@ -587,7 +590,6 @@ export default function CvDatabasePage() {
                                             selectedEmails={Array.from(selectedCvEmails)}
                                             candidates={cvDatabase}
                                             assessments={history}
-                                            toast={toast}
                                             onDelete={handleDeleteCv}
                                             onAddToAssessment={handleQuickAddToAssessment}
                                             onClear={() => setSelectedCvEmails(new Set())}
@@ -849,16 +851,16 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
     );
 };
     
-const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete, onAddToAssessment, onClear }: {
+const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddToAssessment, onClear }: {
     selectedEmails: string[];
     candidates: CvDatabaseRecord[];
     assessments: AssessmentSession[];
-    toast: (options: { description: string, title?: string, variant?: 'default' | 'destructive' }) => void;
     onDelete: (emails: string[]) => void;
     onAddToAssessment: (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => void;
     onClear: () => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const { toast } = useToast();
     
     const selectedCount = selectedEmails.length;
     const selectedCandidates = candidates.filter(c => selectedEmails.includes(c.email));
@@ -951,3 +953,4 @@ const BulkActions = ({ selectedEmails, candidates, assessments, toast, onDelete,
         </div>
     );
 };
+

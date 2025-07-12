@@ -157,13 +157,12 @@ function AssessmentPage() {
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
         const jobCode = jd.code;
-        const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
 
         for (const cv of candidatesToProcess) {
             try {
                 let parsedData = null;
                  // Attempt to parse first to get structured data for DB and analysis
-                if (isValidJobCode) {
+                if (jobCode) {
                     try {
                         parsedData = await parseCv({ cvText: cv.content });
                         const dbRecord: CvDatabaseRecord = {
@@ -178,7 +177,7 @@ function AssessmentPage() {
                         toast({ 
                             variant: 'destructive', 
                             title: `DB Entry Skipped: ${cv.name}`, 
-                            description: `${parseError.message}. Assessment will proceed.` 
+                            description: `Could not extract an email. Assessment will proceed.` 
                         });
                     }
                 }
@@ -234,7 +233,6 @@ function AssessmentPage() {
 
   useEffect(() => {
     try {
-      // Load Assessment History
       const savedHistoryJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
@@ -259,7 +257,6 @@ function AssessmentPage() {
         }
       }
       
-      // Load CV Database
       const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
       if (savedCvDbJSON) {
         const parsedCvDb = JSON.parse(savedCvDbJSON);
@@ -272,7 +269,6 @@ function AssessmentPage() {
         }
       }
       
-      // Load Suitable Positions
       const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
       if (savedSuitablePositions) {
           setSuitablePositions(JSON.parse(savedSuitablePositions));
@@ -281,23 +277,23 @@ function AssessmentPage() {
       const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
       setIsRelevanceCheckEnabled(relevanceEnabled);
       
-      const sessionToActivate = intendedSessionId && parsedHistory.length > 0
-          ? parsedHistory.find(s => s.id === intendedSessionId)
-          : null;
       const sortedHistory = parsedHistory.length > 0
           ? parsedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           : [];
       
       setHistory(sortedHistory);
+      
+      const sessionToActivate = intendedSessionId && sortedHistory.length > 0
+          ? sortedHistory.find(s => s.id === intendedSessionId)
+          : null;
+
       setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
       
-      // Handle pending assessments (single or bulk)
       if (pendingAssessmentJSON) {
           try {
               const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
               if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                   const firstItem = pendingItems[0];
-                  // Use the just-loaded history to find the assessment
                   const assessment = sortedHistory.find(s => s.id === firstItem.assessment.id);
                   if (assessment) {
                       const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
@@ -1300,6 +1296,4 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
-    
-
     
