@@ -17,12 +17,16 @@ import {
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
   type Requirement,
+  ParseCvOutputSchema,
+  type ParseCvOutput,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
+import { extractCandidateName } from './name-extractor';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
   jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
   cv: z.string().describe('The CV to analyze.'),
+  parsedCv: ParseCvOutputSchema.nullable().optional().describe('Optional pre-parsed CV data. If provided, name and email extraction will be skipped.'),
 });
 export type AnalyzeCVAgainstJDInput = z.infer<typeof AnalyzeCVAgainstJDInputSchema>;
 
@@ -36,6 +40,8 @@ const DynamicCriteriaPromptInputSchema = z.object({
     formattedCriteria: z.string().describe('The dynamically ordered, formatted list of job description criteria.'),
     cv: z.string().describe('The CV to analyze.'),
     currentDate: z.string().describe("The current date, to be used as the end date for currently held positions."),
+    candidateName: z.string().optional().describe("The candidate's full name, if already parsed."),
+    candidateEmail: z.string().optional().describe("The candidate's email, if already parsed."),
 });
 
 // The prompt will only return the analysis part. Score and recommendation are calculated programmatically.
@@ -58,7 +64,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Analysis Steps:**
 
-1.  **Extract Key Details:** First, extract the candidate's full name and their primary email address from the CV. Format the name in Title Case (e.g., "John Doe"). If you cannot find an email, return an empty string for the email field.
+1.  **Extract Key Details:** If the candidate's name and email are not provided, extract the full name and primary email address from the CV. Format the name in Title Case (e.g., "John Doe"). If you cannot find an email, return an empty string for the email field. If the name and email are provided, use them directly.
 
 2.  **Assess Each Requirement:**
     *   For each requirement in the job description criteria, assess the candidate's CV.
@@ -103,7 +109,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   },
   async input => {
     const startTime = Date.now();
-    const { jobDescriptionCriteria, cv } = input;
+    const { jobDescriptionCriteria, cv, parsedCv } = input;
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = jobDescriptionCriteria;
     
     const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
@@ -128,14 +134,26 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     formattedCriteria += formatSection('Additional Requirement', additionalRequirements);
 
     const currentDate = new Date().toDateString();
+
     const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
         formattedCriteria,
         cv,
-        currentDate
+        currentDate,
+        candidateName: parsedCv?.name,
+        candidateEmail: parsedCv?.email,
     }));
 
+    // If the model couldn't extract the name (and it wasn't provided), try a fallback.
     if (!partialOutput || !partialOutput.candidateName) {
-        throw new Error("CV analysis failed to return the candidate's name.");
+        const fallbackName = await extractCandidateName({ cvText: cv });
+        if (!fallbackName.candidateName) {
+            throw new Error("CV analysis failed: Could not determine the candidate's name.");
+        }
+        if(partialOutput) {
+            partialOutput.candidateName = fallbackName.candidateName;
+        } else {
+             throw new Error("CV analysis failed to return a valid partial response.");
+        }
     }
     
     const output: AnalyzeCVAgainstJDOutput = {

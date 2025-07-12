@@ -128,6 +128,19 @@ function AssessmentPage() {
     }
   }, [newCvProcessingStatus]);
 
+  const addOrUpdateCvInDatabase = useCallback((parsedCv: CvDatabaseRecord) => {
+    setCvDatabase(prevDb => {
+        const existingCvIndex = prevDb.findIndex(c => c.email === parsedCv.email);
+        if (existingCvIndex !== -1) {
+            const updatedDb = [...prevDb];
+            updatedDb[existingCvIndex] = parsedCv;
+            return updatedDb;
+        } else {
+            return [...prevDb, parsedCv];
+        }
+    });
+  }, []);
+
   const processAndAnalyzeCandidates = useCallback(async (
       candidatesToProcess: UploadedFile[],
       jd: ExtractJDCriteriaOutput,
@@ -147,16 +160,13 @@ function AssessmentPage() {
         const isValidJobCode = jobCode && ['OCN', 'WEX', 'SAN'].includes(jobCode);
 
         for (const cv of candidatesToProcess) {
-            let analysis: AnalyzeCVAgainstJDOutput;
-            let dbRecord: CvDatabaseRecord | null = null;
-            let parsedData = null;
-
             try {
-                 // Try to parse first for database entry and analysis data
+                let parsedData = null;
+                 // Attempt to parse first to get structured data for DB and analysis
                 if (isValidJobCode) {
                     try {
                         parsedData = await parseCv({ cvText: cv.content });
-                        dbRecord = {
+                        const dbRecord: CvDatabaseRecord = {
                             ...parsedData,
                             jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
                             cvFileName: cv.name,
@@ -165,13 +175,19 @@ function AssessmentPage() {
                         };
                         addOrUpdateCvInDatabase(dbRecord);
                     } catch (parseError: any) {
-                        console.error(`Failed to parse and add ${cv.name} to database:`, parseError);
-                        toast({ variant: 'destructive', title: `DB Add Failed for ${cv.name}`, description: `${parseError.message}. Assessment will continue.` });
+                        toast({ 
+                            variant: 'destructive', 
+                            title: `DB Entry Skipped: ${cv.name}`, 
+                            description: `${parseError.message}. Assessment will proceed.` 
+                        });
                     }
                 }
                 
-                // If parsing failed but we still need to analyze, run analysis separately
-                analysis = await analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: cv.content });
+                const analysis = await analyzeCVAgainstJD({ 
+                    jobDescriptionCriteria: jd, 
+                    cv: cv.content,
+                    parsedCv: parsedData, // Pass parsed data if available
+                });
 
                 const candidateRecord: CandidateRecord = {
                     cvName: cv.name,
@@ -214,7 +230,7 @@ function AssessmentPage() {
         if (successCount > 0) {
             toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
         }
-    }, [toast]);
+    }, [toast, addOrUpdateCvInDatabase]);
 
   useEffect(() => {
     try {
@@ -281,6 +297,7 @@ function AssessmentPage() {
               const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
               if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                   const firstItem = pendingItems[0];
+                  // Use the just-loaded history to find the assessment
                   const assessment = sortedHistory.find(s => s.id === firstItem.assessment.id);
                   if (assessment) {
                       const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
@@ -334,19 +351,6 @@ function AssessmentPage() {
     setSelectedCandidates(new Set());
   }, [activeSessionId]);
 
-  const addOrUpdateCvInDatabase = (parsedCv: CvDatabaseRecord) => {
-    setCvDatabase(prevDb => {
-        const existingCvIndex = prevDb.findIndex(c => c.email === parsedCv.email);
-        if (existingCvIndex !== -1) {
-            const updatedDb = [...prevDb];
-            updatedDb[existingCvIndex] = parsedCv;
-            return updatedDb;
-        } else {
-            return [...prevDb, parsedCv];
-        }
-    });
-  };
-
   const handleQuickAddToAssessment = useCallback(async (position: SuitablePosition) => {
     const { candidateEmail, assessment } = position;
     const candidateDbRecord = cvDatabase.find(c => c.email === candidateEmail);
@@ -361,7 +365,8 @@ function AssessmentPage() {
     try {
         const analysis = await analyzeCVAgainstJD({ 
             jobDescriptionCriteria: assessment.analyzedJd, 
-            cv: candidateDbRecord.cvContent 
+            cv: candidateDbRecord.cvContent,
+            parsedCv: candidateDbRecord, // Pass the full DB record
         });
 
         const newCandidateRecord: CandidateRecord = {
@@ -504,9 +509,12 @@ function AssessmentPage() {
 
     try {
       toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
+      
+      const dbRecordsMap = new Map(cvDatabase.map(cv => [cv.cvContent, cv]));
 
-      const analysisPromises = candidatesToReassess.map(oldCandidate =>
-        analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent })
+      const analysisPromises = candidatesToReassess.map(oldCandidate => {
+        const parsedCv = dbRecordsMap.get(oldCandidate.cvContent);
+        return analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent, parsedCv })
           .then(result => {
             setReassessStatus(prev => ({
               ...prev,
@@ -531,7 +539,7 @@ function AssessmentPage() {
             });
             return oldCandidate;
           })
-      );
+      });
 
       const updatedCandidates = await Promise.all(analysisPromises);
 
