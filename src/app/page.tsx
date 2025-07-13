@@ -38,7 +38,7 @@ const chartConfig = {
 
 
 export default function DashboardPage() {
-    const { history, cvDatabase, isClient } = useAppContext();
+    const { history, cvDatabase } = useAppContext();
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
 
     const filteredHistory = useMemo(() => {
@@ -156,10 +156,6 @@ export default function DashboardPage() {
     };
     
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
-
-    if (!isClient) {
-        return null; 
-    }
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">

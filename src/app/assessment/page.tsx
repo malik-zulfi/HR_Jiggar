@@ -49,7 +49,7 @@ type RelevanceCheckStatus = Record<string, boolean>;
 
 
 function AssessmentPage() {
-  const { history, setHistory, cvDatabase, setCvDatabase, isClient } = useAppContext();
+  const { history, setHistory, cvDatabase, setCvDatabase } = useAppContext();
   const { toast } = useToast();
 
   const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
@@ -228,18 +228,16 @@ function AssessmentPage() {
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
   useEffect(() => {
-    if (!isClient) return;
-
     // This effect runs when the page loads. It handles activating a session
     // and processing any pending bulk-added candidates.
 
-    const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-    const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
-
     // Guard against running this logic before the history state is hydrated from localStorage
-    if (history.length === 0 && (intendedSessionId || pendingAssessmentJSON)) {
+    if (history.length === 0) {
         return;
     }
+
+    const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
 
     try {
       if (intendedSessionId) {
@@ -284,7 +282,7 @@ function AssessmentPage() {
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [isClient, history]); // Depend on history to re-run once it's hydrated
+  }, [history]); // Depend on history to re-run once it's hydrated
 
   useEffect(() => {
     if (history.length > 0) {
@@ -775,10 +773,6 @@ function AssessmentPage() {
   const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
   const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
 
-  if (!isClient) {
-    return null;
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-secondary/40">
       <Header
@@ -1152,5 +1146,3 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
-
-    

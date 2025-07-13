@@ -55,7 +55,7 @@ type CandidateAssessmentInfo = {
 
 
 export default function CvDatabasePage() {
-    const { history, setHistory, cvDatabase, setCvDatabase, isClient } = useAppContext();
+    const { history, setHistory, cvDatabase, setCvDatabase } = useAppContext();
     const { toast } = useToast();
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
     const [jobCode, setJobCode] = useState<JobCode | null>(null);
@@ -183,7 +183,7 @@ export default function CvDatabasePage() {
     };
 
     useEffect(() => {
-        if (!isClient) return;
+        if (cvDatabase.length === 0 && history.length === 0) return;
         try {
             const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
             if (savedSuitablePositions) {
@@ -205,7 +205,7 @@ export default function CvDatabasePage() {
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, [cvDatabase, isClient]);
+    }, [cvDatabase, history]);
 
     useEffect(() => {
         if (cvDatabase.length > 0) {
@@ -458,10 +458,6 @@ export default function CvDatabasePage() {
             return newSet;
         });
     };
-
-    if (!isClient) {
-        return null;
-    }
     
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
