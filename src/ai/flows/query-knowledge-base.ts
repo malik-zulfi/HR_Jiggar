@@ -28,7 +28,6 @@ export async function queryKnowledgeBase(input: QueryKnowledgeBaseInput): Promis
 const SummarizedDataSchema = z.object({
     query: z.string(),
     chatHistory: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).optional(),
-    currentDate: z.string(),
     knowledgeBase: z.any() // Using any to avoid schema complexity in the prompt definition
 });
 
@@ -41,12 +40,11 @@ const prompt = ai.definePrompt({
 
 **Knowledge Base Context:**
 *   "Assessment Sessions": Contains all job descriptions and the candidates assessed for each.
-*   "CV Database": The master list of all individual candidates in the system.
+*   "CV Database": The master list of all individual candidates in the system. Each candidate has a pre-calculated 'totalExperience' field.
 
 **Important Reasoning Rules:**
+*   **Use Pre-calculated Experience:** When answering questions about a candidate's experience, you MUST use the 'totalExperience' field provided in their 'cvDatabase' record. Do NOT attempt to re-calculate it from the CV text.
 *   **Use Conversation History**: Refer to the \`chatHistory\` to understand the context of the user's current query. Answer follow-up questions based on previous interactions.
-*   **Calculate Experience for Current Roles**: When a candidate's experience is listed as "Present" or "Current", use today's date ({{{currentDate}}}) as the end date.
-*   **Handle Overlapping Experience**: When calculating total years of experience, merge overlapping date ranges to avoid double-counting.
 
 **Your Task:**
 -   Analyze the user's query, the chat history, and the provided data.
@@ -111,13 +109,10 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
         })),
     };
 
-    const currentDate = new Date().toDateString();
-
     const {output} = await withRetry(() => prompt({
         query: query,
         chatHistory: chatHistory,
         knowledgeBase,
-        currentDate,
     }));
     
     if (!output) {
