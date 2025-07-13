@@ -229,23 +229,31 @@ function AssessmentPage() {
 
   useEffect(() => {
     if (!isClient) return;
+
+    // This effect runs when the page loads. It handles activating a session
+    // and processing any pending bulk-added candidates.
+
+    const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
+
+    // Guard against running this logic before the history state is hydrated from localStorage
+    if (history.length === 0 && (intendedSessionId || pendingAssessmentJSON)) {
+        return;
+    }
+
     try {
-      const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-      const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
-
-      if (intendedSessionId) localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-      
-      const sessionToActivate = intendedSessionId && history.length > 0
-          ? history.find(s => s.id === intendedSessionId)
-          : null;
-
-      setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+      if (intendedSessionId) {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        const sessionToActivate = history.find(s => s.id === intendedSessionId);
+        setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+      }
       
       if (pendingAssessmentJSON) {
           try {
               const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
               if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                   const firstItem = pendingItems[0];
+                  // Ensure the assessment from the pending items still exists in our history
                   const assessment = history.find(s => s.id === firstItem.assessment.id);
                   if (assessment) {
                       const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
@@ -258,6 +266,7 @@ function AssessmentPage() {
           } catch(e) {
               console.error("Could not parse pending assessments", e);
           } finally {
+              // Always remove the pending key to avoid re-processing
               localStorage.removeItem(PENDING_ASSESSMENT_KEY);
           }
       }
@@ -269,14 +278,13 @@ function AssessmentPage() {
       
       const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
       setIsRelevanceCheckEnabled(relevanceEnabled);
-      
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [processAndAnalyzeCandidates, history, isClient]);
+  }, [isClient, history]); // Depend on history to re-run once it's hydrated
 
   useEffect(() => {
     if (history.length > 0) {
@@ -1144,3 +1152,5 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
+
+    
