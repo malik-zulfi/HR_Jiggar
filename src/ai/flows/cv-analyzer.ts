@@ -141,18 +141,16 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         recommendation: 'Not Recommended', // Will be calculated next
     };
 
+    // New, simplified, and consistent scoring logic
+    const MUST_HAVE_POINTS = 10;
+    const NICE_TO_HAVE_POINTS = 5;
 
-    // Programmatic Score Calculation
     let maxScore = 0;
-    const calculateMaxScore = (reqs: Requirement[] | undefined, isResponsibility = false) => {
-      if (!reqs) return;
-      reqs.forEach(req => {
-          if (req.priority === 'MUST-HAVE') {
-              maxScore += isResponsibility ? 5 : 10;
-          } else { // NICE-TO-HAVE
-              maxScore += 5;
-          }
-      });
+    const calculateMaxScore = (reqs: Requirement[] | undefined) => {
+        if (!reqs) return;
+        reqs.forEach(req => {
+            maxScore += req.priority === 'MUST-HAVE' ? MUST_HAVE_POINTS : NICE_TO_HAVE_POINTS;
+        });
     };
 
     calculateMaxScore(jobDescriptionCriteria.education);
@@ -160,29 +158,21 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     calculateMaxScore(jobDescriptionCriteria.technicalSkills);
     calculateMaxScore(jobDescriptionCriteria.softSkills);
     calculateMaxScore(jobDescriptionCriteria.certifications);
-    calculateMaxScore(jobDescriptionCriteria.responsibilities, true);
+    calculateMaxScore(jobDescriptionCriteria.responsibilities);
     calculateMaxScore(jobDescriptionCriteria.additionalRequirements);
 
     let candidateScore = 0;
     output.alignmentDetails.forEach(detail => {
-      const isResponsibility = detail.category.toLowerCase().includes('responsibility');
-      if (detail.status === 'Aligned') {
-          if (detail.priority === 'MUST-HAVE') {
-              candidateScore += isResponsibility ? 5 : 10;
-          } else { // NICE-TO-HAVE
-              candidateScore += 5;
-          }
-      } else if (detail.status === 'Partially Aligned') {
-          if (detail.priority === 'MUST-HAVE') {
-              candidateScore += isResponsibility ? 2 : 5;
-          } else { // NICE-TO-HAVE
-              candidateScore += 3;
-          }
-      }
+        const basePoints = detail.priority === 'MUST-HAVE' ? MUST_HAVE_POINTS : NICE_TO_HAVE_POINTS;
+        
+        if (detail.status === 'Aligned') {
+            candidateScore += basePoints;
+        } else if (detail.status === 'Partially Aligned') {
+            candidateScore += basePoints / 2; // Partially aligned gets half points
+        }
     });
     
     output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
-
 
     // Programmatic Recommendation and Disqualification
     const isDisqualified = output.alignmentDetails.some(detail =>
