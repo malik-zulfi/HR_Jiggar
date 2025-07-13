@@ -38,10 +38,9 @@ const chartConfig = {
 interface DashboardPageProps {
     history?: AssessmentSession[];
     cvDatabase?: CvDatabaseRecord[];
-    isClient?: boolean;
 }
 
-export default function DashboardPage({ history = [], cvDatabase = [], isClient = false }: DashboardPageProps) {
+export default function DashboardPage({ history = [], cvDatabase = [] }: DashboardPageProps) {
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
@@ -165,10 +164,6 @@ export default function DashboardPage({ history = [], cvDatabase = [], isClient 
     };
     
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
-
-    if (!isClient) {
-        return null;
-    }
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">

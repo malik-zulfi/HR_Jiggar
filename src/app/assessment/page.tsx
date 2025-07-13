@@ -51,7 +51,6 @@ interface AssessmentPageProps {
     setHistory?: (history: AssessmentSession[]) => void;
     cvDatabase?: CvDatabaseRecord[];
     setCvDatabase?: (db: CvDatabaseRecord[]) => void;
-    isClient?: boolean;
 }
 
 function AssessmentPage({
@@ -59,7 +58,6 @@ function AssessmentPage({
     setHistory = () => {},
     cvDatabase = [],
     setCvDatabase = () => {},
-    isClient = false
 }: AssessmentPageProps) {
   const { toast } = useToast();
 
@@ -239,8 +237,6 @@ function AssessmentPage({
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
   useEffect(() => {
-    if (!isClient) return;
-    
     try {
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
@@ -288,7 +284,7 @@ function AssessmentPage({
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [isClient, processAndAnalyzeCandidates, history]);
+  }, [processAndAnalyzeCandidates, history]);
 
   useEffect(() => {
     if (history.length > 0) {

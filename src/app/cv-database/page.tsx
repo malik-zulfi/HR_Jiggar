@@ -57,7 +57,6 @@ interface CvDatabasePageProps {
     setHistory?: (history: AssessmentSession[]) => void;
     cvDatabase?: CvDatabaseRecord[];
     setCvDatabase?: (db: CvDatabaseRecord[]) => void;
-    isClient?: boolean;
 }
 
 export default function CvDatabasePage({
@@ -65,7 +64,6 @@ export default function CvDatabasePage({
     setHistory = () => {},
     cvDatabase = [],
     setCvDatabase = () => {},
-    isClient = false,
 }: CvDatabasePageProps) {
     const { toast } = useToast();
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
@@ -194,8 +192,6 @@ export default function CvDatabasePage({
     };
 
     useEffect(() => {
-        if (!isClient) return;
-
         try {
             const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
             if (savedSuitablePositions) {
@@ -217,41 +213,33 @@ export default function CvDatabasePage({
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, [isClient, cvDatabase]);
+    }, [cvDatabase]);
 
     useEffect(() => {
-        if (isClient) {
-            if (cvDatabase.length > 0) {
-                localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
-            } else {
-                localStorage.removeItem(CV_DB_STORAGE_KEY);
-            }
+        if (cvDatabase.length > 0) {
+            localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
+        } else {
+            localStorage.removeItem(CV_DB_STORAGE_KEY);
         }
-    }, [cvDatabase, isClient]);
+    }, [cvDatabase]);
     
     useEffect(() => {
-        if (isClient) {
-            if (history.length > 0) {
-                localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-            } else {
-                localStorage.removeItem(HISTORY_STORAGE_KEY);
-            }
+        if (history.length > 0) {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+        } else {
+            localStorage.removeItem(HISTORY_STORAGE_KEY);
         }
-    }, [history, isClient]);
+    }, [history]);
 
     useEffect(() => {
-        if (isClient) {
-            localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
-        }
-    }, [suitablePositions, isClient]);
+        localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
+    }, [suitablePositions]);
     
     const handleRelevanceToggle = (enabled: boolean) => {
         setIsRelevanceCheckEnabled(enabled);
-        if (isClient) {
-            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
-            if (!enabled) {
-                setSuitablePositions([]);
-            }
+        localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
+        if (!enabled) {
+            setSuitablePositions([]);
         }
     };
 
@@ -479,8 +467,6 @@ export default function CvDatabasePage({
         });
     };
     
-    if (!isClient) return null;
-
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
             <Header
