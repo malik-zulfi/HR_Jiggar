@@ -33,6 +33,7 @@ export const AlignmentDetailSchema = z.object({
   priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
   status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
   justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
+  score: z.number().optional().describe('The score awarded for this specific requirement.'),
 });
 export type AlignmentDetail = z.infer<typeof AlignmentDetailSchema>;
 

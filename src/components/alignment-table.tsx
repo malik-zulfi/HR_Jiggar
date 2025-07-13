@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import React from "react";
+import { Badge } from "./ui/badge";
 
 const statusInfo: Record<AlignmentDetail['status'], { icon: React.ReactNode; label: string }> = {
   'Aligned': { icon: <CheckCircle2 className="h-5 w-5 text-chart-2" />, label: 'Aligned' },
@@ -87,9 +88,10 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
             <Table className="table-fixed w-full">
                 <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-[45%] p-4">Requirement</TableHead>
-                        <TableHead className="w-[40%] p-4">Justification</TableHead>
-                        <TableHead className="w-[15%] text-center p-4">Status</TableHead>
+                        <TableHead className="w-[40%] p-4">Requirement</TableHead>
+                        <TableHead className="w-[35%] p-4">Justification</TableHead>
+                        <TableHead className="w-[12.5%] text-center p-4">Status</TableHead>
+                        <TableHead className="w-[12.5%] text-center p-4">Score</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -100,7 +102,7 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                         return (
                             <React.Fragment key={category}>
                                 <TableRow className="border-none bg-muted/30 hover:bg-muted/30">
-                                    <TableCell colSpan={3} className="py-2 px-4 font-semibold text-primary">
+                                    <TableCell colSpan={4} className="py-2 px-4 font-semibold text-primary">
                                         {category}
                                     </TableCell>
                                 </TableRow>
@@ -136,6 +138,13 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="align-top text-center">
+                                                {item.score !== undefined ? (
+                                                  <Badge variant="secondary" className="font-semibold">{item.score}</Badge>
+                                                ) : (
+                                                  <Badge variant="outline">-</Badge>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     );

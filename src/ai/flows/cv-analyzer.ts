@@ -188,11 +188,14 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         );
 
         if (alignmentDetail) {
+            let awardedPoints = 0;
             if (alignmentDetail.status === 'Aligned') {
-                candidateScore += basePoints;
+                awardedPoints = basePoints;
             } else if (alignmentDetail.status === 'Partially Aligned') {
-                candidateScore += basePoints / 2;
+                awardedPoints = basePoints / 2;
             }
+            candidateScore += awardedPoints;
+            alignmentDetail.score = awardedPoints; // Attach the score to the detail object
         }
     });
 
