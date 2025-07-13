@@ -617,7 +617,7 @@ function AssessmentPage({
     await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd, activeSessionId);
   };
 
-  const handleAnalyzeFromDb = async (selectedCvsFromDb: CvDatabaseRecord[]) => {
+  const handleAnalyzeFromDb = useCallback(async (selectedCvsFromDb: CvDatabaseRecord[]) => {
     if (selectedCvsFromDb.length === 0) return;
     if (!activeSession?.analyzedJd) return;
 
@@ -628,7 +628,7 @@ function AssessmentPage({
     
     await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId);
     setIsAddFromDbOpen(false);
-  };
+  }, [activeSession, processAndAnalyzeCandidates]);
   
   const handleGenerateSummary = async () => {
     if (!activeSession || activeSession.candidates.length === 0 || !activeSession.analyzedJd) return;

@@ -412,7 +412,7 @@ export default function CvDatabasePage({
         });
     };
 
-    const handleQuickAddToAssessment = useCallback(async (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
+    const handleQuickAddToAssessment = useCallback((candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
         if (candidates.length === 0) return;
         
         const pendingQueue = candidates.map(candidate => ({ candidate, assessment }));
@@ -423,10 +423,10 @@ export default function CvDatabasePage({
         window.location.href = '/assessment';
     }, []);
     
-    const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
+    const handleAddFromPopover = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
         await handleQuickAddToAssessment([candidate], assessment);
-    };
+    }, [handleQuickAddToAssessment]);
 
     useEffect(() => {
         const hasFinishedTasks = Object.values(processingStatus).some(s => s.status === 'done' || s.status === 'error');

@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 import type { AssessmentSession, CvDatabaseRecord } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import Chatbot from '@/components/chatbot';
-import { usePathname } from 'next/navigation';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -19,7 +18,6 @@ export function AppProvider({
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
   const [isClient, setIsClient] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     setIsClient(true);
@@ -50,7 +48,7 @@ export function AppProvider({
     } catch (error) {
       console.error("Failed to load global state from localStorage", error);
     }
-  }, [pathname]); // Re-load data on page navigation to ensure it's fresh
+  }, []); // Removed pathname dependency to prevent infinite loops
 
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
