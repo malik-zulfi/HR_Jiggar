@@ -141,37 +141,61 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         recommendation: 'Not Recommended', // Will be calculated next
     };
 
-    // New, simplified, and consistent scoring logic
-    const MUST_HAVE_POINTS = 10;
-    const NICE_TO_HAVE_POINTS = 5;
-
-    let maxScore = 0;
-    const calculateMaxScore = (reqs: Requirement[] | undefined) => {
-        if (!reqs) return;
-        reqs.forEach(req => {
-            maxScore += req.priority === 'MUST-HAVE' ? MUST_HAVE_POINTS : NICE_TO_HAVE_POINTS;
-        });
+    // New Priority-based Scoring Logic
+    const PRIORITY_WEIGHTS = {
+        'Education': { 'MUST-HAVE': 20, 'NICE-TO-HAVE': 10 },
+        'Experience': { 'MUST-HAVE': 20, 'NICE-TO-HAVE': 10 },
+        'Certification': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
+        'Technical Skill': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
+        'Soft Skill': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
+        'Responsibility': { 'MUST-HAVE': 10, 'NICE-TO-HAVE': 5 },
+        'Additional Requirement': { 'MUST-HAVE': 5, 'NICE-TO-HAVE': 2 },
     };
 
-    calculateMaxScore(jobDescriptionCriteria.education);
-    calculateMaxScore(jobDescriptionCriteria.experience);
-    calculateMaxScore(jobDescriptionCriteria.technicalSkills);
-    calculateMaxScore(jobDescriptionCriteria.softSkills);
-    calculateMaxScore(jobDescriptionCriteria.certifications);
-    calculateMaxScore(jobDescriptionCriteria.responsibilities);
-    calculateMaxScore(jobDescriptionCriteria.additionalRequirements);
-
+    let maxScore = 0;
     let candidateScore = 0;
-    output.alignmentDetails.forEach(detail => {
-        const basePoints = detail.priority === 'MUST-HAVE' ? MUST_HAVE_POINTS : NICE_TO_HAVE_POINTS;
-        
-        if (detail.status === 'Aligned') {
-            candidateScore += basePoints;
-        } else if (detail.status === 'Partially Aligned') {
-            candidateScore += basePoints / 2; // Partially aligned gets half points
+    
+    // Normalize category names for matching
+    const normalizeCategory = (category: string): keyof typeof PRIORITY_WEIGHTS => {
+        const lowerCategory = category.toLowerCase();
+        if (lowerCategory.includes('education')) return 'Education';
+        if (lowerCategory.includes('experience')) return 'Experience';
+        if (lowerCategory.includes('certifica')) return 'Certification';
+        if (lowerCategory.includes('technical')) return 'Technical Skill';
+        if (lowerCategory.includes('soft')) return 'Soft Skill';
+        if (lowerCategory.includes('responsibilit')) return 'Responsibility';
+        return 'Additional Requirement';
+    };
+    
+    // Remap JD criteria to normalized category names for accurate scoring
+    const allJdRequirements = [
+        ...(jobDescriptionCriteria.education || []).map(r => ({ ...r, category: 'Education' as const })),
+        ...(jobDescriptionCriteria.experience || []).map(r => ({ ...r, category: 'Experience' as const })),
+        ...(jobDescriptionCriteria.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' as const })),
+        ...(jobDescriptionCriteria.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' as const })),
+        ...(jobDescriptionCriteria.certifications || []).map(r => ({ ...r, category: 'Certification' as const })),
+        ...(jobDescriptionCriteria.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' as const })),
+        ...(jobDescriptionCriteria.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' as const })),
+    ];
+    
+    allJdRequirements.forEach(req => {
+        const weights = PRIORITY_WEIGHTS[req.category];
+        const basePoints = weights[req.priority];
+        maxScore += basePoints;
+
+        const alignmentDetail = output.alignmentDetails.find(
+            detail => detail.requirement === req.description && normalizeCategory(detail.category) === req.category
+        );
+
+        if (alignmentDetail) {
+            if (alignmentDetail.status === 'Aligned') {
+                candidateScore += basePoints;
+            } else if (alignmentDetail.status === 'Partially Aligned') {
+                candidateScore += basePoints / 2;
+            }
         }
     });
-    
+
     output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
 
     // Programmatic Recommendation and Disqualification
