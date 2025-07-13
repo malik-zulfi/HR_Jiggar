@@ -21,6 +21,7 @@ export const ExtractJDCriteriaOutputSchema = z.object({
   certifications: z.array(RequirementSchema).describe('Certification requirements.'),
   responsibilities: z.array(RequirementSchema).describe('Responsibilities listed in the job description.'),
   additionalRequirements: z.array(RequirementSchema).optional().describe('User-added requirements that can be deleted.'),
+  formattedCriteria: z.string().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
 });
 export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
 
@@ -75,7 +76,7 @@ const CandidateAssessmentSchema = z.object({
 
 export const CandidateSummaryInputSchema = z.object({
   candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria.'),
+  formattedCriteria: z.string().describe('The pre-formatted string of all job description criteria.'),
 });
 export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
 

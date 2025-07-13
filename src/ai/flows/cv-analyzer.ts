@@ -24,7 +24,7 @@ import { withRetry } from '@/lib/retry';
 import { extractCandidateName } from './name-extractor';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
-  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against, including the pre-formatted string.'),
   cv: z.string().describe('The CV to analyze.'),
   parsedCv: ParseCvOutputSchema.nullable().optional().describe('Optional pre-parsed CV data. If provided, name and email extraction will be skipped.'),
 });
@@ -111,31 +111,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   async input => {
     const startTime = Date.now();
     const { jobDescriptionCriteria, cv, parsedCv } = input;
-    const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = jobDescriptionCriteria;
     
-    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
-
-    const formatSection = (title: string, items: Requirement[] | undefined) => {
-        if (!items || items.length === 0) return '';
-        return items.map(item => `- ${title} (${item.priority.replace('-', ' ')}): ${item.description}`).join('\n') + '\n';
-    };
-
-    let formattedCriteria = '';
-    formattedCriteria += formatSection('Education', education);
-    formattedCriteria += formatSection('Experience', experience);
-    if (hasMustHaveCert) {
-        formattedCriteria += formatSection('Certification', certifications);
-    }
-    formattedCriteria += formatSection('Technical Skill', technicalSkills);
-    formattedCriteria += formatSection('Soft Skill', softSkills);
-    if (!hasMustHaveCert) {
-        formattedCriteria += formatSection('Certification', certifications);
-    }
-    formattedCriteria += formatSection('Responsibility', responsibilities);
-    formattedCriteria += formatSection('Additional Requirement', additionalRequirements);
-
     const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
-        formattedCriteria,
+        formattedCriteria: jobDescriptionCriteria.formattedCriteria,
         cv,
         candidateName: parsedCv?.name,
         candidateEmail: parsedCv?.email,

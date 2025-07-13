@@ -665,7 +665,7 @@ function AssessmentPage() {
         interviewProbes: c.analysis.interviewProbes,
         processingTime: c.analysis.processingTime,
       }));
-      const result = await summarizeCandidateAssessments({ candidateAssessments, jobDescriptionCriteria: activeSession.analyzedJd });
+      const result = await summarizeCandidateAssessments({ candidateAssessments, formattedCriteria: activeSession.analyzedJd.formattedCriteria });
       
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
