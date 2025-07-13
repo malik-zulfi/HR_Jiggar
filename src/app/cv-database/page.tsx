@@ -26,7 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useAppContext } from '@/components/app-provider';
+import { useAppContext } from '@/components/client-provider';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';

@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NotificationPopover from "@/components/notification-popover";
-import { useAppContext } from "@/components/app-provider";
+import { useAppContext } from "@/components/client-provider";
 
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';

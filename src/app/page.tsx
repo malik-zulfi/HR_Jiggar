@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 import { Header } from '@/components/header';
-import { useAppContext } from '@/components/app-provider';
+import { useAppContext } from '@/components/client-provider';
 
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';

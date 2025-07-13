@@ -23,12 +23,12 @@ const AppContext = createContext<AppContextType | null>(null);
 export function useAppContext() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppContext must be used within an AppProvider');
+    throw new Error('useAppContext must be used within an AppProvider. It seems the context is not available.');
   }
   return context;
 }
 
-export function AppProvider({
+export function ClientProvider({
   children,
 }: Readonly<{
   children: React.ReactNode;
