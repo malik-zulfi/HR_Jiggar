@@ -81,6 +81,12 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
   
   const hasChatHistory = chatHistory.length > 1;
 
+  const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    e.preventDefault();
+    setIsOpen(false);
+    window.location.href = path; // Force a full page reload
+  };
+
   return (
     <>
       <div className="fixed bottom-6 right-6 z-50">
@@ -135,12 +141,6 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                             a: ({node, ...props}) => {
                                 const { href, children, ...rest } = props;
                                 const url = href || '';
-
-                                const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
-                                    e.preventDefault();
-                                    setIsOpen(false);
-                                    window.location.href = path; // Force a full page reload
-                                };
 
                                 if (url.startsWith('/assessment?sessionId=')) {
                                     const sessionId = url.split('sessionId=')[1];

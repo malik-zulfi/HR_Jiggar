@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,6 @@ type CandidateAssessmentInfo = {
 
 export default function CvDatabasePage() {
     const { toast } = useToast();
-    const router = useRouter();
     const [isClient, setIsClient] = useState(false);
     const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
     const [history, setHistory] = useState<AssessmentSession[]>([]);
@@ -456,9 +454,9 @@ export default function CvDatabasePage() {
         
         toast({ description: `Adding ${candidates.length} candidate(s) to "${assessment.analyzedJd.jobTitle}"...` });
         
-        // Use router.push to navigate which works better with Next.js App Router
-        router.push('/assessment');
-    }, [router, toast]);
+        // Force a full page reload to avoid caching issues with Next.js App Router
+        window.location.href = '/assessment';
+    }, [toast]);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
@@ -860,7 +858,6 @@ const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddT
     onClear: () => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { toast } = useToast();
     
     const selectedCount = selectedEmails.length;
     const selectedCandidates = candidates.filter(c => selectedEmails.includes(c.email));
@@ -953,4 +950,3 @@ const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddT
         </div>
     );
 };
-
