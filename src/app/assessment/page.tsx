@@ -46,12 +46,23 @@ type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'erro
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 type RelevanceCheckStatus = Record<string, boolean>;
 
+interface AssessmentPageProps {
+    history?: AssessmentSession[];
+    setHistory?: (history: AssessmentSession[]) => void;
+    cvDatabase?: CvDatabaseRecord[];
+    setCvDatabase?: (db: CvDatabaseRecord[]) => void;
+    isClient?: boolean;
+}
 
-function AssessmentPage() {
+function AssessmentPage({
+    history = [],
+    setHistory = () => {},
+    cvDatabase = [],
+    setCvDatabase = () => {},
+    isClient = false
+}: AssessmentPageProps) {
   const { toast } = useToast();
 
-  const [history, setHistory] = useState<AssessmentSession[]>([]);
-  const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
   const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -113,7 +124,6 @@ function AssessmentPage() {
     }));
   }, [reassessStatus]);
   
-  // Effect to clean up the processing status after it's finished
   useEffect(() => {
     const statuses = Object.values(newCvProcessingStatus);
     if (statuses.length > 0 && statuses.every(s => s.status === 'done' || s.status === 'error')) {
@@ -137,7 +147,7 @@ function AssessmentPage() {
             return [...prevDb, parsedCv];
         }
     });
-  }, []);
+  }, [setCvDatabase]);
 
   const processAndAnalyzeCandidates = useCallback(async (
       candidatesToProcess: UploadedFile[],
@@ -159,7 +169,6 @@ function AssessmentPage() {
         for (const cv of candidatesToProcess) {
             try {
                 let parsedData = null;
-                 // Attempt to parse first to get structured data for DB and analysis
                 if (jobCode) {
                     try {
                         parsedData = await parseCv({ cvText: cv.content });
@@ -183,7 +192,7 @@ function AssessmentPage() {
                 const analysis = await analyzeCVAgainstJD({ 
                     jobDescriptionCriteria: jd, 
                     cv: cv.content,
-                    parsedCv: parsedData, // Pass parsed data if available
+                    parsedCv: parsedData,
                 });
 
                 const candidateRecord: CandidateRecord = {
@@ -227,62 +236,19 @@ function AssessmentPage() {
         if (successCount > 0) {
             toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
         }
-    }, [toast, addOrUpdateCvInDatabase]);
+    }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
   useEffect(() => {
+    if (!isClient) return;
+    
     try {
-      const savedHistoryJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
 
       if (intendedSessionId) localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       
-      let parsedHistory: AssessmentSession[] = [];
-      if (savedHistoryJSON) {
-        const parsed = JSON.parse(savedHistoryJSON);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsedHistory = parsed.map(sessionData => {
-            const result = AssessmentSessionSchema.safeParse(sessionData);
-            if (result.success) {
-                if (!result.data.originalAnalyzedJd) {
-                    result.data.originalAnalyzedJd = JSON.parse(JSON.stringify(result.data.analyzedJd));
-                }
-                result.data.candidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                return result.data;
-            }
-            return null;
-          }).filter((s): s is AssessmentSession => s !== null);
-        }
-      }
-      
-      const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
-      if (savedCvDbJSON) {
-        const parsedCvDb = JSON.parse(savedCvDbJSON);
-        if (Array.isArray(parsedCvDb)) {
-            const validDb = parsedCvDb.map(record => {
-                const result = CvDatabaseRecordSchema.safeParse(record);
-                return result.success ? result.data : null;
-            }).filter((r): r is CvDatabaseRecord => r !== null);
-            setCvDatabase(validDb);
-        }
-      }
-      
-      const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
-      if (savedSuitablePositions) {
-          setSuitablePositions(JSON.parse(savedSuitablePositions));
-      }
-      
-      const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
-      setIsRelevanceCheckEnabled(relevanceEnabled);
-      
-      const sortedHistory = parsedHistory.length > 0
-          ? parsedHistory.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          : [];
-      
-      setHistory(sortedHistory);
-      
-      const sessionToActivate = intendedSessionId && sortedHistory.length > 0
-          ? sortedHistory.find(s => s.id === intendedSessionId)
+      const sessionToActivate = intendedSessionId && history.length > 0
+          ? history.find(s => s.id === intendedSessionId)
           : null;
 
       setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
@@ -292,7 +258,7 @@ function AssessmentPage() {
               const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
               if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                   const firstItem = pendingItems[0];
-                  const assessment = sortedHistory.find(s => s.id === firstItem.assessment.id);
+                  const assessment = history.find(s => s.id === firstItem.assessment.id);
                   if (assessment) {
                       const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
                           name: item.candidate.cvFileName,
@@ -308,14 +274,21 @@ function AssessmentPage() {
           }
       }
 
+      const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
+      if (savedSuitablePositions) {
+          setSuitablePositions(JSON.parse(savedSuitablePositions));
+      }
+      
+      const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
+      setIsRelevanceCheckEnabled(relevanceEnabled);
+      
+
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-      localStorage.removeItem(CV_DB_STORAGE_KEY);
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [processAndAnalyzeCandidates]);
+  }, [isClient, processAndAnalyzeCandidates, history]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -360,7 +333,7 @@ function AssessmentPage() {
         const analysis = await analyzeCVAgainstJD({ 
             jobDescriptionCriteria: assessment.analyzedJd, 
             cv: candidateDbRecord.cvContent,
-            parsedCv: candidateDbRecord, // Pass the full DB record
+            parsedCv: candidateDbRecord,
         });
 
         const newCandidateRecord: CandidateRecord = {
@@ -396,7 +369,7 @@ function AssessmentPage() {
     } catch (error: any) {
         toast({ variant: 'destructive', title: `Failed to assess ${candidateDbRecord.name}`, description: error.message });
     }
-  }, [cvDatabase, history, toast]);
+  }, [cvDatabase, history, toast, setHistory]);
 
 
   const handleNewSession = () => {
@@ -462,7 +435,7 @@ function AssessmentPage() {
         summary: null,
         createdAt: new Date().toISOString(),
       };
-      setHistory(prev => [newSession, ...prev]);
+      setHistory([newSession, ...history]);
       setActiveSessionId(newSession.id);
       setIsJdAnalysisOpen(true);
       toast({ description: "Job Description analyzed successfully." });

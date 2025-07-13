@@ -52,11 +52,22 @@ type CandidateAssessmentInfo = {
     score: number;
 };
 
-export default function CvDatabasePage() {
+interface CvDatabasePageProps {
+    history?: AssessmentSession[];
+    setHistory?: (history: AssessmentSession[]) => void;
+    cvDatabase?: CvDatabaseRecord[];
+    setCvDatabase?: (db: CvDatabaseRecord[]) => void;
+    isClient?: boolean;
+}
+
+export default function CvDatabasePage({
+    history = [],
+    setHistory = () => {},
+    cvDatabase = [],
+    setCvDatabase = () => {},
+    isClient = false,
+}: CvDatabasePageProps) {
     const { toast } = useToast();
-    const [isClient, setIsClient] = useState(false);
-    const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
-    const [history, setHistory] = useState<AssessmentSession[]>([]);
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
     const [jobCode, setJobCode] = useState<JobCode | null>(null);
     const [processingStatus, setProcessingStatus] = useState<CvProcessingStatus>({});
@@ -90,7 +101,6 @@ export default function CvDatabasePage() {
             const aVal = a[sortDescriptor.column];
             const bVal = b[sortDescriptor.column];
 
-            // Handle experience sorting (string to number)
             if (sortDescriptor.column === 'totalExperience') {
                 const aYears = parseFloat(a.totalExperience || '0');
                 const bYears = parseFloat(b.totalExperience || '0');
@@ -184,36 +194,9 @@ export default function CvDatabasePage() {
     };
 
     useEffect(() => {
-        setIsClient(true);
-        try {
-            const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
-            let cvsFromStorage: CvDatabaseRecord[] = [];
-            if (savedCvDbJSON) {
-                const parsedCvDb = JSON.parse(savedCvDbJSON);
-                if (Array.isArray(parsedCvDb)) {
-                    cvsFromStorage = parsedCvDb.map(record => {
-                        const result = CvDatabaseRecordSchema.safeParse(record);
-                        if (result.success) {
-                            result.data.name = toTitleCase(result.data.name);
-                        }
-                        return result.success ? result.data : null;
-                    }).filter((r): r is CvDatabaseRecord => r !== null);
-                    setCvDatabase(cvsFromStorage.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-                }
-            }
+        if (!isClient) return;
 
-            const savedHistoryJSON = localStorage.getItem(HISTORY_STORAGE_KEY);
-            if (savedHistoryJSON) {
-                const parsedHistory = JSON.parse(savedHistoryJSON);
-                if (Array.isArray(parsedHistory)) {
-                    const validHistory = parsedHistory.map(sessionData => {
-                        const result = AssessmentSessionSchema.safeParse(sessionData);
-                        return result.success ? result.data : null;
-                    }).filter((s): s is AssessmentSession => s !== null);
-                    setHistory(validHistory);
-                }
-            }
-            
+        try {
             const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
             if (savedSuitablePositions) {
                 setSuitablePositions(JSON.parse(savedSuitablePositions));
@@ -226,7 +209,7 @@ export default function CvDatabasePage() {
             const params = new URLSearchParams(window.location.search);
             const emailToOpen = params.get('email');
             if (emailToOpen) {
-                const cvToOpen = cvsFromStorage.find(cv => cv.email === emailToOpen);
+                const cvToOpen = cvDatabase.find(cv => cv.email === emailToOpen);
                 if (cvToOpen) {
                     setSelectedCv(cvToOpen);
                 }
@@ -234,7 +217,7 @@ export default function CvDatabasePage() {
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, []);
+    }, [isClient, cvDatabase]);
 
     useEffect(() => {
         if (isClient) {
@@ -408,17 +391,15 @@ export default function CvDatabasePage() {
         
         newRecords.forEach(handleNewCandidateAdded);
 
-    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded]);
+    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded, setCvDatabase]);
     
     const handleDeleteCv = (emailsToDelete: string[]) => {
         if (emailsToDelete.length === 0) return;
 
         const emailsToDeleteSet = new Set(emailsToDelete.map(e => e.toLowerCase()));
         
-        // Remove from CV Database
         setCvDatabase(prev => prev.filter(cv => !emailsToDeleteSet.has(cv.email.toLowerCase())));
 
-        // Remove from all assessments in history
         setHistory(prevHistory => {
             return prevHistory.map(session => {
                 const updatedCandidates = session.candidates.filter(candidate => {
@@ -426,7 +407,6 @@ export default function CvDatabasePage() {
                     if (candidateEmail) {
                         return !emailsToDeleteSet.has(candidateEmail);
                     }
-                    // Fallback for older data without email in analysis
                     const dbRecord = cvDatabase.find(cv => cv.name.toLowerCase() === candidate.analysis.candidateName.toLowerCase());
                     if (dbRecord) {
                         return !emailsToDeleteSet.has(dbRecord.email.toLowerCase());
@@ -452,11 +432,8 @@ export default function CvDatabasePage() {
         localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingQueue));
         localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
         
-        toast({ description: `Adding ${candidates.length} candidate(s) to "${assessment.analyzedJd.jobTitle}"...` });
-        
-        // Force a full page reload to avoid caching issues with Next.js App Router
         window.location.href = '/assessment';
-    }, [toast]);
+    }, []);
     
     const handleAddFromPopover = async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
@@ -585,6 +562,7 @@ export default function CvDatabasePage() {
                                     </div>
                                     {selectedCvEmails.size > 0 && (
                                         <BulkActions
+                                            toast={toast}
                                             selectedEmails={Array.from(selectedCvEmails)}
                                             candidates={cvDatabase}
                                             assessments={history}
@@ -656,7 +634,7 @@ export default function CvDatabasePage() {
                                                                     </div>
                                                                     <div className="max-h-60 overflow-y-auto">
                                                                         {candidateAssessments.map(a => (
-                                                                            <Link key={a.sessionId} href="/assessment" onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, a.sessionId)}>
+                                                                            <a key={a.sessionId} href="/assessment" onClick={(e) => { e.preventDefault(); localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, a.sessionId); window.location.href = '/assessment'; }}>
                                                                                 <div className="p-2 rounded-md hover:bg-secondary flex justify-between items-center">
                                                                                     <div className="flex flex-col">
                                                                                         <span className="font-semibold text-sm truncate">{a.jobTitle}</span>
@@ -664,7 +642,7 @@ export default function CvDatabasePage() {
                                                                                     </div>
                                                                                     <Badge variant={a.score >= 75 ? "default" : a.score >= 40 ? "secondary" : "destructive"}>{a.score}%</Badge>
                                                                                 </div>
-                                                                            </Link>
+                                                                            </a>
                                                                         ))}
                                                                     </div>
                                                                 </PopoverContent>
@@ -849,7 +827,8 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
     );
 };
     
-const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddToAssessment, onClear }: {
+const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete, onAddToAssessment, onClear }: {
+    toast: any;
     selectedEmails: string[];
     candidates: CvDatabaseRecord[];
     assessments: AssessmentSession[];
@@ -862,19 +841,17 @@ const BulkActions = ({ selectedEmails, candidates, assessments, onDelete, onAddT
     const selectedCount = selectedEmails.length;
     const selectedCandidates = candidates.filter(c => selectedEmails.includes(c.email));
     
-    // Find assessments that *all* selected candidates could potentially be added to.
     const commonAssessments = useMemo(() => {
         if (selectedCandidates.length === 0) return [];
         
         const firstCandidateJobCode = selectedCandidates[0].jobCode;
         if (!selectedCandidates.every(c => c.jobCode === firstCandidateJobCode)) {
-            return []; // Return empty if job codes are mixed
+            return [];
         }
         
         return assessments.filter(session => {
             if (session.analyzedJd.code !== firstCandidateJobCode) return false;
             
-            // Check if *any* of the selected candidates are already in this session
             const sessionEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
             return !selectedCandidates.some(sel => sessionEmails.has(sel.email.toLowerCase()));
         });

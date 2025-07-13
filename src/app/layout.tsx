@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from 'react';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Inter } from "next/font/google";
@@ -57,6 +58,15 @@ export default function RootLayout({
     }
   }, []);
 
+  // Clone the children and pass props
+  const childrenWithProps = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      // @ts-ignore
+      return React.cloneElement(child, { history, setHistory, cvDatabase, setCvDatabase, isClient });
+    }
+    return child;
+  });
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -64,7 +74,7 @@ export default function RootLayout({
           <meta name="description" content="Analyze job descriptions, assess candidate CVs, and generate hiring recommendations with the power of AI." />
       </head>
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
-          {children}
+          {childrenWithProps}
           {isClient && <Chatbot sessions={history} cvDatabase={cvDatabase} />}
           <Toaster />
       </body>

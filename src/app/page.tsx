@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History, UserX } from 'lucide-react';
 import type { AssessmentSession, AnalyzedCandidate, CvDatabaseRecord } from '@/lib/types';
-import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   ChartContainer,
@@ -20,8 +19,6 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 import { Header } from '@/components/header';
 
-const LOCAL_STORAGE_KEY = 'jiggar-history';
-const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
@@ -38,49 +35,19 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export default function DashboardPage() {
-    const [history, setHistory] = useState<AssessmentSession[]>([]);
-    const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
-    const [isClient, setIsClient] = useState(false);
+interface DashboardPageProps {
+    history?: AssessmentSession[];
+    cvDatabase?: CvDatabaseRecord[];
+    isClient?: boolean;
+}
+
+export default function DashboardPage({ history = [], cvDatabase = [], isClient = false }: DashboardPageProps) {
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
 
-
     useEffect(() => {
-        setIsClient(true);
-        try {
-            const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (savedStateJSON) {
-                const parsedJSON = JSON.parse(savedStateJSON);
-                if (Array.isArray(parsedJSON) && parsedJSON.length > 0) {
-                    const validHistory = parsedJSON.map(sessionData => {
-                        const result = AssessmentSessionSchema.safeParse(sessionData);
-                        if (result.success) {
-                            return result.data;
-                        }
-                        return null;
-                    }).filter((s): s is AssessmentSession => s !== null);
-                    setHistory(validHistory);
-                }
-            }
-            
-            const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
-            if (savedCvDbJSON) {
-                const parsedCvDb = JSON.parse(savedCvDbJSON);
-                if (Array.isArray(parsedCvDb)) {
-                    const validDb = parsedCvDb.map(record => {
-                        const result = CvDatabaseRecordSchema.safeParse(record);
-                        return result.success ? result.data : null;
-                    }).filter((r): r is CvDatabaseRecord => r !== null);
-                    setCvDatabase(validDb);
-                }
-            }
-
-            const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
-            setIsRelevanceCheckEnabled(relevanceEnabled);
-        } catch (error) {
-            console.error("Failed to load state from localStorage", error);
-        }
+        const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
+        setIsRelevanceCheckEnabled(relevanceEnabled);
     }, []);
 
     const filteredHistory = useMemo(() => {
@@ -114,7 +81,6 @@ export default function DashboardPage() {
     }, [history, filters.code]);
 
     const stats = useMemo(() => {
-        // Core metrics based on filtered history
         const totalPositions = filteredHistory.length;
         const totalCandidatesInAssessments = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
         
@@ -128,7 +94,6 @@ export default function DashboardPage() {
         );
         const top5Candidates = allCandidates.sort((a, b) => b.alignmentScore - a.alignmentScore).slice(0, 5);
 
-        // Metrics based on filtered CV Database
         const filteredCvDatabase = cvDatabase.filter(cv => {
             const codeMatch = filters.code === 'all' || cv.jobCode === filters.code;
             if (!codeMatch) return false;
@@ -155,7 +120,7 @@ export default function DashboardPage() {
                 }
             });
         });
-
+        
         const unassessedCount = filteredCvDatabase.filter(cv => !allAssessedEmailsInFilter.has(cv.email.toLowerCase())).length;
         
         const candidatesByCode = filteredCvDatabase.reduce<Record<string, number>>((acc, cv) => {
@@ -172,7 +137,6 @@ export default function DashboardPage() {
             .filter(item => item.count > 0)
             .sort((a,b) => b.count - a.count);
 
-        // Recent assessments based on filtered history
         const recent5Assessments = filteredHistory
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5);
