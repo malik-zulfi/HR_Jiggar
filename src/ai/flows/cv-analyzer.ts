@@ -174,9 +174,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
           }
       } else if (detail.status === 'Partially Aligned') {
           if (detail.priority === 'MUST-HAVE') {
-              candidateScore += isResponsibility ? 1 : 3;
+              candidateScore += isResponsibility ? 2 : 5;
           } else { // NICE-TO-HAVE
-              candidateScore += 1;
+              candidateScore += 3;
           }
       }
     });
