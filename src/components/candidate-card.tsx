@@ -5,124 +5,13 @@ import { AccordionContent, AccordionItem } from "@/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AnalyzedCandidate, CandidateRecord, ChatMessage } from "@/lib/types";
-import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw, MessageSquare, Send, Loader2, Eraser } from "lucide-react";
+import type { AnalyzedCandidate, CandidateRecord } from "@/lib/types";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 import { Checkbox } from "./ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import React, { useState, useRef, useEffect } from "react";
-import { Input } from "./ui/input";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
-
-const CandidateChat = ({ chatHistory, onQuery, isQuerying }: {
-  chatHistory: ChatMessage[] | undefined;
-  onQuery: (query: string) => void;
-  isQuerying: boolean;
-}) => {
-  const [query, setQuery] = useState('');
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatHistory, isQuerying]);
-
-  const handleSend = () => {
-    if (query.trim()) {
-      onQuery(query);
-      setQuery('');
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div ref={chatContainerRef} className="space-y-4 max-h-64 overflow-y-auto p-4 border rounded-md bg-background">
-        {!chatHistory || chatHistory.length === 0 ? (
-          <p className="text-sm text-center text-muted-foreground">No questions asked yet. Ask one below!</p>
-        ) : (
-          chatHistory.map((msg, i) => (
-            <div key={i} className={cn("flex items-start gap-3", msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div className={cn(
-                "p-3 rounded-lg max-w-[80%]",
-                msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              )}>
-                {msg.role === 'assistant' ? (
-                   <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      className="text-sm leading-relaxed"
-                      components={{
-                        p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                        ul: ({node, ordered, ...props}) => <ul className="list-disc list-outside pl-4 space-y-1" {...props} />,
-                        ol: ({node, ordered, ...props}) => <ol className="list-decimal list-outside pl-4 space-y-1" {...props} />,
-                        a: ({node, ...props}) => <a className="text-primary underline hover:no-underline" {...props} />,
-                        code: ({ node, inline, className, children, ...props }) => {
-                            return !inline ? (
-                                <pre className="text-sm bg-black/10 dark:bg-white/10 p-2 rounded-md overflow-x-auto my-2">
-                                    <code className={cn("font-mono", className)} {...props}>
-                                        {children}
-                                    </code>
-                                </pre>
-                            ) : (
-                                <code className={cn("font-mono text-sm px-1 py-0.5 bg-black/10 dark:bg-white/10 rounded", className)} {...props}>
-                                    {children}
-                                </code>
-                            );
-                        },
-                        table: ({node, ...props}) => (
-                            <div className="my-2 w-full overflow-auto rounded-md border">
-                                <table className="w-full" {...props} />
-                            </div>
-                        ),
-                        thead: ({node, ...props}) => <thead className="bg-muted font-medium" {...props} />,
-                        tbody: ({node, ...props}) => <tbody {...props} />,
-                        tr: ({node, isHeader, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
-                        th: ({node, isHeader, ...props}) => <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" {...props} />,
-                        td: ({node, isHeader, ...props}) => <td className="p-4 align-middle" {...props} />,
-                      }}
-                   >
-                       {msg.content}
-                   </ReactMarkdown>
-                ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-        {isQuerying && (
-            <div className="flex items-start gap-3 justify-start">
-                 <div className="p-3 rounded-lg bg-muted flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin"/>
-                    <p className="text-sm text-muted-foreground">Thinking...</p>
-                 </div>
-            </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Input 
-          placeholder="Ask a specific question about the candidate..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-          }}
-          disabled={isQuerying}
-        />
-        <Button onClick={handleSend} disabled={!query.trim() || isQuerying} size="icon">
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-};
-
+import React from "react";
 
 interface CandidateCardProps {
   candidate: Omit<CandidateRecord, 'cvContent' | 'cvName'>;
@@ -130,9 +19,6 @@ interface CandidateCardProps {
   isSelected?: boolean;
   onToggleSelect: () => void;
   onDelete: () => void;
-  onQuery: (query: string) => void;
-  isQuerying: boolean;
-  onClearChat: () => void;
 }
 
 const getRecommendationInfo = (recommendation: AnalyzedCandidate['recommendation']) => {
@@ -167,10 +53,9 @@ const getScoreBadgeClass = (score: number) => {
     return "bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80";
 };
 
-export default function CandidateCard({ candidate, isStale, isSelected, onToggleSelect, onDelete, onQuery, isQuerying, onClearChat }: CandidateCardProps) {
+export default function CandidateCard({ candidate, isStale, isSelected, onToggleSelect, onDelete }: CandidateCardProps) {
   const analysis = candidate.analysis;
   const recommendationInfo = getRecommendationInfo(analysis.recommendation);
-  const hasChatHistory = candidate.chatHistory && candidate.chatHistory.length > 0;
 
   return (
     <AccordionItem value={analysis.candidateName}>
@@ -240,31 +125,6 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
         </AccordionPrimitive.Header>
       <AccordionContent className="p-4 bg-muted/30 rounded-b-md border-t">
         <div className="space-y-6">
-          <div className="border-b pb-6">
-            <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/> Ask a Question</h4>
-                {hasChatHistory && (
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={onClearChat}>
-                                    <Eraser className="w-4 h-4"/>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Clear chat history</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                )}
-            </div>
-            <CandidateChat
-                chatHistory={candidate.chatHistory}
-                onQuery={onQuery}
-                isQuerying={isQuerying}
-            />
-          </div>
-
           <div>
             <h4 className="font-semibold mb-2 flex items-center"><ClipboardCheck className="w-4 h-4 mr-2 text-primary"/> Alignment Details</h4>
             <p className="text-sm text-foreground/80 whitespace-pre-wrap mb-4">{analysis.alignmentSummary}</p>

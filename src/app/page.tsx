@@ -18,7 +18,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
-import Chatbot from '@/components/chatbot';
 import { Header } from '@/components/header';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
@@ -421,7 +420,6 @@ export default function DashboardPage() {
                     </Card>
                 </div>
             </main>
-            <Chatbot sessions={history} cvDatabase={cvDatabase} />
         </div>
     );
 }

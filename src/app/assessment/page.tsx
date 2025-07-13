@@ -10,12 +10,11 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2 } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, ChatMessage, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
-import { queryCandidate } from "@/ai/flows/query-candidate";
 import { parseCv } from "@/ai/flows/cv-parser";
 import { findSuitablePositionsForCandidate } from "@/ai/flows/find-suitable-positions";
 
@@ -66,7 +65,6 @@ function AssessmentPage() {
   const [newCvProcessingStatus, setNewCvProcessingStatus] = useState<CvProcessingStatus>({});
   const [reassessStatus, setReassessStatus] = useState<ReassessStatus>({});
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
-  const [chatQueryLoading, setChatQueryLoading] = useState<string | null>(null);
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
@@ -763,128 +761,6 @@ function AssessmentPage() {
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
 
-    const handleCandidateQuery = async (candidateName: string, query: string) => {
-        if (!activeSessionId || !query) return;
-
-        setChatQueryLoading(candidateName);
-
-        const session = history.find(s => s.id === activeSessionId);
-        const candidate = session?.candidates.find(c => c.analysis.candidateName === candidateName);
-
-        if (!session || !candidate || !session.analyzedJd) {
-            toast({ variant: "destructive", title: "Error", description: "Could not find active session or candidate to query." });
-            setChatQueryLoading(null);
-            return;
-        }
-
-        const userMessage: ChatMessage = { role: 'user', content: query };
-        setHistory(prev =>
-            prev.map(s => {
-                if (s.id === activeSessionId) {
-                    return {
-                        ...s,
-                        candidates: s.candidates.map(c => {
-                            if (c.analysis.candidateName === candidateName) {
-                                return {
-                                    ...c,
-                                    chatHistory: [...(c.chatHistory || []), userMessage],
-                                };
-                            }
-                            return c;
-                        }),
-                    };
-                }
-                return s;
-            })
-        );
-
-        try {
-            const result = await queryCandidate({
-                cvContent: candidate.cvContent,
-                jobDescriptionCriteria: session.analyzedJd,
-                query: query,
-            });
-
-            const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
-
-            setHistory(prev =>
-                prev.map(s => {
-                    if (s.id === activeSessionId) {
-                        return {
-                            ...s,
-                            candidates: s.candidates.map(c => {
-                                if (c.analysis.candidateName === candidateName) {
-                                    return {
-                                        ...c,
-                                        chatHistory: [...(c.chatHistory || []), assistantMessage],
-                                    };
-                                }
-                                return c;
-                            }),
-                        };
-                    }
-                    return s;
-                })
-            );
-
-        } catch (error: any) {
-            console.error("Error querying candidate:", error);
-            toast({ variant: "destructive", title: "Query Error", description: error.message || "An unexpected error occurred." });
-            
-            setHistory(prev =>
-                prev.map(s => {
-                    if (s.id === activeSessionId) {
-                        return {
-                            ...s,
-                            candidates: s.candidates.map(c => {
-                                if (c.analysis.candidateName === candidateName) {
-                                    return {
-                                        ...c,
-                                        chatHistory: c.chatHistory?.filter(m => m !== userMessage),
-                                    };
-                                }
-                                return c;
-                            }),
-                        };
-                    }
-                    return s;
-                })
-            );
-        } finally {
-            setChatQueryLoading(null);
-        }
-    };
-    
-    const handleClearChatHistory = (candidateNameToClear: string) => {
-        if (!activeSessionId) return;
-
-        setHistory(prev =>
-            prev.map(session => {
-                if (session.id === activeSessionId) {
-                    const updatedCandidates = session.candidates.map(c => {
-                        if (c.analysis.candidateName === candidateNameToClear) {
-                            return { ...c, chatHistory: [] };
-                        }
-                        return c;
-                    });
-                    return { ...session, candidates: updatedCandidates };
-                }
-                return session;
-            })
-        );
-        toast({ description: `Chat history for "${candidateNameToClear}" has been cleared.` });
-    };
-  
-  const acceptedFileTypes = ".pdf,.docx,.txt";
-  const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
-  const isReassessing = Object.keys(reassessStatus).length > 0;
-  const reassessButtonText = selectedCandidates.size > 0
-    ? `Re-assess Selected (${selectedCandidates.size})`
-    : 'Re-assess All';
-  
-  const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
-  const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
-
   const handleManualRelevanceCheck = useCallback(async () => {
     setManualCheckStatus('loading');
     toast({ description: "Running relevance check on all existing candidates..." });
@@ -919,6 +795,16 @@ function AssessmentPage() {
          setTimeout(() => setManualCheckStatus('idle'), 3000);
     }
   }, [cvDatabase, history, suitablePositions, toast]);
+  
+  const acceptedFileTypes = ".pdf,.docx,.txt";
+  const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
+  const isReassessing = Object.keys(reassessStatus).length > 0;
+  const reassessButtonText = selectedCandidates.size > 0
+    ? `Re-assess Selected (${selectedCandidates.size})`
+    : 'Re-assess All';
+  
+  const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
+  const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
 
   return (
     <div className="flex flex-col min-h-screen bg-secondary/40">
@@ -1122,9 +1008,6 @@ function AssessmentPage() {
                                           isSelected={selectedCandidates.has(c.analysis.candidateName)}
                                           onToggleSelect={() => handleToggleSelectCandidate(c.analysis.candidateName)}
                                           onDelete={() => handleDeleteCandidate(c.analysis.candidateName)} 
-                                          onQuery={(query) => handleCandidateQuery(c.analysis.candidateName, query)}
-                                          isQuerying={chatQueryLoading === c.analysis.candidateName}
-                                          onClearChat={() => handleClearChatHistory(c.analysis.candidateName)}
                                       />
                                   ))}
                               </Accordion>
@@ -1296,4 +1179,3 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
-    
