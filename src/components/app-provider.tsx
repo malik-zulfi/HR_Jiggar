@@ -2,13 +2,31 @@
 "use client";
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import type { AssessmentSession, CvDatabaseRecord } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import Chatbot from '@/components/chatbot';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
+
+interface AppContextType {
+  history: AssessmentSession[];
+  setHistory: React.Dispatch<React.SetStateAction<AssessmentSession[]>>;
+  cvDatabase: CvDatabaseRecord[];
+  setCvDatabase: React.Dispatch<React.SetStateAction<CvDatabaseRecord[]>>;
+  isClient: boolean;
+}
+
+const AppContext = createContext<AppContextType | null>(null);
+
+export function useAppContext() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
+}
 
 export function AppProvider({
   children,
@@ -48,20 +66,20 @@ export function AppProvider({
     } catch (error) {
       console.error("Failed to load global state from localStorage", error);
     }
-  }, []); // Removed pathname dependency to prevent infinite loops
+  }, []);
 
-  const childrenWithProps = React.Children.map(children, child => {
-    if (React.isValidElement(child)) {
-      // @ts-ignore
-      return React.cloneElement(child, { history, setHistory, cvDatabase, setCvDatabase });
-    }
-    return child;
-  });
+  const contextValue = {
+    history,
+    setHistory,
+    cvDatabase,
+    setCvDatabase,
+    isClient,
+  };
 
   return (
-    <>
-      {childrenWithProps}
+    <AppContext.Provider value={contextValue}>
+      {children}
       {isClient && <Chatbot sessions={history} cvDatabase={cvDatabase} />}
-    </>
+    </AppContext.Provider>
   );
 }

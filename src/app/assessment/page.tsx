@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NotificationPopover from "@/components/notification-popover";
+import { useAppContext } from "@/components/app-provider";
 
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
@@ -46,19 +47,9 @@ type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'erro
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 type RelevanceCheckStatus = Record<string, boolean>;
 
-interface AssessmentPageProps {
-    history?: AssessmentSession[];
-    setHistory?: (history: AssessmentSession[]) => void;
-    cvDatabase?: CvDatabaseRecord[];
-    setCvDatabase?: (db: CvDatabaseRecord[]) => void;
-}
 
-function AssessmentPage({
-    history = [],
-    setHistory = () => {},
-    cvDatabase = [],
-    setCvDatabase = () => {},
-}: AssessmentPageProps) {
+function AssessmentPage() {
+  const { history, setHistory, cvDatabase, setCvDatabase, isClient } = useAppContext();
   const { toast } = useToast();
 
   const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
@@ -237,6 +228,7 @@ function AssessmentPage({
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
   useEffect(() => {
+    if (!isClient) return;
     try {
       const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
@@ -284,7 +276,7 @@ function AssessmentPage({
       localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [processAndAnalyzeCandidates, history]);
+  }, [processAndAnalyzeCandidates, history, isClient]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -774,6 +766,10 @@ function AssessmentPage({
   
   const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
   const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-secondary/40">

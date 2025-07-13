@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAppContext } from '@/components/app-provider';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -52,19 +53,9 @@ type CandidateAssessmentInfo = {
     score: number;
 };
 
-interface CvDatabasePageProps {
-    history?: AssessmentSession[];
-    setHistory?: (history: AssessmentSession[]) => void;
-    cvDatabase?: CvDatabaseRecord[];
-    setCvDatabase?: (db: CvDatabaseRecord[]) => void;
-}
 
-export default function CvDatabasePage({
-    history = [],
-    setHistory = () => {},
-    cvDatabase = [],
-    setCvDatabase = () => {},
-}: CvDatabasePageProps) {
+export default function CvDatabasePage() {
+    const { history, setHistory, cvDatabase, setCvDatabase, isClient } = useAppContext();
     const { toast } = useToast();
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
     const [jobCode, setJobCode] = useState<JobCode | null>(null);
@@ -192,6 +183,7 @@ export default function CvDatabasePage({
     };
 
     useEffect(() => {
+        if (!isClient) return;
         try {
             const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
             if (savedSuitablePositions) {
@@ -213,7 +205,7 @@ export default function CvDatabasePage({
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
         }
-    }, [cvDatabase]);
+    }, [cvDatabase, isClient]);
 
     useEffect(() => {
         if (cvDatabase.length > 0) {
@@ -466,6 +458,10 @@ export default function CvDatabasePage({
             return newSet;
         });
     };
+
+    if (!isClient) {
+        return null;
+    }
     
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">

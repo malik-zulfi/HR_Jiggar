@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History, UserX } from 'lucide-react';
-import type { AssessmentSession, AnalyzedCandidate, CvDatabaseRecord } from '@/lib/types';
+import type { AnalyzedCandidate } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   ChartContainer,
@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 import { Header } from '@/components/header';
+import { useAppContext } from '@/components/app-provider';
+
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
-const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
@@ -35,19 +36,10 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-interface DashboardPageProps {
-    history?: AssessmentSession[];
-    cvDatabase?: CvDatabaseRecord[];
-}
 
-export default function DashboardPage({ history = [], cvDatabase = [] }: DashboardPageProps) {
+export default function DashboardPage() {
+    const { history, cvDatabase, isClient } = useAppContext();
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
-    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
-
-    useEffect(() => {
-        const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
-        setIsRelevanceCheckEnabled(relevanceEnabled);
-    }, []);
 
     const filteredHistory = useMemo(() => {
         return history.filter(session => {
@@ -164,6 +156,10 @@ export default function DashboardPage({ history = [], cvDatabase = [] }: Dashboa
     };
     
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
+
+    if (!isClient) {
+        return null; 
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
