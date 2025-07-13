@@ -18,15 +18,24 @@ interface ProcessingItemProps {
     message: string;
     status: 'processing' | 'done' | 'error' | 'queued';
     isActive: boolean;
+    context: 'assessment' | 'parsing';
 }
 
-const ProcessingItem = ({ message, status, isActive }: ProcessingItemProps) => {
-    const steps = [
+const ProcessingItem = ({ message, status, isActive, context }: ProcessingItemProps) => {
+    const assessmentSteps = [
         "Reviewing CV content...",
         "Assessing against job requirements...",
         "Calculating alignment score...",
         "Finalizing analysis...",
     ];
+    const parsingSteps = [
+        "Parsing document structure...",
+        "Extracting contact information...",
+        "Structuring work history...",
+        "Identifying skills and qualifications...",
+    ];
+
+    const steps = context === 'assessment' ? assessmentSteps : parsingSteps;
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
     useEffect(() => {
@@ -111,6 +120,8 @@ export default function ProgressLoader({
 
     const currentlyProcessingIndex = statusList.findIndex(s => s.status === 'processing');
     
+    const isAssessmentContext = title.toLowerCase().includes('assess');
+    
     return (
       <div className="w-full space-y-3 p-4 border rounded-lg bg-muted/50">
         <div className="text-center font-sans text-sm font-medium text-foreground">
@@ -131,6 +142,7 @@ export default function ProgressLoader({
                         message={item.message}
                         status={displayStatus}
                         isActive={isActive}
+                        context={isAssessmentContext ? 'assessment' : 'parsing'}
                     />
                 );
             })}
