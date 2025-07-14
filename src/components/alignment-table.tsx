@@ -140,8 +140,8 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="align-top text-center">
-                                                {item.score !== undefined ? (
-                                                  <Badge variant="secondary" className="font-semibold">{item.score}</Badge>
+                                                {(item.score !== undefined && item.maxScore !== undefined) ? (
+                                                  <Badge variant="secondary" className="font-semibold">{`${item.score} / ${item.maxScore}`}</Badge>
                                                 ) : (
                                                   <Badge variant="outline">-</Badge>
                                                 )}

@@ -196,6 +196,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
             }
             candidateScore += awardedPoints;
             alignmentDetail.score = awardedPoints; // Attach the score to the detail object
+            alignmentDetail.maxScore = basePoints; // Attach the max score
         }
     });
 
