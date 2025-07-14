@@ -36,7 +36,7 @@ const BaseRequirementSchema = z.object({
 });
 
 const GroupedRequirementSchema = z.object({
-    groupType: z.literal('OR'),
+    groupType: z.enum(['OR']),
     requirements: z.array(z.string()),
 });
 
@@ -163,7 +163,12 @@ const extractJDCriteriaFlow = ai.defineFlow(
     structuredData.certifications = processCategory(certifications, 'certifications');
     structuredData.responsibilities = processCategory(responsibilities, 'responsibilities');
     
-    const hasMustHaveCert = structuredData.certifications?.some(c => 'priority' in c && c.priority === 'MUST-HAVE');
+    const hasMustHaveCert = structuredData.certifications?.some(c => {
+        if ('groupType' in c) {
+            return c.requirements.some(r => r.priority === 'MUST-HAVE');
+        }
+        return 'priority' in c && c.priority === 'MUST-HAVE'
+    });
 
     const formatSection = (title: string, items: (Requirement | RequirementGroup)[] | undefined) => {
         if (!items || items.length === 0) return '';
