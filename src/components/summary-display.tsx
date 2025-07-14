@@ -20,6 +20,10 @@ interface SummaryDisplayProps {
   analyzedJd: ExtractJDCriteriaOutput;
 }
 
+function isRequirementGroup(item: any): item is { groupType: 'OR'; requirements: any[] } {
+    return 'groupType' in item;
+}
+
 export default function SummaryDisplay({ summary, candidates, analyzedJd }: SummaryDisplayProps) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
@@ -39,13 +43,13 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
 
     try {
       const allJdRequirements = [
-        ...(analyzedJd.education || []).map(r => ({ ...r, category: 'Education' })),
-        ...(analyzedJd.experience || []).map(r => ({ ...r, category: 'Experience' })),
-        ...(analyzedJd.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skills' })),
-        ...(analyzedJd.softSkills || []).map(r => ({ ...r, category: 'Soft Skills' })),
-        ...(analyzedJd.certifications || []).map(r => ({ ...r, category: 'Certifications' })),
-        ...(analyzedJd.responsibilities || []).map(r => ({ ...r, category: 'Responsibilities' })),
-        ...(analyzedJd.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirements' })),
+        ...(analyzedJd.education || []),
+        ...(analyzedJd.experience || []),
+        ...(analyzedJd.technicalSkills || []),
+        ...(analyzedJd.softSkills || []),
+        ...(analyzedJd.certifications || []),
+        ...(analyzedJd.responsibilities || []),
+        ...(analyzedJd.additionalRequirements || []),
       ];
 
       if (allJdRequirements.length === 0) {
@@ -83,20 +87,28 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       });
 
       // Data row creation
-      const dataRows = allJdRequirements.map(jdReq => {
+      const dataRows = allJdRequirements.map(jdReqOrGroup => {
+        
+        let reqDescription: string;
+        let reqPriority: 'MUST-HAVE' | 'NICE-TO-HAVE';
+
+        if (isRequirementGroup(jdReqOrGroup)) {
+            reqDescription = jdReqOrGroup.requirements.map(r => r.description).join(' OR ');
+            reqPriority = jdReqOrGroup.requirements.some(r => r.priority === 'MUST-HAVE') ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+        } else {
+            reqDescription = jdReqOrGroup.description;
+            reqPriority = jdReqOrGroup.priority;
+        }
+
         const rowData: (string | undefined)[] = [
-          priorityEmojis[jdReq.priority],
-          jdReq.description
+          priorityEmojis[reqPriority],
+          reqDescription
         ];
 
         candidateNames.forEach(name => {
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
-            detail => {
-              const categoryMatch = normalizeString(detail.category) === normalizeString(jdReq.category);
-              const requirementMatch = normalizeString(detail.requirement) === normalizeString(jdReq.description);
-              return categoryMatch && requirementMatch;
-            }
+            detail => normalizeString(detail.requirement).substring(0,50) === normalizeString(reqDescription).substring(0,50)
           );
 
           if (alignmentDetail) {
@@ -116,7 +128,9 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
       
-      worksheet['!merges'] = merges;
+      if (merges.length > 0) {
+        worksheet['!merges'] = merges;
+      }
 
       // Auto-size columns for better readability
       const colWidths = headerRow2.map((header, colIndex) => {
