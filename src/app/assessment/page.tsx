@@ -495,57 +495,53 @@ function AssessmentPage() {
     try {
       toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
       
-      const dbRecordsMap = new Map(cvDatabase.map(cv => [cv.cvContent, cv]));
+      const bulkInput = {
+        jobDescriptionCriteria: jd,
+        candidates: candidatesToReassess.map(c => ({ fileName: c.cvName, cv: c.cvContent })),
+      };
+      
+      const bulkResults = await bulkAnalyzeCVs(bulkInput);
 
-      const analysisPromises = candidatesToReassess.map(oldCandidate => {
-        const parsedCv = dbRecordsMap.get(oldCandidate.cvContent);
-        return analyzeCVAgainstJD({ jobDescriptionCriteria: jd, cv: oldCandidate.cvContent, parsedCv })
-          .then(result => {
-            setReassessStatus(prev => ({
-              ...prev,
-              [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'done' }
-            }));
-            return {
-              ...oldCandidate,
-              analysis: result,
-              isStale: false,
-            };
-          })
-          .catch(error => {
-            setReassessStatus(prev => ({
-              ...prev,
-              [oldCandidate.analysis.candidateName]: { ...prev[oldCandidate.analysis.candidateName], status: 'error' }
-            }));
-            console.error(`Error re-assessing CV for ${oldCandidate.analysis.candidateName}:`, error);
-            toast({
-              variant: "destructive",
-              title: `Re-assessment Failed for ${oldCandidate.analysis.candidateName}`,
-              description: error.message || "An unexpected error occurred. Please check the console.",
-            });
-            return oldCandidate;
-          })
-      });
+      const updatedCandidatesMap = new Map<string, CandidateRecord>();
 
-      const updatedCandidates = await Promise.all(analysisPromises);
+      for (const result of bulkResults.results) {
+        const originalCandidate = candidatesToReassess.find(c => c.cvName === result.fileName);
+        if (!originalCandidate) continue;
+
+        if (result.analysis) {
+          updatedCandidatesMap.set(originalCandidate.analysis.candidateName, {
+            ...originalCandidate,
+            analysis: result.analysis,
+            isStale: false,
+          });
+          setReassessStatus(prev => ({
+            ...prev,
+            [originalCandidate.analysis.candidateName]: { ...prev[originalCandidate.analysis.candidateName], status: 'done' }
+          }));
+        } else {
+          updatedCandidatesMap.set(originalCandidate.analysis.candidateName, originalCandidate); // Keep old version on error
+          console.error(`Error re-assessing CV for ${originalCandidate.analysis.candidateName}:`, result.error);
+          toast({
+            variant: "destructive",
+            title: `Re-assessment Failed for ${originalCandidate.analysis.candidateName}`,
+            description: result.error || "An unexpected error occurred. Please check the console.",
+          });
+          setReassessStatus(prev => ({
+            ...prev,
+            [originalCandidate.analysis.candidateName]: { ...prev[originalCandidate.analysis.candidateName], status: 'error' }
+          }));
+        }
+      }
 
       setHistory(prev =>
         prev.map(s => {
           if (s.id === activeSessionId) {
-            const updatedCandidatesMap = new Map(
-              updatedCandidates.map(c => [c.analysis.candidateName, c])
-            );
-            const namesToReassess = new Set(
-              candidatesToReassess.map(c => c.analysis.candidateName)
-            );
-
             const newFullCandidateList = s.candidates.map(candidate => {
-              const updatedVersion = updatedCandidatesMap.get(
-                candidate.analysis.candidateName
-              );
+              const updatedVersion = updatedCandidatesMap.get(candidate.analysis.candidateName);
               if (updatedVersion) {
                 return updatedVersion;
               }
-              if (isPartialReassess && !namesToReassess.has(candidate.analysis.candidateName)) {
+              if (isPartialReassess) {
                 return { ...candidate, isStale: true };
               }
               return candidate;
@@ -573,6 +569,7 @@ function AssessmentPage() {
       }, 3000);
     }
   };
+
 
   const handleReassessClick = async () => {
     if (!activeSession || !activeSession.analyzedJd) return;
@@ -1170,3 +1167,4 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
+ 
