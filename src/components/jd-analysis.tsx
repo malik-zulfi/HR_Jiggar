@@ -40,9 +40,9 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
   requirements: Requirement[] | undefined;
   icon: React.ReactNode;
   categoryKey: CategoryKey;
-  onRequirementChange: (categoryKey: CategoryKey, index: number, field: 'priority' | 'score', value: any) => void;
-  onDeleteRequirement?: (categoryKey: CategoryKey, index: number) => void;
-  getOriginalRequirement: (categoryKey: CategoryKey, index: number) => Requirement | undefined;
+  onRequirementChange: (categoryKey: CategoryKey, description: string, field: 'priority' | 'score', value: any) => void;
+  onDeleteRequirement?: (categoryKey: CategoryKey, description: string) => void;
+  getOriginalRequirement: (description: string, categoryKey: CategoryKey) => Requirement | undefined;
 }) => {
   if (!requirements || requirements.length === 0) return null;
 
@@ -54,13 +54,13 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
       </h3>
       <ul className="space-y-2">
         {requirements.map((req, index) => {
-          const originalReq = getOriginalRequirement(categoryKey, index);
+          const originalReq = getOriginalRequirement(req.description, categoryKey);
           const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
           const hasScoreChanged = originalReq && req.score !== originalReq.score;
 
           return (
             <li 
-                key={`${categoryKey}-${index}`}
+                key={`${categoryKey}-${req.description}-${index}`}
                 className={cn(
                     "p-3 rounded-lg border bg-secondary/30 transition-colors",
                     (hasPriorityChanged || hasScoreChanged) && "bg-accent/20 border-accent/40"
@@ -78,7 +78,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                         id={`p-switch-${categoryKey}-${index}`}
                         checked={req.priority === 'MUST-HAVE'}
                         onCheckedChange={(checked) => {
-                            onRequirementChange(categoryKey, index, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
+                            onRequirementChange(categoryKey, req.description, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                         }}
                         className={cn(hasPriorityChanged && "ring-2 ring-accent ring-offset-2 ring-offset-background")}
                     />
@@ -87,7 +87,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                     <Input
                       type="number"
                       value={req.score}
-                      onChange={(e) => onRequirementChange(categoryKey, index, 'score', Number(e.target.value))}
+                      onChange={(e) => onRequirementChange(categoryKey, req.description, 'score', Number(e.target.value))}
                       className={cn("h-7 w-16 text-center", hasScoreChanged && "ring-2 ring-accent")}
                     />
                     <Label className="text-sm font-medium">points</Label>
@@ -102,7 +102,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                                     className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onDeleteRequirement(categoryKey, index);
+                                        onDeleteRequirement(categoryKey, req.description);
                                     }}
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -145,8 +145,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     Object.keys(originalAnalysis).forEach(catKey => {
       const category = originalAnalysis[catKey as CategoryKey];
       if(Array.isArray(category)) {
-        category.forEach((req, index) => {
-          map.set(`${catKey}-${index}`, req);
+        category.forEach((req) => {
+          map.set(`${catKey}-${req.description}`, req);
         });
       }
     });
@@ -161,8 +161,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     setEditedJd(analysis);
   }, [analysis, isOpen]);
   
-  const getOriginalRequirement = (categoryKey: CategoryKey, index: number) => {
-    return originalJdMap.get(`${categoryKey}-${index}`);
+  const getOriginalRequirement = (description: string, categoryKey: CategoryKey) => {
+    return originalJdMap.get(`${categoryKey}-${description}`);
   }
 
   const handleAddRequirement = () => {
@@ -193,12 +193,13 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     setIsAddPopoverOpen(false);
   };
 
-  const handleDeleteRequirement = (categoryKey: CategoryKey, index: number) => {
+  const handleDeleteRequirement = (categoryKey: CategoryKey, description: string) => {
     setEditedJd(prevJd => {
         const newJd = { ...prevJd };
         if (categoryKey === 'additionalRequirements' && Array.isArray(newJd.additionalRequirements)) {
-            const updatedReqs = [...newJd.additionalRequirements];
-            updatedReqs.splice(index, 1);
+            const updatedReqs = newJd.additionalRequirements.filter(
+                (req: Requirement) => req.description !== description
+            );
             return { ...newJd, additionalRequirements: updatedReqs };
         }
         return newJd;
@@ -207,17 +208,20 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
 
   const handleRequirementChange = (
     categoryKey: CategoryKey,
-    index: number,
+    description: string,
     field: 'priority' | 'score',
     value: any
   ) => {
     setEditedJd(prevJd => {
         const newAnalyzedJd = JSON.parse(JSON.stringify(prevJd));
-        const reqs = newAnalyzedJd[categoryKey];
+        const reqs = newAnalyzedJd[categoryKey as CategoryKey] as Requirement[];
+        
         if (Array.isArray(reqs)) {
-            const reqToUpdate = reqs[index];
+            const reqToUpdate = reqs.find(r => r.description === description);
+            if (!reqToUpdate) return newAnalyzedJd;
+
             if (field === 'priority') {
-                const originalReq = getOriginalRequirement(categoryKey, index);
+                const originalReq = getOriginalRequirement(description, categoryKey);
                 if (!originalReq) return newAnalyzedJd;
                 
                 reqToUpdate.priority = value;
@@ -244,8 +248,8 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     Object.keys(newJd).forEach(catKey => {
       const category = newJd[catKey as CategoryKey];
       if (Array.isArray(category)) {
-        category.forEach((req: Requirement, index: number) => {
-          const originalReq = getOriginalRequirement(catKey as CategoryKey, index);
+        category.forEach((req: Requirement) => {
+          const originalReq = getOriginalRequirement(req.description, catKey as CategoryKey);
           if (originalReq) {
             if (resetOption === 'both' || resetOption === 'scores') {
                 req.score = originalReq.score;
