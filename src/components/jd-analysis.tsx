@@ -216,13 +216,13 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
         const reqs = newAnalyzedJd[categoryKey];
         if (Array.isArray(reqs)) {
             const reqToUpdate = reqs[index];
-            const originalReq = getOriginalRequirement(categoryKey, index);
-            if (!originalReq) return newAnalyzedJd;
-            
             if (field === 'priority') {
+                const originalReq = getOriginalRequirement(categoryKey, index);
+                if (!originalReq) return newAnalyzedJd;
+                
                 reqToUpdate.priority = value;
-                const newDefaultScore = value === 'MUST-HAVE' ? 
-                    originalReq.defaultScore 
+                const newDefaultScore = value === 'MUST-HAVE' 
+                    ? originalReq.defaultScore 
                     : Math.ceil(originalReq.defaultScore / 2);
                 reqToUpdate.score = newDefaultScore;
             } else {
