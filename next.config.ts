@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverComponentsExternalPackages: ['canvas', 'xlsx'],
+  serverExternalPackages: ['canvas', 'xlsx'],
 };
 
 export default nextConfig;
