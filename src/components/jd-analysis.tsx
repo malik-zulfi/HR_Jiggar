@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, PlusCircle, Trash2 } from "lucide-react";
+import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, PlusCircle, Trash2, RotateCcw } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +20,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from './ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
@@ -29,13 +33,16 @@ interface JdAnalysisProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementChange, onDeleteRequirement }: { 
+type CategoryKey = Exclude<keyof ExtractJDCriteriaOutput, 'jobTitle' | 'positionNumber' | 'code' | 'grade' | 'department' | 'formattedCriteria'>;
+
+const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementChange, onDeleteRequirement, getOriginalRequirement }: { 
   title: string; 
   requirements: Requirement[] | undefined;
   icon: React.ReactNode;
-  categoryKey: keyof ExtractJDCriteriaOutput;
-  onRequirementChange: (categoryKey: keyof ExtractJDCriteriaOutput, index: number, field: 'priority' | 'score', value: any) => void;
-  onDeleteRequirement?: (categoryKey: keyof ExtractJDCriteriaOutput, index: number) => void;
+  categoryKey: CategoryKey;
+  onRequirementChange: (categoryKey: CategoryKey, index: number, field: 'priority' | 'score', value: any) => void;
+  onDeleteRequirement?: (categoryKey: CategoryKey, index: number) => void;
+  getOriginalRequirement: (categoryKey: CategoryKey, index: number) => Requirement | undefined;
 }) => {
   if (!requirements || requirements.length === 0) return null;
 
@@ -47,14 +54,16 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
       </h3>
       <ul className="space-y-2">
         {requirements.map((req, index) => {
-          const hasChanged = req.score !== req.defaultScore;
+          const originalReq = getOriginalRequirement(categoryKey, index);
+          const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
+          const hasScoreChanged = originalReq && req.score !== originalReq.score;
 
           return (
             <li 
                 key={`${categoryKey}-${index}`}
                 className={cn(
                     "p-3 rounded-lg border bg-secondary/30 transition-colors",
-                    hasChanged && "bg-accent/20 border-accent/40"
+                    (hasPriorityChanged || hasScoreChanged) && "bg-accent/20 border-accent/40"
                 )}
             >
               <p className="flex-1 text-sm text-foreground mb-2">{req.description}</p>
@@ -62,22 +71,24 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                  <div 
                     className="flex items-center space-x-2"
                  >
-                    <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
+                    <Label htmlFor={`p-switch-${categoryKey}-${index}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>
+                      {req.priority === 'NICE-TO-HAVE' ? 'Nice to Have' : 'Must Have'}
+                    </Label>
                     <Switch
                         id={`p-switch-${categoryKey}-${index}`}
                         checked={req.priority === 'MUST-HAVE'}
                         onCheckedChange={(checked) => {
                             onRequirementChange(categoryKey, index, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                         }}
+                        className={cn(hasPriorityChanged && "ring-2 ring-accent ring-offset-2 ring-offset-background")}
                     />
-                    <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
                 </div>
                 <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       value={req.score}
                       onChange={(e) => onRequirementChange(categoryKey, index, 'score', Number(e.target.value))}
-                      className="h-7 w-16 text-center"
+                      className={cn("h-7 w-16 text-center", hasScoreChanged && "ring-2 ring-accent")}
                     />
                     <Label className="text-sm font-medium">points</Label>
                 </div>
@@ -112,6 +123,8 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
 
 export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, isOpen, onOpenChange }: JdAnalysisProps) {
   const [editedJd, setEditedJd] = useState(analysis);
+  const { toast } = useToast();
+  
   const [isAddPopoverOpen, setIsAddPopoverOpen] = useState(false);
   const [newRequirement, setNewRequirement] = useState<{
       description: string;
@@ -123,6 +136,23 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     score: 2,
   });
 
+  const [resetOption, setResetOption] = useState<'both' | 'scores' | 'priorities'>('both');
+
+  const originalJdMap = useMemo(() => {
+    if (!originalAnalysis) return new Map<string, Requirement>();
+    
+    const map = new Map<string, Requirement>();
+    Object.keys(originalAnalysis).forEach(catKey => {
+      const category = originalAnalysis[catKey as CategoryKey];
+      if(Array.isArray(category)) {
+        category.forEach((req, index) => {
+          map.set(`${catKey}-${index}`, req);
+        });
+      }
+    });
+    return map;
+  }, [originalAnalysis]);
+
   const isDirty = useMemo(() => {
     return JSON.stringify(analysis) !== JSON.stringify(editedJd);
   }, [analysis, editedJd]);
@@ -131,6 +161,10 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     setEditedJd(analysis);
   }, [analysis, isOpen]);
   
+  const getOriginalRequirement = (categoryKey: CategoryKey, index: number) => {
+    return originalJdMap.get(`${categoryKey}-${index}`);
+  }
+
   const handleAddRequirement = () => {
     if (!newRequirement.description.trim()) {
         return;
@@ -159,7 +193,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     setIsAddPopoverOpen(false);
   };
 
-  const handleDeleteRequirement = (categoryKey: keyof ExtractJDCriteriaOutput, index: number) => {
+  const handleDeleteRequirement = (categoryKey: CategoryKey, index: number) => {
     setEditedJd(prevJd => {
         const newJd = { ...prevJd };
         if (categoryKey === 'additionalRequirements' && Array.isArray(newJd.additionalRequirements)) {
@@ -172,7 +206,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   };
 
   const handleRequirementChange = (
-    categoryKey: keyof ExtractJDCriteriaOutput,
+    categoryKey: CategoryKey,
     index: number,
     field: 'priority' | 'score',
     value: any
@@ -182,16 +216,15 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
         const reqs = newAnalyzedJd[categoryKey];
         if (Array.isArray(reqs)) {
             const reqToUpdate = reqs[index];
+            const originalReq = getOriginalRequirement(categoryKey, index);
+            if (!originalReq) return newAnalyzedJd;
+            
             if (field === 'priority') {
                 reqToUpdate.priority = value;
-                // When priority changes, reset score to its new default if it was not manually edited
-                if (reqToUpdate.score === reqToUpdate.defaultScore) {
-                    const newDefaultScore = value === 'MUST-HAVE' ? 
-                        (originalAnalysis?.[categoryKey as keyof ExtractJDCriteriaOutput] as Requirement[])?.[index]?.defaultScore ?? 10
-                        : Math.ceil(((originalAnalysis?.[categoryKey as keyof ExtractJDCriteriaOutput] as Requirement[])?.[index]?.defaultScore ?? 10) / 2);
-                    reqToUpdate.score = newDefaultScore;
-                    reqToUpdate.defaultScore = newDefaultScore;
-                }
+                const newDefaultScore = value === 'MUST-HAVE' ? 
+                    originalReq.defaultScore 
+                    : Math.ceil(originalReq.defaultScore / 2);
+                reqToUpdate.score = newDefaultScore;
             } else {
                  reqToUpdate.score = value;
             }
@@ -203,6 +236,30 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
 
   const handleSaveClick = () => {
     onSaveChanges(editedJd);
+  };
+  
+  const handleReset = () => {
+    let newJd = JSON.parse(JSON.stringify(editedJd));
+
+    Object.keys(newJd).forEach(catKey => {
+      const category = newJd[catKey as CategoryKey];
+      if (Array.isArray(category)) {
+        category.forEach((req: Requirement, index: number) => {
+          const originalReq = getOriginalRequirement(catKey as CategoryKey, index);
+          if (originalReq) {
+            if (resetOption === 'both' || resetOption === 'scores') {
+                req.score = originalReq.score;
+            }
+            if (resetOption === 'both' || resetOption === 'priorities') {
+                req.priority = originalReq.priority;
+            }
+          }
+        });
+      }
+    });
+
+    setEditedJd(newJd);
+    toast({ description: `Changes have been reset for: ${resetOption}.` });
   };
   
   const hasMustHaveCert = editedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
@@ -220,7 +277,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   const categorySections = [
       allSections.education,
       allSections.experience
-  ];
+  ] as { key: CategoryKey, title: string, icon: React.ReactNode}[];
 
   if (hasMustHaveCert) {
       categorySections.push(allSections.certifications);
@@ -280,77 +337,114 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                           <RequirementList
                             key={section.key}
                             title={section.title}
-                            requirements={editedJd[section.key as keyof ExtractJDCriteriaOutput] as Requirement[] | undefined}
+                            requirements={editedJd[section.key as CategoryKey] as Requirement[] | undefined}
                             icon={section.icon}
-                            categoryKey={section.key as keyof ExtractJDCriteriaOutput}
+                            categoryKey={section.key as CategoryKey}
                             onRequirementChange={handleRequirementChange}
                             onDeleteRequirement={section.key === 'additionalRequirements' ? handleDeleteRequirement : undefined}
+                            getOriginalRequirement={getOriginalRequirement}
                           />
                         ))}
                     </div>
                 </CardContent>
                 <CardFooter className="flex justify-between items-center p-4 border-t">
-                    <Popover open={isAddPopoverOpen} onOpenChange={setIsAddPopoverOpen}>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline">
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Add Requirement
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
-                                    <h4 className="font-medium leading-none">Add New Requirement</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                        Add a custom item to the &quot;Additional Requirements&quot; section.
-                                    </p>
-                                </div>
-                                <div className="grid gap-3">
-                                    <div className="grid grid-cols-3 items-start gap-4">
-                                        <Label htmlFor="description">Description</Label>
-                                        <Textarea
-                                            id="description"
-                                            value={newRequirement.description}
-                                            onChange={(e) => setNewRequirement(prev => ({ ...prev, description: e.target.value }))}
-                                            className="col-span-2 h-24"
-                                            placeholder="e.g., Willingness to travel"
-                                        />
+                    <div className="flex gap-2">
+                        <Popover open={isAddPopoverOpen} onOpenChange={setIsAddPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline">
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Add Requirement
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Add New Requirement</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                            Add a custom item to the &quot;Additional Requirements&quot; section.
+                                        </p>
                                     </div>
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <Label>Priority</Label>
-                                        <div className="col-span-2 flex items-center space-x-2">
-                                            <Label htmlFor="p-switch-new" className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
-                                            <Switch
-                                                id="p-switch-new"
-                                                checked={newRequirement.priority === 'MUST-HAVE'}
-                                                onCheckedChange={(checked) => {
-                                                    const priority = checked ? 'MUST-HAVE' : 'NICE-TO-HAVE';
-                                                    const score = priority === 'MUST-HAVE' ? 5 : 2;
-                                                    setNewRequirement(prev => ({ ...prev, priority, score }));
-                                                }}
-                                            />
-                                            <Label htmlFor="p-switch-new" className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
-                                        </div>
-                                    </div>
-                                     <div className="grid grid-cols-3 items-center gap-4">
-                                        <Label>Score</Label>
-                                        <div className="col-span-2">
-                                            <Input
-                                                type="number"
-                                                value={newRequirement.score}
-                                                onChange={(e) => setNewRequirement(prev => ({ ...prev, score: Number(e.target.value) }))}
-                                                className="h-8"
+                                    <div className="grid gap-3">
+                                        <div className="grid grid-cols-3 items-start gap-4">
+                                            <Label htmlFor="description">Description</Label>
+                                            <Textarea
+                                                id="description"
+                                                value={newRequirement.description}
+                                                onChange={(e) => setNewRequirement(prev => ({ ...prev, description: e.target.value }))}
+                                                className="col-span-2 h-24"
+                                                placeholder="e.g., Willingness to travel"
                                             />
                                         </div>
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <Label>Priority</Label>
+                                            <div className="col-span-2 flex items-center space-x-2">
+                                                <Label htmlFor="p-switch-new" className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
+                                                <Switch
+                                                    id="p-switch-new"
+                                                    checked={newRequirement.priority === 'MUST-HAVE'}
+                                                    onCheckedChange={(checked) => {
+                                                        const priority = checked ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+                                                        const score = priority === 'MUST-HAVE' ? 5 : 2;
+                                                        setNewRequirement(prev => ({ ...prev, priority, score }));
+                                                    }}
+                                                />
+                                                <Label htmlFor="p-switch-new" className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
+                                            </div>
+                                        </div>
+                                         <div className="grid grid-cols-3 items-center gap-4">
+                                            <Label>Score</Label>
+                                            <div className="col-span-2">
+                                                <Input
+                                                    type="number"
+                                                    value={newRequirement.score}
+                                                    onChange={(e) => setNewRequirement(prev => ({ ...prev, score: Number(e.target.value) }))}
+                                                    className="h-8"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => setIsAddPopoverOpen(false)}>Cancel</Button>
+                                        <Button size="sm" onClick={handleAddRequirement}>Add</Button>
                                     </div>
                                 </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="ghost" size="sm" onClick={() => setIsAddPopoverOpen(false)}>Cancel</Button>
-                                    <Button size="sm" onClick={handleAddRequirement}>Add</Button>
-                                </div>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                            </PopoverContent>
+                        </Popover>
+
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" disabled={!isDirty}>
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Reset
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Reset Requirement Changes</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Select what you would like to reset to its original, AI-analyzed state. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <RadioGroup defaultValue="both" className="my-4 space-y-2" value={resetOption} onValueChange={(value) => setResetOption(value as any)}>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="scores" id="r-scores" />
+                                        <Label htmlFor="r-scores">Reset only scores</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="priorities" id="r-priorities" />
+                                        <Label htmlFor="r-priorities">Reset only priorities</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="both" id="r-both" />
+                                        <Label htmlFor="r-both">Reset both scores and priorities</Label>
+                                    </div>
+                                </RadioGroup>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                     
                     <Button onClick={handleSaveClick} disabled={!isDirty}>
                         Save Changes
@@ -361,3 +455,5 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     </Collapsible>
   );
 }
+
+    
