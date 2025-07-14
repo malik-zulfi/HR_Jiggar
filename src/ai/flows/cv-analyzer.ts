@@ -49,6 +49,8 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     alignmentScore: true,
     recommendation: true,
     processingTime: true,
+    candidateScore: true,
+    maxScore: true,
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -201,6 +203,8 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     });
 
     output.alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
+    output.candidateScore = candidateScore;
+    output.maxScore = maxScore;
 
     // Programmatic Recommendation and Disqualification
     const isDisqualified = output.alignmentDetails.some(detail =>

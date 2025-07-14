@@ -80,6 +80,11 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
                         <div className="flex items-center gap-1">
                             <TrendingUp className="h-4 w-4" />
                             {analysis.alignmentScore}%
+                             {(analysis.candidateScore !== undefined && analysis.maxScore !== undefined) && (
+                                <span className="font-normal text-muted-foreground/80 ml-1.5">
+                                    ({analysis.candidateScore}/{analysis.maxScore})
+                                </span>
+                            )}
                         </div>
                     </Badge>
                      {isStale && (
