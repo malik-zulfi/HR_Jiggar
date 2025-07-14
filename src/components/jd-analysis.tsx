@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from './ui/input';
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
@@ -28,13 +29,12 @@ interface JdAnalysisProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-const RequirementList = ({ title, requirements, icon, categoryKey, originalRequirements, onRequirementChange, onDeleteRequirement }: { 
+const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementChange, onDeleteRequirement }: { 
   title: string; 
   requirements: Requirement[] | undefined;
   icon: React.ReactNode;
   categoryKey: keyof ExtractJDCriteriaOutput;
-  originalRequirements: Requirement[] | undefined;
-  onRequirementChange: (categoryKey: keyof ExtractJDCriteriaOutput, index: number, newPriority: Requirement['priority']) => void;
+  onRequirementChange: (categoryKey: keyof ExtractJDCriteriaOutput, index: number, field: 'priority' | 'score', value: any) => void;
   onDeleteRequirement?: (categoryKey: keyof ExtractJDCriteriaOutput, index: number) => void;
 }) => {
   if (!requirements || requirements.length === 0) return null;
@@ -47,40 +47,39 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
       </h3>
       <ul className="space-y-2">
         {requirements.map((req, index) => {
-          const originalReq = originalRequirements?.find(r => r.description === req.description);
-          const hasChanged = originalReq ? originalReq.priority !== req.priority : false;
+          const hasChanged = req.score !== req.defaultScore;
 
           return (
             <li 
                 key={`${categoryKey}-${index}`}
                 className={cn(
-                    "flex items-center justify-between gap-4 p-3 rounded-lg border bg-secondary/30 transition-colors",
-                    !onDeleteRequirement && "cursor-pointer hover:bg-secondary/60",
+                    "p-3 rounded-lg border bg-secondary/30 transition-colors",
                     hasChanged && "bg-accent/20 border-accent/40"
                 )}
-                onClick={() => {
-                    if (onDeleteRequirement) return;
-                    const newPriority = req.priority === 'MUST-HAVE' ? 'NICE-TO-HAVE' : 'MUST-HAVE';
-                    onRequirementChange(categoryKey, index, newPriority);
-                }}
             >
-              <p className="flex-1 text-sm text-foreground">{req.description}</p>
-              <div className="flex items-center space-x-2 shrink-0">
-                <div 
+              <p className="flex-1 text-sm text-foreground mb-2">{req.description}</p>
+              <div className="flex items-center justify-between gap-4">
+                 <div 
                     className="flex items-center space-x-2"
-                    onClick={(e) => {
-                        e.stopPropagation(); 
-                    }}
-                >
+                 >
                     <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs text-muted-foreground cursor-pointer">Nice to Have</Label>
                     <Switch
                         id={`p-switch-${categoryKey}-${index}`}
                         checked={req.priority === 'MUST-HAVE'}
                         onCheckedChange={(checked) => {
-                            onRequirementChange(categoryKey, index, checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
+                            onRequirementChange(categoryKey, index, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
                         }}
                     />
                     <Label htmlFor={`p-switch-${categoryKey}-${index}`} className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={req.score}
+                      onChange={(e) => onRequirementChange(categoryKey, index, 'score', Number(e.target.value))}
+                      className="h-7 w-16 text-center"
+                    />
+                    <Label className="text-sm font-medium">points</Label>
                 </div>
                 {onDeleteRequirement && (
                     <TooltipProvider>
@@ -89,7 +88,7 @@ const RequirementList = ({ title, requirements, icon, categoryKey, originalRequi
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 -mr-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onDeleteRequirement(categoryKey, index);
@@ -117,18 +116,20 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   const [newRequirement, setNewRequirement] = useState<{
       description: string;
       priority: Requirement['priority'];
+      score: number;
   }>({
     description: '',
     priority: 'NICE-TO-HAVE',
+    score: 2,
   });
 
   const isDirty = useMemo(() => {
     return JSON.stringify(analysis) !== JSON.stringify(editedJd);
   }, [analysis, editedJd]);
 
-  useMemo(() => {
+  useEffect(() => {
     setEditedJd(analysis);
-  }, [analysis]);
+  }, [analysis, isOpen]);
   
   const handleAddRequirement = () => {
     if (!newRequirement.description.trim()) {
@@ -140,9 +141,12 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
         if (!newJd.additionalRequirements) {
             newJd.additionalRequirements = [];
         }
+        const score = newRequirement.priority === 'MUST-HAVE' ? 5 : 2;
         newJd.additionalRequirements.push({
             description: newRequirement.description,
             priority: newRequirement.priority,
+            score: newRequirement.score,
+            defaultScore: newRequirement.score,
         });
         return newJd;
     });
@@ -150,6 +154,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     setNewRequirement({
         description: '',
         priority: 'NICE-TO-HAVE',
+        score: 2,
     });
     setIsAddPopoverOpen(false);
   };
@@ -169,15 +174,28 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   const handleRequirementChange = (
     categoryKey: keyof ExtractJDCriteriaOutput,
     index: number,
-    newPriority: Requirement['priority']
+    field: 'priority' | 'score',
+    value: any
   ) => {
     setEditedJd(prevJd => {
-        const newAnalyzedJd = { ...prevJd };
+        const newAnalyzedJd = JSON.parse(JSON.stringify(prevJd));
         const reqs = newAnalyzedJd[categoryKey];
         if (Array.isArray(reqs)) {
-            const category = [...reqs];
-            category[index] = { ...category[index], priority: newPriority };
-            return { ...newAnalyzedJd, [categoryKey]: category };
+            const reqToUpdate = reqs[index];
+            if (field === 'priority') {
+                reqToUpdate.priority = value;
+                // When priority changes, reset score to its new default if it was not manually edited
+                if (reqToUpdate.score === reqToUpdate.defaultScore) {
+                    const newDefaultScore = value === 'MUST-HAVE' ? 
+                        (originalAnalysis?.[categoryKey as keyof ExtractJDCriteriaOutput] as Requirement[])?.[index]?.defaultScore ?? 10
+                        : Math.ceil(((originalAnalysis?.[categoryKey as keyof ExtractJDCriteriaOutput] as Requirement[])?.[index]?.defaultScore ?? 10) / 2);
+                    reqToUpdate.score = newDefaultScore;
+                    reqToUpdate.defaultScore = newDefaultScore;
+                }
+            } else {
+                 reqToUpdate.score = value;
+            }
+            return newAnalyzedJd;
         }
         return newAnalyzedJd;
     });
@@ -235,7 +253,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                                 {analysis.grade && <Badge variant="outline">Grade: {analysis.grade}</Badge>}
                                 {analysis.department && <Badge variant="outline">Dept: {analysis.department}</Badge>}
                             </CardTitle>
-                            <CardDescription>The JD has been deconstructed. Expand to see details and adjust requirement priorities.</CardDescription>
+                            <CardDescription>The JD has been deconstructed. Expand to see details and adjust requirement priorities and scores.</CardDescription>
                         </div>
                     </CollapsibleTrigger>
                     <TooltipProvider>
@@ -249,7 +267,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                           </CollapsibleTrigger>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Show/Hide Details & Edit Priorities</p>
+                          <p>Show/Hide Details & Edit Priorities/Scores</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -263,7 +281,6 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                             key={section.key}
                             title={section.title}
                             requirements={editedJd[section.key as keyof ExtractJDCriteriaOutput] as Requirement[] | undefined}
-                            originalRequirements={originalAnalysis?.[section.key as keyof ExtractJDCriteriaOutput] as Requirement[] | undefined}
                             icon={section.icon}
                             categoryKey={section.key as keyof ExtractJDCriteriaOutput}
                             onRequirementChange={handleRequirementChange}
@@ -307,10 +324,23 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                                                 id="p-switch-new"
                                                 checked={newRequirement.priority === 'MUST-HAVE'}
                                                 onCheckedChange={(checked) => {
-                                                    setNewRequirement(prev => ({ ...prev, priority: checked ? 'MUST-HAVE' : 'NICE-TO-HAVE' }));
+                                                    const priority = checked ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+                                                    const score = priority === 'MUST-HAVE' ? 5 : 2;
+                                                    setNewRequirement(prev => ({ ...prev, priority, score }));
                                                 }}
                                             />
                                             <Label htmlFor="p-switch-new" className="text-xs font-semibold text-accent cursor-pointer">Must Have</Label>
+                                        </div>
+                                    </div>
+                                     <div className="grid grid-cols-3 items-center gap-4">
+                                        <Label>Score</Label>
+                                        <div className="col-span-2">
+                                            <Input
+                                                type="number"
+                                                value={newRequirement.score}
+                                                onChange={(e) => setNewRequirement(prev => ({ ...prev, score: Number(e.target.value) }))}
+                                                className="h-8"
+                                            />
                                         </div>
                                     </div>
                                 </div>

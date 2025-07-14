@@ -29,24 +29,74 @@ export async function extractJDCriteria(input: ExtractJDCriteriaInput): Promise<
   return extractJDCriteriaFlow(input);
 }
 
+const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({ 
+    formattedCriteria: true,
+    education: true,
+    experience: true,
+    technicalSkills: true,
+    softSkills: true,
+    certifications: true,
+    responsibilities: true,
+    additionalRequirements: true,
+}).extend({
+    education: z.array(z.string()).describe('List of education requirements.'),
+    experience: z.array(z.string()).describe('List of experience requirements.'),
+    technicalSkills: z.array(z.string()).describe('List of technical skill requirements.'),
+    softSkills: z.array(z.string()).describe('List of soft skill requirements.'),
+    certifications: z.array(z.string()).describe('List of certification requirements.'),
+    responsibilities: z.array(z.string()).describe('List of responsibilities.'),
+});
+
 const prompt = ai.definePrompt({
   name: 'extractJDCriteriaPrompt',
   input: {schema: ExtractJDCriteriaInputSchema},
-  // The prompt only extracts the raw data, the formatted string is created in the flow.
-  output: {schema: ExtractJDCriteriaOutputSchema.omit({ formattedCriteria: true })},
+  output: {schema: BaseJDCriteriaSchema},
   config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
 First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
 
-Then, extract the key requirements, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities.
-For each requirement, indicate whether it is a MUST-HAVE or NICE-TO-HAVE.
+Then, extract the key requirements as simple string arrays, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities. Do NOT assign priority yet.
 
 Job Description:
 {{{jobDescription}}}
 
 Ensure the output is a valid JSON object.`,
 });
+
+const getPriority = (category: string, description: string): Requirement['priority'] => {
+    const mustHaveKeywords = ['must', 'required', 'essential', 'degree in'];
+    const lowerDesc = description.toLowerCase();
+    
+    // Education and Experience are must-haves by default
+    if (category === 'education' || category === 'experience') {
+        return 'MUST-HAVE';
+    }
+
+    if (mustHaveKeywords.some(keyword => lowerDesc.includes(keyword))) {
+        return 'MUST-HAVE';
+    }
+    
+    return 'NICE-TO-HAVE';
+};
+
+const getCategoryWeight = (category: keyof ExtractJDCriteriaOutput): number => {
+    switch(category) {
+        case 'education':
+        case 'experience':
+            return 20; // Most Critical
+        case 'certifications':
+        case 'technicalSkills':
+        case 'softSkills':
+            return 15; // Critical
+        case 'responsibilities':
+            return 10; // Important
+        case 'additionalRequirements':
+            return 5; // Least Important
+        default:
+            return 5;
+    }
+}
 
 const extractJDCriteriaFlow = ai.defineFlow(
   {
@@ -55,16 +105,43 @@ const extractJDCriteriaFlow = ai.defineFlow(
     outputSchema: ExtractJDCriteriaOutputSchema,
   },
   async input => {
-    const {output: partialOutput} = await withRetry(() => prompt(input));
+    const {output: rawOutput} = await withRetry(() => prompt(input));
     
-    if (!partialOutput) {
+    if (!rawOutput) {
         throw new Error("JD Analysis failed to return a valid response.");
     }
 
-    // Now, create the formatted criteria string
-    const { education, experience, technicalSkills, softSkills, responsibilities, certifications, additionalRequirements } = partialOutput;
+    const { education, experience, technicalSkills, softSkills, responsibilities, certifications, ...rest } = rawOutput;
+    
+    const structuredData: Omit<ExtractJDCriteriaOutput, 'formattedCriteria'> = {
+        ...rest,
+        education: [], experience: [], technicalSkills: [], softSkills: [], responsibilities: [], certifications: [], additionalRequirements: []
+    };
+    
+    const processCategory = (items: string[], category: keyof ExtractJDCriteriaOutput) => {
+        if (!items || items.length === 0) return [];
+        
+        const defaultWeight = getCategoryWeight(category);
 
-    const hasMustHaveCert = certifications?.some(c => c.priority === 'MUST-HAVE');
+        return items.map((desc): Requirement => {
+            const priority = getPriority(category.toString(), desc);
+            return {
+                description: desc,
+                priority: priority,
+                score: priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2),
+                defaultScore: priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2),
+            };
+        });
+    };
+
+    structuredData.education = processCategory(education, 'education');
+    structuredData.experience = processCategory(experience, 'experience');
+    structuredData.technicalSkills = processCategory(technicalSkills, 'technicalSkills');
+    structuredData.softSkills = processCategory(softSkills, 'softSkills');
+    structuredData.certifications = processCategory(certifications, 'certifications');
+    structuredData.responsibilities = processCategory(responsibilities, 'responsibilities');
+    
+    const hasMustHaveCert = structuredData.certifications?.some(c => c.priority === 'MUST-HAVE');
 
     const formatSection = (title: string, items: Requirement[] | undefined) => {
         if (!items || items.length === 0) return '';
@@ -72,21 +149,20 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
 
     let formattedCriteria = '';
-    formattedCriteria += formatSection('Education', education);
-    formattedCriteria += formatSection('Experience', experience);
+    formattedCriteria += formatSection('Education', structuredData.education);
+    formattedCriteria += formatSection('Experience', structuredData.experience);
     if (hasMustHaveCert) {
-        formattedCriteria += formatSection('Certification', certifications);
+        formattedCriteria += formatSection('Certification', structuredData.certifications);
     }
-    formattedCriteria += formatSection('Technical Skill', technicalSkills);
-    formattedCriteria += formatSection('Soft Skill', softSkills);
+    formattedCriteria += formatSection('Technical Skill', structuredData.technicalSkills);
+    formattedCriteria += formatSection('Soft Skill', structuredData.softSkills);
     if (!hasMustHaveCert) {
-        formattedCriteria += formatSection('Certification', certifications);
+        formattedCriteria += formatSection('Certification', structuredData.certifications);
     }
-    formattedCriteria += formatSection('Responsibility', responsibilities);
-    formattedCriteria += formatSection('Additional Requirement', additionalRequirements);
+    formattedCriteria += formatSection('Responsibility', structuredData.responsibilities);
 
     return {
-        ...partialOutput,
+        ...structuredData,
         formattedCriteria: formattedCriteria.trim(),
     };
   }

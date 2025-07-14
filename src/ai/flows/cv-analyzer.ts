@@ -123,7 +123,6 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         totalExperience: parsedCv?.totalExperience,
     }));
 
-    // If the model couldn't extract the name (and it wasn't provided), try a fallback.
     if (!partialOutput || !partialOutput.candidateName) {
         const fallbackName = await extractCandidateName({ cvText: cv });
         if (!fallbackName.candidateName) {
@@ -139,56 +138,31 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     const output: AnalyzeCVAgainstJDOutput = {
         ...partialOutput,
         candidateName: toTitleCase(partialOutput.candidateName),
-        alignmentScore: 0, // Will be calculated next
-        recommendation: 'Not Recommended', // Will be calculated next
-    };
-
-    // New Priority-based Scoring Logic
-    const PRIORITY_WEIGHTS = {
-        'Education': { 'MUST-HAVE': 20, 'NICE-TO-HAVE': 10 },
-        'Experience': { 'MUST-HAVE': 20, 'NICE-TO-HAVE': 10 },
-        'Certification': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
-        'Technical Skill': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
-        'Soft Skill': { 'MUST-HAVE': 15, 'NICE-TO-HAVE': 7 },
-        'Responsibility': { 'MUST-HAVE': 10, 'NICE-TO-HAVE': 5 },
-        'Additional Requirement': { 'MUST-HAVE': 5, 'NICE-TO-HAVE': 2 },
+        alignmentScore: 0,
+        recommendation: 'Not Recommended',
     };
 
     let maxScore = 0;
     let candidateScore = 0;
-    
-    // Normalize category names for matching
-    const normalizeCategory = (category: string): keyof typeof PRIORITY_WEIGHTS => {
-        const lowerCategory = category.toLowerCase();
-        if (lowerCategory.includes('education')) return 'Education';
-        if (lowerCategory.includes('experience')) return 'Experience';
-        if (lowerCategory.includes('certifica')) return 'Certification';
-        if (lowerCategory.includes('technical')) return 'Technical Skill';
-        if (lowerCategory.includes('soft')) return 'Soft Skill';
-        if (lowerCategory.includes('responsibilit')) return 'Responsibility';
-        return 'Additional Requirement';
-    };
-    
-    // Remap JD criteria to normalized category names for accurate scoring
+
     const allJdRequirements = [
-        ...(jobDescriptionCriteria.education || []).map(r => ({ ...r, category: 'Education' as const })),
-        ...(jobDescriptionCriteria.experience || []).map(r => ({ ...r, category: 'Experience' as const })),
-        ...(jobDescriptionCriteria.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' as const })),
-        ...(jobDescriptionCriteria.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' as const })),
-        ...(jobDescriptionCriteria.certifications || []).map(r => ({ ...r, category: 'Certification' as const })),
-        ...(jobDescriptionCriteria.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' as const })),
-        ...(jobDescriptionCriteria.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' as const })),
+        ...(jobDescriptionCriteria.education || []).map(r => ({ ...r, category: 'Education' })),
+        ...(jobDescriptionCriteria.experience || []).map(r => ({ ...r, category: 'Experience' })),
+        ...(jobDescriptionCriteria.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' })),
+        ...(jobDescriptionCriteria.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' })),
+        ...(jobDescriptionCriteria.certifications || []).map(r => ({ ...r, category: 'Certification' })),
+        ...(jobDescriptionCriteria.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' })),
+        ...(jobDescriptionCriteria.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' })),
     ];
     
     allJdRequirements.forEach(req => {
-        const weights = PRIORITY_WEIGHTS[req.category];
-        const basePoints = weights[req.priority];
+        const basePoints = req.score;
         maxScore += basePoints;
 
         const alignmentDetail = output.alignmentDetails.find(
-            detail => detail.requirement === req.description && normalizeCategory(detail.category) === req.category
+            detail => detail.requirement === req.description && detail.priority === req.priority
         );
-
+        
         if (alignmentDetail) {
             let awardedPoints = 0;
             if (alignmentDetail.status === 'Aligned') {
@@ -197,8 +171,8 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
                 awardedPoints = basePoints / 2;
             }
             candidateScore += awardedPoints;
-            alignmentDetail.score = awardedPoints; // Attach the score to the detail object
-            alignmentDetail.maxScore = basePoints; // Attach the max score
+            alignmentDetail.score = awardedPoints;
+            alignmentDetail.maxScore = basePoints;
         }
     });
 
@@ -206,7 +180,6 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     output.candidateScore = candidateScore;
     output.maxScore = maxScore;
 
-    // Programmatic Recommendation and Disqualification
     const isDisqualified = output.alignmentDetails.some(detail =>
         (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&
         detail.priority === 'MUST-HAVE' &&

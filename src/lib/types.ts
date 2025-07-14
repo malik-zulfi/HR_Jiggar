@@ -5,6 +5,8 @@ import { z } from 'zod';
 export const RequirementSchema = z.object({
   description: z.string().describe('Description of the requirement.'),
   priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
+  score: z.number().describe('The points this requirement is worth. Editable by the user.'),
+  defaultScore: z.number().describe('The default score assigned by the AI, for tracking changes.'),
 });
 export type Requirement = z.infer<typeof RequirementSchema>;
 
@@ -150,7 +152,7 @@ export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 export const AssessmentSessionSchema = z.object({
     id: z.string(),
     jdName: z.string(),
-    originalAnalyzedJd: ExtractJDCriteriaOutputSchema.optional(),
+    originalAnalyzedJd: ExtractJDCriteriaOutputSchema,
     analyzedJd: ExtractJDCriteriaOutputSchema,
     candidates: z.array(CandidateRecordSchema),
     summary: CandidateSummaryOutputSchema.nullable(),
