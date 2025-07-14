@@ -125,11 +125,12 @@ const extractJDCriteriaFlow = ai.defineFlow(
 
         return items.map((desc): Requirement => {
             const priority = getPriority(category.toString(), desc);
+            const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
             return {
                 description: desc,
                 priority: priority,
-                score: priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2),
-                defaultScore: priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2),
+                score: score,
+                defaultScore: score,
             };
         });
     };
