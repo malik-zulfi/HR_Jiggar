@@ -53,14 +53,14 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
         <span className="ml-2">{title}</span>
       </h3>
       <ul className="space-y-2">
-        {requirements.map((req, index) => {
+        {requirements.map((req) => {
           const originalReq = getOriginalRequirement(req.description, categoryKey);
           const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
           const hasScoreChanged = originalReq && req.score !== originalReq.score;
 
           return (
             <li 
-                key={`${categoryKey}-${req.description}-${index}`}
+                key={`${categoryKey}-${req.description}`}
                 className={cn(
                     "p-3 rounded-lg border bg-secondary/30 transition-colors",
                     (hasPriorityChanged || hasScoreChanged) && "bg-accent/20 border-accent/40"
@@ -71,11 +71,11 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
                  <div 
                     className="flex items-center space-x-2"
                  >
-                    <Label htmlFor={`p-switch-${categoryKey}-${index}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>
+                    <Label htmlFor={`p-switch-${categoryKey}-${req.description}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>
                       {req.priority === 'NICE-TO-HAVE' ? 'Nice to Have' : 'Must Have'}
                     </Label>
                     <Switch
-                        id={`p-switch-${categoryKey}-${index}`}
+                        id={`p-switch-${categoryKey}-${req.description}`}
                         checked={req.priority === 'MUST-HAVE'}
                         onCheckedChange={(checked) => {
                             onRequirementChange(categoryKey, req.description, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
@@ -213,28 +213,34 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     value: any
   ) => {
     setEditedJd(prevJd => {
-        const newAnalyzedJd = JSON.parse(JSON.stringify(prevJd));
-        const reqs = newAnalyzedJd[categoryKey as CategoryKey] as Requirement[];
-        
-        if (Array.isArray(reqs)) {
-            const reqToUpdate = reqs.find(r => r.description === description);
-            if (!reqToUpdate) return newAnalyzedJd;
-
-            if (field === 'priority') {
-                const originalReq = getOriginalRequirement(description, categoryKey);
-                if (!originalReq) return newAnalyzedJd;
-                
-                reqToUpdate.priority = value;
-                const newDefaultScore = value === 'MUST-HAVE' 
-                    ? originalReq.defaultScore 
-                    : Math.ceil(originalReq.defaultScore / 2);
-                reqToUpdate.score = newDefaultScore;
-            } else {
-                 reqToUpdate.score = value;
-            }
-            return newAnalyzedJd;
+        const categoryRequirements = prevJd[categoryKey] as Requirement[] | undefined;
+        if (!Array.isArray(categoryRequirements)) {
+            return prevJd;
         }
-        return newAnalyzedJd;
+
+        const updatedRequirements = categoryRequirements.map(req => {
+            if (req.description === description) {
+                const updatedReq = { ...req };
+                if (field === 'priority') {
+                    const originalReq = getOriginalRequirement(description, categoryKey);
+                    if (!originalReq) return req; // Should not happen
+
+                    updatedReq.priority = value;
+                    updatedReq.score = value === 'MUST-HAVE' 
+                        ? originalReq.defaultScore 
+                        : Math.ceil(originalReq.defaultScore / 2);
+                } else {
+                    updatedReq.score = value;
+                }
+                return updatedReq;
+            }
+            return req;
+        });
+
+        return {
+            ...prevJd,
+            [categoryKey]: updatedRequirements
+        };
     });
   };
 
