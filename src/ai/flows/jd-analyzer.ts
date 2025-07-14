@@ -65,19 +65,14 @@ Ensure the output is a valid JSON object.`,
 });
 
 const getPriority = (category: string, description: string): Requirement['priority'] => {
-    const mustHaveKeywords = ['must', 'required', 'essential', 'degree in'];
+    const niceToHaveKeywords = ['nice to have', 'preferred', 'plus', 'bonus', 'desirable', 'advantageous', 'good to have'];
     const lowerDesc = description.toLowerCase();
-    
-    // Education and Experience are must-haves by default
-    if (category === 'education' || category === 'experience') {
-        return 'MUST-HAVE';
+
+    if (niceToHaveKeywords.some(keyword => lowerDesc.includes(keyword))) {
+        return 'NICE-TO-HAVE';
     }
 
-    if (mustHaveKeywords.some(keyword => lowerDesc.includes(keyword))) {
-        return 'MUST-HAVE';
-    }
-    
-    return 'NICE-TO-HAVE';
+    return 'MUST-HAVE';
 };
 
 const getCategoryWeight = (category: keyof ExtractJDCriteriaOutput): number => {
