@@ -233,7 +233,7 @@ export type SuitablePosition = {
 };
 
 export const FindSuitablePositionsInputSchema = z.object({
-  candidate: CvDatabaseRecordSchema.describe('The candidate to find positions for.'),
+  candidates: z.array(CvDatabaseRecordSchema).describe('The candidates to find positions for.'),
   assessmentSessions: z.array(AssessmentSessionSchema).describe('A list of all available assessment sessions (jobs).'),
   existingSuitablePositions: z.array(z.object({ // Cannot use SuitablePosition type directly due to circular reference issues with Zod/TS
       candidateEmail: z.string(),

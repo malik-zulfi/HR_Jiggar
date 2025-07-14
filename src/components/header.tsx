@@ -176,20 +176,32 @@ export function Header({
                             </p>
                         </div>
                         <div className="flex flex-col gap-4">
-                            <div className="flex items-center space-x-2 rounded-md border p-4">
-                                <Wand2 className="h-5 w-5 text-primary" />
-                                <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium leading-none">
-                                    AI Relevance Check
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                    Automatically find relevant jobs for candidates.
-                                    </p>
+                            <div className="rounded-md border p-4 space-y-3">
+                                <div className="flex items-center space-x-2">
+                                    <Wand2 className="h-5 w-5 text-primary" />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">
+                                        AI Relevance Check
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                        Automatically find relevant jobs for candidates.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={isRelevanceCheckEnabled}
+                                        onCheckedChange={onRelevanceCheckToggle}
+                                    />
                                 </div>
-                                <Switch
-                                    checked={isRelevanceCheckEnabled}
-                                    onCheckedChange={onRelevanceCheckToggle}
-                                />
+                                {isRelevanceCheckEnabled && (
+                                     <Button variant="outline" size="sm" className="w-full" onClick={onManualCheck} disabled={manualCheckStatus === 'loading'}>
+                                        {manualCheckStatus === 'loading' ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                        ) : (
+                                            <Wand2 className="mr-2 h-4 w-4"/>
+                                        )}
+                                         Run on entire database
+                                     </Button>
+                                )}
                             </div>
                             <div className="rounded-md border p-4 space-y-3">
                                 <h5 className="text-sm font-medium leading-none">

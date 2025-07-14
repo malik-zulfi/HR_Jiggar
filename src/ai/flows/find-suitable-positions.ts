@@ -21,85 +21,58 @@ import { withRetry } from '@/lib/retry';
 
 export type { FindSuitablePositionsInput, FindSuitablePositionsOutput };
 
-const findRelevantCandidatesTool = ai.defineTool(
-    {
-        name: 'findRelevantCandidates',
-        description: 'Searches a database of candidate CVs to find those relevant to a specific job description.',
-        inputSchema: z.object({
-            jobDescription: z.string().describe("A concise summary of the job description, including title and key requirements."),
-            cvDatabase: z.array(CvDatabaseRecordSchema).describe("The full database of candidates' CVs."),
-        }),
-        outputSchema: z.object({
-            relevantCandidateEmails: z.array(z.string()).describe("A list of email addresses for candidates deemed relevant for the job."),
-        }),
-    },
-    async ({ jobDescription, cvDatabase }) => {
-        // In a real-world scenario, this could be a vector search or a more complex query.
-        // For this implementation, we are simply returning all candidates with the same job code,
-        // as the primary AI prompt will do the actual relevance filtering.
-        // This tool acts as a pre-filter.
-        const jobCodeMatch = jobDescription.match(/Job Code: (\w+)/);
-        if (!jobCodeMatch) {
-            return { relevantCandidateEmails: [] };
-        }
-        const jobCode = jobCodeMatch[1];
-        const relevantCandidates = cvDatabase.filter(cv => cv.jobCode === jobCode);
-        return {
-            relevantCandidateEmails: relevantCandidates.map(c => c.email),
-        };
-    }
-);
-
 
 const FindSuitablePositionsPromptInput = z.object({
-    candidate: CvDatabaseRecordSchema,
+    candidates: z.array(CvDatabaseRecordSchema),
     assessmentSessions: z.array(AssessmentSessionSchema),
     existingSuitablePositions: FindSuitablePositionsInputSchema.shape.existingSuitablePositions,
 });
 
 const FindSuitablePositionsPromptOutput = z.object({
-    // The output is a list of session IDs, which we will map back to full AssessmentSession objects.
-    suitableSessionIds: z.array(z.string()).describe("An array of session IDs for which the candidate is a relevant fit."),
+    suitableMatches: z.array(z.object({
+        candidateEmail: z.string().describe("The email of the candidate who is a good fit."),
+        assessmentSessionId: z.string().describe("The ID of the assessment session (job) for which the candidate is a fit."),
+    })).describe("An array of all new, suitable matches found between candidates and jobs.")
 });
 
 const findSuitablePositionsPrompt = ai.definePrompt({
     name: 'findSuitablePositionsPrompt',
     input: { schema: FindSuitablePositionsPromptInput },
     output: { schema: FindSuitablePositionsPromptOutput },
-    tools: [findRelevantCandidatesTool],
     config: { temperature: 0.1 },
-    prompt: `You are an expert recruitment assistant. Your task is to determine which job positions (Assessment Sessions) are a good fit for a given candidate.
+    prompt: `You are an expert recruitment assistant. Your task is to determine which job positions (Assessment Sessions) are a good fit for all the given candidates.
 
-Candidate Information:
-- Name: {{{candidate.name}}}
-- Email: {{{candidate.email}}}
-- Current Role: {{{candidate.currentTitle}}} at {{{candidate.currentCompany}}}
-- Total Experience: {{{candidate.totalExperience}}}
-- CV Content:
-{{{candidate.cvContent}}}
+Candidates Information:
+{{#each candidates}}
+- Candidate Name: {{{this.name}}}
+  Email: {{{this.email}}}
+  CV Content: {{{this.cvContent}}}
+---
+{{/each}}
+
 
 Available Job Positions (Assessment Sessions):
 {{#each assessmentSessions}}
 - Session ID: {{{this.id}}}
   Job Title: {{{this.analyzedJd.jobTitle}}}
   Job Code: {{{this.analyzedJd.code}}}
-  Department: {{{this.analyzedJd.department}}}
   Key Requirements: 
   {{#each this.analyzedJd.technicalSkills}}- {{this.description}} ({{this.priority}}){{/each}}
   {{#each this.analyzedJd.experience}}- {{this.description}} ({{this.priority}}){{/each}}
+---
 {{/each}}
 
-Already Identified Positions:
+Already Identified Positions (Existing Matches):
 {{#each existingSuitablePositions}}
-- Candidate {{this.candidateName}} is already known to be suitable for Session ID {{{this.assessment.id}}}.
+- Candidate {{this.candidateName}} ({{this.candidateEmail}}) is already matched with Session ID {{{this.assessment.id}}}.
 {{/each}}
 
 Instructions:
-1.  Review the candidate's CV and the list of available job positions.
-2.  For each job position, perform a high-level relevance check. Focus on core skills, recent job titles, and overall years of experience.
-3.  A position is NOT suitable if the candidate's email and the session ID already appear in the "Already Identified Positions" list. You MUST NOT recommend a position that is already known to be suitable.
-4.  A position is NOT suitable if the candidate has already been assessed for it. You can check this by seeing if the candidate's name or email appears in the list of assessed candidates for a given session.
-5.  Return a list of \`suitableSessionIds\` for all the job positions you determine to be a good, new, unassessed fit for the candidate.
+1.  Review every candidate's CV against every available job position.
+2.  For each candidate-job pair, perform a high-level relevance check. Focus on core skills, recent job titles, and overall years of experience.
+3.  A match is NOT suitable if the candidate's email and the session ID already appear in the "Already Identified Positions" list. You MUST NOT recommend a position that is already known to be suitable.
+4.  A position is NOT suitable for a candidate if they have already been assessed for it. You can check this by seeing if the candidate's email appears in the list of assessed candidates for that specific session.
+5.  Return a list of \`suitableMatches\` for all the job/candidate pairs you determine to be a good, new, unassessed fit.
 `,
 });
 
@@ -110,31 +83,40 @@ const findSuitablePositionsFlow = ai.defineFlow(
         outputSchema: FindSuitablePositionsOutputSchema,
     },
     async (input) => {
-        const { candidate, assessmentSessions, existingSuitablePositions } = input;
+        const { candidates, assessmentSessions, existingSuitablePositions } = input;
+        
+        // Pre-filter sessions for each candidate to exclude those they've already been assessed for.
+        const candidatesWithUnassessedSessions = candidates.map(candidate => {
+            const unassessedSessions = assessmentSessions.filter(session => 
+                !session.candidates.some(c => c.analysis.email?.toLowerCase() === candidate.email.toLowerCase())
+            );
+            return {
+                ...candidate,
+                unassessedSessions,
+            };
+        }).filter(c => c.unassessedSessions.length > 0);
 
-        // Filter out sessions where the candidate has already been assessed.
-        const unassessedSessions = assessmentSessions.filter(session => 
-            !session.candidates.some(c => c.cvContent.toLowerCase().includes(candidate.email.toLowerCase()))
-        );
-
-        if (unassessedSessions.length === 0) {
+        if (candidatesWithUnassessedSessions.length === 0) {
             return { newlyFoundPositions: [] };
         }
-
+        
+        // The prompt now handles multiple candidates, but we still pass the unassessed sessions along with them.
+        // We'll pass all sessions to the prompt, and it will use its internal logic to filter.
         const { output } = await withRetry(() => findSuitablePositionsPrompt({
-            candidate,
-            assessmentSessions: unassessedSessions,
+            candidates,
+            assessmentSessions,
             existingSuitablePositions,
         }));
-
-        if (!output || !output.suitableSessionIds || output.suitableSessionIds.length === 0) {
+        
+        if (!output || !output.suitableMatches || output.suitableMatches.length === 0) {
             return { newlyFoundPositions: [] };
         }
 
-        const newlyFoundPositions = output.suitableSessionIds
-            .map(sessionId => {
-                const assessment = assessmentSessions.find(s => s.id === sessionId);
-                if (!assessment) return null;
+        const newlyFoundPositions = output.suitableMatches
+            .map(match => {
+                const candidate = candidates.find(c => c.email === match.candidateEmail);
+                const assessment = assessmentSessions.find(s => s.id === match.assessmentSessionId);
+                if (!candidate || !assessment) return null;
                 return {
                     candidateEmail: candidate.email,
                     candidateName: candidate.name,

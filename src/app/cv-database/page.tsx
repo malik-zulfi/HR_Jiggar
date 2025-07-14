@@ -44,7 +44,7 @@ type Conflict = {
     newRecord: ParseCvOutput & { cvFileName: string; cvContent: string; jobCode: JobCode; };
     existingRecord: CvDatabaseRecord;
 };
-type RelevanceCheckStatus = Record<string, boolean>;
+type RelevanceCheckStatus = 'idle' | 'loading' | 'done';
 type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direction: 'ascending' | 'descending'; };
 type CandidateAssessmentInfo = {
     sessionId: string;
@@ -68,7 +68,7 @@ export default function CvDatabasePage() {
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
     
     const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
-    const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>({});
+    const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>('idle');
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
     const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
@@ -178,7 +178,7 @@ export default function CvDatabasePage() {
         setCurrentConflict(newQueue[0] || null);
         
         if (newRecord) {
-            handleNewCandidateAdded(newRecord);
+            handleNewCandidatesAdded([newRecord]);
         }
     };
 
@@ -235,37 +235,47 @@ export default function CvDatabasePage() {
         }
     };
 
-    const handleNewCandidateAdded = useCallback(async (candidate: CvDatabaseRecord) => {
-        if (!isRelevanceCheckEnabled || history.length === 0) {
+    const runRelevanceCheck = useCallback(async (candidatesToCheck: CvDatabaseRecord[]) => {
+        if (!isRelevanceCheckEnabled || history.length === 0 || candidatesToCheck.length === 0) {
             return;
         }
 
-        setRelevanceCheckStatus(prev => ({ ...prev, [candidate.email]: true }));
-        toast({ description: `Checking for suitable positions for ${candidate.name}...` });
+        setRelevanceCheckStatus('loading');
+        toast({ description: `Checking for suitable positions for ${candidatesToCheck.length} candidate(s)...` });
 
         try {
             const result = await findSuitablePositionsForCandidate({
-                candidate,
+                candidates: candidatesToCheck,
                 assessmentSessions: history,
                 existingSuitablePositions: suitablePositions
             });
-
+            
             if (result.newlyFoundPositions.length > 0) {
-                setSuitablePositions(prev => [...prev, ...result.newlyFoundPositions]);
+                setSuitablePositions(prev => {
+                    const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+                    const uniqueNewPositions = result.newlyFoundPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
+                    return [...prev, ...uniqueNewPositions];
+                });
                 toast({
                     title: "New Opportunities Found!",
-                    description: `Found ${result.newlyFoundPositions.length} new relevant position(s) for ${candidate.name}.`,
+                    description: `Found ${result.newlyFoundPositions.length} new relevant position(s). Check the notifications panel.`,
                 });
             } else {
-                toast({ description: `No new relevant positions found for ${candidate.name} at this time.` });
+                 toast({ description: `No new relevant positions found for the selected candidate(s).` });
             }
         } catch (error: any) {
-            console.error(`Relevance check failed for ${candidate.name}:`, error);
+            console.error(`Relevance check failed:`, error);
             toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
         } finally {
-            setRelevanceCheckStatus(prev => ({ ...prev, [candidate.email]: false }));
+            setRelevanceCheckStatus('done');
+            setTimeout(() => setRelevanceCheckStatus('idle'), 2000);
         }
     }, [isRelevanceCheckEnabled, history, suitablePositions, toast]);
+
+    const handleNewCandidatesAdded = useCallback((newCandidates: CvDatabaseRecord[]) => {
+        runRelevanceCheck(newCandidates);
+    }, [runRelevanceCheck]);
+
     
     const toTitleCase = (str: string): string => {
         if (!str) return '';
@@ -369,9 +379,11 @@ export default function CvDatabasePage() {
             });
         }
         
-        newRecords.forEach(handleNewCandidateAdded);
+        if (newRecords.length > 0) {
+            handleNewCandidatesAdded(newRecords);
+        }
 
-    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidateAdded, setCvDatabase]);
+    }, [cvsToUpload, jobCode, toast, processingStatus, cvDatabase, handleNewCandidatesAdded, setCvDatabase]);
     
     const handleDeleteCv = (emailsToDelete: string[]) => {
         if (emailsToDelete.length === 0) return;
@@ -471,6 +483,8 @@ export default function CvDatabasePage() {
                 }}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
+                onManualCheck={() => runRelevanceCheck(cvDatabase)}
+                manualCheckStatus={relevanceCheckStatus}
             />
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto space-y-6">
@@ -581,7 +595,6 @@ export default function CvDatabasePage() {
                                     </TableHeader>
                                     <TableBody>
                                         {sortedAndFilteredCvs.length > 0 ? sortedAndFilteredCvs.map(cv => {
-                                            const isChecking = relevanceCheckStatus[cv.email];
                                             const candidateAssessments = assessmentMap.get(cv.email.toLowerCase()) || [];
                                             const count = candidateAssessments.length;
                                             return (
