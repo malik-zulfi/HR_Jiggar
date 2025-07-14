@@ -455,5 +455,3 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     </Collapsible>
   );
 }
-
-    
