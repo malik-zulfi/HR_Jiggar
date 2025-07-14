@@ -11,7 +11,7 @@ export const RequirementSchema = z.object({
 export type Requirement = z.infer<typeof RequirementSchema>;
 
 export const RequirementGroupSchema = z.object({
-  groupType: z.literal('OR').describe('The type of grouping, indicating alternative paths.'),
+  groupType: z.enum(['OR']).describe('The type of grouping, indicating alternative paths.'),
   requirements: z.array(RequirementSchema).describe('The list of alternative requirements within this group.'),
 });
 export type RequirementGroup = z.infer<typeof RequirementGroupSchema>;
@@ -24,12 +24,12 @@ export const ExtractJDCriteriaOutputSchema = z.object({
   code: z.string().optional().describe('The internal job code, if available.'),
   grade: z.string().optional().describe('The job grade or level, if available.'),
   department: z.string().optional().describe('The department or team for the position, if available.'),
-  technicalSkills: z.array(RequirementOrGroupSchema).describe('Technical skills requirements.'),
-  softSkills: z.array(RequirementOrGroupSchema).describe('Soft skills requirements.'),
-  experience: z.array(RequirementOrGroupSchema).describe('Experience requirements.'),
-  education: z.array(RequirementOrGroupSchema).describe('Education requirements.'),
-  certifications: z.array(RequirementOrGroupSchema).describe('Certification requirements.'),
-  responsibilities: z.array(RequirementOrGroupSchema).describe('Responsibilities listed in the job description.'),
+  technicalSkills: z.array(RequirementOrGroupSchema).optional().describe('Technical skills requirements.'),
+  softSkills: z.array(RequirementOrGroupSchema).optional().describe('Soft skills requirements.'),
+  experience: z.array(RequirementOrGroupSchema).optional().describe('Experience requirements.'),
+  education: z.array(RequirementOrGroupSchema).optional().describe('Education requirements.'),
+  certifications: z.array(RequirementOrGroupSchema).optional().describe('Certification requirements.'),
+  responsibilities: z.array(RequirementOrGroupSchema).optional().describe('Responsibilities listed in the job description.'),
   additionalRequirements: z.array(RequirementOrGroupSchema).optional().describe('User-added requirements that can be deleted.'),
   formattedCriteria: z.string().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
 });
@@ -252,3 +252,23 @@ export const FindSuitablePositionsOutputSchema = z.object({
   })).describe('A list of newly identified suitable positions for the candidate.'),
 });
 export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;
+
+
+// For Bulk CV Analyzer
+export const BulkAnalyzeCVsInputSchema = z.object({
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
+  candidates: z.array(z.object({
+    fileName: z.string().describe('The original file name of the CV.'),
+    cv: z.string().describe('The full text content of the CV to analyze.'),
+  })).describe('A list of candidates with their CV content.'),
+});
+export type BulkAnalyzeCVsInput = z.infer<typeof BulkAnalyzeCVsInputSchema>;
+
+export const BulkAnalyzeCVsOutputSchema = z.object({
+    results: z.array(z.object({
+        fileName: z.string(),
+        analysis: AnalyzeCVAgainstJDOutputSchema.nullable(),
+        error: z.string().optional(),
+    }))
+});
+export type BulkAnalyzeCVsOutput = z.infer<typeof BulkAnalyzeCVsOutputSchema>;

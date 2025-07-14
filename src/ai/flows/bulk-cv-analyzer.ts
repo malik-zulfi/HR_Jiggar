@@ -10,32 +10,11 @@
  * - BulkAnalyzeCVsOutput - The return type for the function.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'zod';
 import {
-  ExtractJDCriteriaOutputSchema,
-  AnalyzeCVAgainstJDOutputSchema,
+  type BulkAnalyzeCVsInput,
+  type BulkAnalyzeCVsOutput,
 } from '@/lib/types';
-import { withRetry } from '@/lib/retry';
 import { analyzeCVAgainstJD } from './cv-analyzer';
-
-export const BulkAnalyzeCVsInputSchema = z.object({
-  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
-  candidates: z.array(z.object({
-    fileName: z.string().describe('The original file name of the CV.'),
-    cv: z.string().describe('The full text content of the CV to analyze.'),
-  })).describe('A list of candidates with their CV content.'),
-});
-export type BulkAnalyzeCVsInput = z.infer<typeof BulkAnalyzeCVsInputSchema>;
-
-export const BulkAnalyzeCVsOutputSchema = z.object({
-    results: z.array(z.object({
-        fileName: z.string(),
-        analysis: AnalyzeCVAgainstJDOutputSchema.nullable(),
-        error: z.string().optional(),
-    }))
-});
-export type BulkAnalyzeCVsOutput = z.infer<typeof BulkAnalyzeCVsOutputSchema>;
 
 
 export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAnalyzeCVsOutput> {
@@ -56,6 +35,7 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
         return {
           fileName: candidate.fileName,
           analysis,
+          error: undefined,
         };
       } catch (error: any) {
         console.error(`Error analyzing CV for ${candidate.fileName} in bulk:`, error);
