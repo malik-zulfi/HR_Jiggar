@@ -13,6 +13,7 @@ import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, Refres
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
+import { bulkAnalyzeCVs } from "@/ai/flows/bulk-cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
 import { parseCv } from "@/ai/flows/cv-parser";
@@ -150,76 +151,99 @@ function AssessmentPage() {
         setNewCvProcessingStatus(initialStatus);
 
         let successCount = 0;
+        let finalCandidateRecords: CandidateRecord[] = [];
 
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
         const jobCode = jd.code;
 
-        for (const cv of candidatesToProcess) {
-            try {
-                let parsedData = null;
-                if (jobCode) {
-                    try {
-                        parsedData = await parseCv({ cvText: cv.content });
-                        const dbRecord: CvDatabaseRecord = {
-                            ...parsedData,
-                            jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
-                            cvFileName: cv.name,
-                            cvContent: cv.content,
-                            createdAt: new Date().toISOString(),
-                        };
-                        addOrUpdateCvInDatabase(dbRecord);
-                    } catch (parseError: any) {
-                        toast({ 
-                            variant: 'destructive', 
-                            title: `DB Entry Skipped: ${cv.name}`, 
-                            description: `Could not extract an email. Assessment will proceed.` 
-                        });
-                    }
+        // First, parse all CVs to update the central database. This remains a parallel process.
+        await Promise.all(candidatesToProcess.map(async (cvFile) => {
+            if (jobCode) {
+                try {
+                    const parsedData = await parseCv({ cvText: cvFile.content });
+                    const dbRecord: CvDatabaseRecord = {
+                        ...parsedData,
+                        jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                        cvFileName: cvFile.name,
+                        cvContent: cvFile.content,
+                        createdAt: new Date().toISOString(),
+                    };
+                    addOrUpdateCvInDatabase(dbRecord);
+                } catch (parseError: any) {
+                    toast({ 
+                        variant: 'destructive', 
+                        title: `DB Entry Skipped: ${cvFile.name}`, 
+                        description: `Could not extract an email. Assessment will proceed.` 
+                    });
                 }
-                
-                const analysis = await analyzeCVAgainstJD({ 
-                    jobDescriptionCriteria: jd, 
-                    cv: cv.content,
-                    parsedCv: parsedData,
-                });
+            }
+        }));
 
-                const candidateRecord: CandidateRecord = {
-                    cvName: cv.name,
-                    cvContent: cv.content,
-                    analysis,
-                    isStale: false,
-                };
+        // Now, perform bulk analysis in a single API call
+        try {
+            const bulkInput = {
+                jobDescriptionCriteria: jd,
+                candidates: candidatesToProcess.map(c => ({ fileName: c.name, cv: c.content })),
+            };
+            const bulkResults = await bulkAnalyzeCVs(bulkInput);
 
-                setHistory(prev => prev.map(session => {
-                    if (session.id === sessionId) {
-                        const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName.toLowerCase()));
-                        if (existingNames.has(candidateRecord.analysis.candidateName.toLowerCase())) {
-                            toast({ variant: 'destructive', description: `Candidate ${candidateRecord.analysis.candidateName} already exists in this session.` });
-                            return session;
-                        }
-                        const allCandidates = [...session.candidates, candidateRecord];
+            for (const result of bulkResults.results) {
+                if (result.analysis) {
+                    const originalCv = candidatesToProcess.find(c => c.name === result.fileName);
+                    const candidateRecord: CandidateRecord = {
+                        cvName: result.fileName,
+                        cvContent: originalCv?.content || '',
+                        analysis: result.analysis,
+                        isStale: false,
+                    };
+                    finalCandidateRecords.push(candidateRecord);
+
+                    setNewCvProcessingStatus(prev => ({
+                        ...prev,
+                        [result.fileName]: { ...prev[result.fileName], status: 'done', candidateName: result.analysis.candidateName }
+                    }));
+                    successCount++;
+                } else {
+                    console.error(`Error analyzing CV for ${result.fileName}:`, result.error);
+                    toast({
+                        variant: "destructive",
+                        title: `Analysis Failed for ${result.fileName}`,
+                        description: result.error || "An unexpected error occurred.",
+                    });
+                    setNewCvProcessingStatus(prev => ({ ...prev, [result.fileName]: { ...prev[result.fileName], status: 'error' } }));
+                }
+            }
+        } catch (error: any) {
+             console.error(`Bulk analysis failed:`, error);
+             toast({
+                variant: "destructive",
+                title: `Bulk Analysis Failed`,
+                description: error.message || "An unexpected error occurred during bulk processing.",
+            });
+            candidatesToProcess.forEach(cv => {
+                 setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
+            });
+        }
+        
+        if (finalCandidateRecords.length > 0) {
+            setHistory(prev => prev.map(session => {
+                if (session.id === sessionId) {
+                    const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName.toLowerCase()));
+                    const newUniqueCandidates = finalCandidateRecords.filter(c => !existingNames.has(c.analysis.candidateName.toLowerCase()));
+                    
+                    if (newUniqueCandidates.length < finalCandidateRecords.length) {
+                         toast({ variant: 'destructive', description: `Some candidates already existed in this session and were skipped.` });
+                    }
+
+                    if (newUniqueCandidates.length > 0) {
+                        const allCandidates = [...session.candidates, ...newUniqueCandidates];
                         allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
                         return { ...session, candidates: allCandidates, summary: null };
                     }
-                    return session;
-                }));
-
-                setNewCvProcessingStatus(prev => ({
-                    ...prev,
-                    [cv.name]: { ...prev[cv.name], status: 'done', candidateName: analysis.candidateName }
-                }));
-                successCount++;
-
-            } catch (error: any) {
-                console.error(`Error analyzing CV for ${cv.name}:`, error);
-                toast({
-                    variant: "destructive",
-                    title: `Analysis Failed for ${cv.name}`,
-                    description: error.message || "An unexpected error occurred.",
-                });
-                setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
-            }
+                }
+                return session;
+            }));
         }
 
         if (successCount > 0) {
