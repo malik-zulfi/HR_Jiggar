@@ -10,19 +10,27 @@ export const RequirementSchema = z.object({
 });
 export type Requirement = z.infer<typeof RequirementSchema>;
 
+export const RequirementGroupSchema = z.object({
+  groupType: z.literal('OR').describe('The type of grouping, indicating alternative paths.'),
+  requirements: z.array(RequirementSchema).describe('The list of alternative requirements within this group.'),
+});
+export type RequirementGroup = z.infer<typeof RequirementGroupSchema>;
+
+const RequirementOrGroupSchema = z.union([RequirementSchema, RequirementGroupSchema]);
+
 export const ExtractJDCriteriaOutputSchema = z.object({
   jobTitle: z.string().optional().describe('The title of the job position.'),
   positionNumber: z.string().optional().describe('The position or requisition number, if available.'),
   code: z.string().optional().describe('The internal job code, if available.'),
   grade: z.string().optional().describe('The job grade or level, if available.'),
   department: z.string().optional().describe('The department or team for the position, if available.'),
-  technicalSkills: z.array(RequirementSchema).describe('Technical skills requirements.'),
-  softSkills: z.array(RequirementSchema).describe('Soft skills requirements.'),
-  experience: z.array(RequirementSchema).describe('Experience requirements.'),
-  education: z.array(RequirementSchema).describe('Education requirements.'),
-  certifications: z.array(RequirementSchema).describe('Certification requirements.'),
-  responsibilities: z.array(RequirementSchema).describe('Responsibilities listed in the job description.'),
-  additionalRequirements: z.array(RequirementSchema).optional().describe('User-added requirements that can be deleted.'),
+  technicalSkills: z.array(RequirementOrGroupSchema).describe('Technical skills requirements.'),
+  softSkills: z.array(RequirementOrGroupSchema).describe('Soft skills requirements.'),
+  experience: z.array(RequirementOrGroupSchema).describe('Experience requirements.'),
+  education: z.array(RequirementOrGroupSchema).describe('Education requirements.'),
+  certifications: z.array(RequirementOrGroupSchema).describe('Certification requirements.'),
+  responsibilities: z.array(RequirementOrGroupSchema).describe('Responsibilities listed in the job description.'),
+  additionalRequirements: z.array(RequirementOrGroupSchema).optional().describe('User-added requirements that can be deleted.'),
   formattedCriteria: z.string().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
 });
 export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
@@ -31,7 +39,7 @@ export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSche
 // For CV Analyzer
 export const AlignmentDetailSchema = z.object({
   category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
-  requirement: z.string().describe("The specific requirement from the job description."),
+  requirement: z.string().describe("The specific requirement from the job description. For grouped requirements, this will be a summary of the group."),
   priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
   status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
   justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),

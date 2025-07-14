@@ -17,6 +17,7 @@ import {
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
   type Requirement,
+  type RequirementGroup,
   ParseCvOutputSchema,
   type ParseCvOutput,
 } from '@/lib/types';
@@ -75,6 +76,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Important Reasoning Rules:**
 
+*   **Handle Conditional "OR" Groups:** If a requirement contains multiple options joined by "OR" (e.g., 'degree in A OR B', 'experience with X OR Y'), you MUST treat this as a single requirement. The candidate is considered **'Aligned'** if they meet **ANY ONE** of the specified options. Do not mark it as 'Partially Aligned' if only one option is met. Your justification should clearly state which option the candidate meets. If they meet none, it is 'Not Aligned'.
 *   **Use Pre-Calculated Experience:** When assessing experience-related requirements, you MUST use the provided total years of experience ('{{{totalExperience}}}') as the primary source of truth. Do not re-calculate it from the CV text.
 *   **Strict Experience Comparison:** If a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as 'Not Aligned'.
 *   **Experience Gap Exception:** If the candidate's total experience is less than the required number but the gap is **3 months or less**, you should mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state the small gap (e.g., "Partially aligned, as they are only 2 months short of the required 5 years.").
@@ -83,7 +85,6 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 *   **Handle Equivalencies:** Recognize and correctly interpret common abbreviations and equivalent terms. For example, 'B.Sc.' is a 'Bachelor of Science' and fully meets a 'Bachelor's degree' requirement. 'MS' is a 'Master's degree'.
 *   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
 *   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning. If the requirement is 'Bachelor’s degree in Civil / Structural Engineering' and the CV lists 'B.Sc. in Civil Engineering', that is a clear 'Aligned' match.
-*   **Handle "Or" Conditions:** If a requirement contains multiple options (e.g., 'degree in A or B', 'experience with X or Y'), meeting ANY ONE of the options means the candidate is 'Aligned' with that requirement. Do not mark it as 'Partially Aligned' if only one option is met.
 
 **Final Output:**
 Based on your detailed analysis, provide an overall alignment summary, a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas. Do NOT provide a numeric score or a final recommendation like "Recommended". The final output must be a valid JSON object matching the provided schema.
@@ -103,6 +104,10 @@ function toTitleCase(str: string): string {
     .split(/[\s-]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+function isRequirementGroup(item: Requirement | RequirementGroup): item is RequirementGroup {
+    return 'groupType' in item;
 }
 
 const analyzeCVAgainstJDFlow = ai.defineFlow(
@@ -156,14 +161,28 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     ];
     
     allJdRequirements.forEach(req => {
-        const basePoints = req.score;
-        maxScore += basePoints;
+        let reqDescription: string;
+        let reqPriority: 'MUST-HAVE' | 'NICE-TO-HAVE';
+        let basePoints: number;
 
+        if (isRequirementGroup(req)) {
+            reqDescription = req.requirements.map(r => r.description).join(' OR ');
+            reqPriority = req.requirements.some(r => r.priority === 'MUST-HAVE') ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+            basePoints = req.requirements.reduce((max, r) => Math.max(max, r.score), 0);
+        } else {
+            reqDescription = req.description;
+            reqPriority = req.priority;
+            basePoints = req.score;
+        }
+        
+        maxScore += basePoints;
+        
         const alignmentDetail = output.alignmentDetails.find(
-            detail => detail.requirement === req.description && detail.priority === req.priority
+            detail => detail.requirement.includes(reqDescription.substring(0,50)) || reqDescription.includes(detail.requirement.substring(0,50))
         );
         
         if (alignmentDetail) {
+            alignmentDetail.priority = reqPriority;
             let awardedPoints = 0;
             if (alignmentDetail.status === 'Aligned') {
                 awardedPoints = basePoints;

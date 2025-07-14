@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
+import type { ExtractJDCriteriaOutput, Requirement, RequirementGroup } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, PlusCircle, Trash2, RotateCcw } from "lucide-react";
+import { ClipboardCheck, Briefcase, GraduationCap, Star, BrainCircuit, ListChecks, ChevronsUpDown, PlusCircle, Trash2, RotateCcw, BoxSelect } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -24,6 +24,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 
+function isRequirementGroup(item: Requirement | RequirementGroup): item is RequirementGroup {
+    return 'groupType' in item;
+}
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
@@ -37,7 +40,7 @@ type CategoryKey = Exclude<keyof ExtractJDCriteriaOutput, 'jobTitle' | 'position
 
 const RequirementList = ({ title, requirements, icon, categoryKey, onRequirementChange, onDeleteRequirement, getOriginalRequirement }: { 
   title: string; 
-  requirements: Requirement[] | undefined;
+  requirements: (Requirement | RequirementGroup)[] | undefined;
   icon: React.ReactNode;
   categoryKey: CategoryKey;
   onRequirementChange: (categoryKey: CategoryKey, description: string, field: 'priority' | 'score', value: any) => void;
@@ -53,68 +56,75 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
         <span className="ml-2">{title}</span>
       </h3>
       <ul className="space-y-2">
-        {requirements.map((req) => {
-          const originalReq = getOriginalRequirement(req.description, categoryKey);
-          const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
-          const hasScoreChanged = originalReq && req.score !== originalReq.score;
+        {requirements.map((item, index) => {
+          if (isRequirementGroup(item)) {
+            // Render Requirement Group
+            const groupDescription = item.requirements.map(r => r.description).join(' OR ');
+            return (
+                <li key={`${categoryKey}-group-${index}`} className="p-3 rounded-lg border bg-secondary/30">
+                    <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-primary/80">
+                        <BoxSelect className="h-4 w-4" />
+                        <span>Conditional (OR) Group</span>
+                    </div>
+                    <ul className="space-y-2 pl-2">
+                        {item.requirements.map(req => {
+                            const originalReq = getOriginalRequirement(req.description, categoryKey);
+                            const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
+                            const hasScoreChanged = originalReq && req.score !== originalReq.score;
+                            return (
+                                <li key={req.description} className={cn("p-2 rounded-md border bg-card/50", hasPriorityChanged || hasScoreChanged ? "border-accent/40" : "border-secondary")}>
+                                    <p className="flex-1 text-sm text-foreground mb-2">{req.description}</p>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Label htmlFor={`p-switch-${categoryKey}-${req.description}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>{req.priority === 'NICE-TO-HAVE' ? 'Nice to Have' : 'Must Have'}</Label>
+                                            <Switch id={`p-switch-${categoryKey}-${req.description}`} checked={req.priority === 'MUST-HAVE'} onCheckedChange={(checked) => onRequirementChange(categoryKey, req.description, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE')} className={cn(hasPriorityChanged && "ring-2 ring-accent ring-offset-2 ring-offset-background")} />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Input type="number" value={req.score} onChange={(e) => onRequirementChange(categoryKey, req.description, 'score', Number(e.target.value))} className={cn("h-7 w-16 text-center", hasScoreChanged && "ring-2 ring-accent")} />
+                                            <Label className="text-sm font-medium">points</Label>
+                                        </div>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </li>
+            );
+          } else {
+            // Render Single Requirement
+            const req = item;
+            const originalReq = getOriginalRequirement(req.description, categoryKey);
+            const hasPriorityChanged = originalReq && req.priority !== originalReq.priority;
+            const hasScoreChanged = originalReq && req.score !== originalReq.score;
 
-          return (
-            <li 
-                key={`${categoryKey}-${req.description}`}
-                className={cn(
-                    "p-3 rounded-lg border bg-secondary/30 transition-colors",
-                    (hasPriorityChanged || hasScoreChanged) && "bg-accent/20 border-accent/40"
-                )}
-            >
-              <p className="flex-1 text-sm text-foreground mb-2">{req.description}</p>
-              <div className="flex items-center justify-between gap-4">
-                 <div 
-                    className="flex items-center space-x-2"
-                 >
-                    <Label htmlFor={`p-switch-${categoryKey}-${req.description}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>
-                      {req.priority === 'NICE-TO-HAVE' ? 'Nice to Have' : 'Must Have'}
-                    </Label>
-                    <Switch
-                        id={`p-switch-${categoryKey}-${req.description}`}
-                        checked={req.priority === 'MUST-HAVE'}
-                        onCheckedChange={(checked) => {
-                            onRequirementChange(categoryKey, req.description, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE');
-                        }}
-                        className={cn(hasPriorityChanged && "ring-2 ring-accent ring-offset-2 ring-offset-background")}
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={req.score}
-                      onChange={(e) => onRequirementChange(categoryKey, req.description, 'score', Number(e.target.value))}
-                      className={cn("h-7 w-16 text-center", hasScoreChanged && "ring-2 ring-accent")}
-                    />
+            return (
+              <li key={`${categoryKey}-${req.description}`} className={cn("p-3 rounded-lg border bg-secondary/30 transition-colors", (hasPriorityChanged || hasScoreChanged) && "bg-accent/20 border-accent/40")}>
+                <p className="flex-1 text-sm text-foreground mb-2">{req.description}</p>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor={`p-switch-${categoryKey}-${req.description}`} className={cn("text-xs", req.priority === 'NICE-TO-HAVE' ? 'text-muted-foreground' : 'font-semibold text-accent')}>{req.priority === 'NICE-TO-HAVE' ? 'Nice to Have' : 'Must Have'}</Label>
+                    <Switch id={`p-switch-${categoryKey}-${req.description}`} checked={req.priority === 'MUST-HAVE'} onCheckedChange={(checked) => onRequirementChange(categoryKey, req.description, 'priority', checked ? 'MUST-HAVE' : 'NICE-TO-HAVE')} className={cn(hasPriorityChanged && "ring-2 ring-accent ring-offset-2 ring-offset-background")} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input type="number" value={req.score} onChange={(e) => onRequirementChange(categoryKey, req.description, 'score', Number(e.target.value))} className={cn("h-7 w-16 text-center", hasScoreChanged && "ring-2 ring-accent")} />
                     <Label className="text-sm font-medium">points</Label>
-                </div>
-                {onDeleteRequirement && (
+                  </div>
+                  {onDeleteRequirement && (
                     <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteRequirement(categoryKey, req.description);
-                                    }}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Delete requirement</p></TooltipContent>
-                        </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteRequirement(categoryKey, req.description); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Delete requirement</p></TooltipContent>
+                      </Tooltip>
                     </TooltipProvider>
-                )}
-              </div>
-            </li>
-          );
+                  )}
+                </div>
+              </li>
+            );
+          }
         })}
       </ul>
     </div>
@@ -144,9 +154,13 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     const map = new Map<string, Requirement>();
     Object.keys(originalAnalysis).forEach(catKey => {
       const category = originalAnalysis[catKey as CategoryKey];
-      if(Array.isArray(category)) {
-        category.forEach((req) => {
-          map.set(`${catKey}-${req.description}`, req);
+      if (Array.isArray(category)) {
+        category.forEach((item) => {
+          if (isRequirementGroup(item)) {
+            item.requirements.forEach(req => map.set(`${catKey}-${req.description}`, req));
+          } else {
+            map.set(`${catKey}-${item.description}`, item);
+          }
         });
       }
     });
@@ -175,7 +189,6 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
         if (!newJd.additionalRequirements) {
             newJd.additionalRequirements = [];
         }
-        const score = newRequirement.priority === 'MUST-HAVE' ? 5 : 2;
         newJd.additionalRequirements.push({
             description: newRequirement.description,
             priority: newRequirement.priority,
@@ -194,13 +207,17 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
   };
 
   const handleDeleteRequirement = (categoryKey: CategoryKey, description: string) => {
-    setEditedJd(prevJd => {
+     setEditedJd(prevJd => {
         const newJd = { ...prevJd };
-        if (categoryKey === 'additionalRequirements' && Array.isArray(newJd.additionalRequirements)) {
-            const updatedReqs = newJd.additionalRequirements.filter(
-                (req: Requirement) => req.description !== description
-            );
-            return { ...newJd, additionalRequirements: updatedReqs };
+        const category = newJd[categoryKey];
+        if (Array.isArray(category)) {
+            const updatedCategory = category.filter(item => {
+                if (isRequirementGroup(item)) {
+                    return true; // Don't delete from groups, only top-level
+                }
+                return item.description !== description;
+            });
+            return { ...newJd, [categoryKey]: updatedCategory };
         }
         return newJd;
     });
@@ -213,34 +230,47 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     value: any
   ) => {
     setEditedJd(prevJd => {
-        const categoryRequirements = prevJd[categoryKey] as Requirement[] | undefined;
-        if (!Array.isArray(categoryRequirements)) {
-            return prevJd;
-        }
+      const newJd = JSON.parse(JSON.stringify(prevJd));
+      const category = newJd[categoryKey] as (Requirement | RequirementGroup)[] | undefined;
+      if (!Array.isArray(category)) return prevJd;
 
-        const updatedRequirements = categoryRequirements.map(req => {
+      const updatedCategory = category.map(item => {
+        if (isRequirementGroup(item)) {
+          const updatedGroupReqs = item.requirements.map(req => {
             if (req.description === description) {
-                const updatedReq = { ...req };
-                if (field === 'priority') {
-                    const originalReq = getOriginalRequirement(description, categoryKey);
-                    if (!originalReq) return req; // Should not happen
-
-                    updatedReq.priority = value;
-                    updatedReq.score = value === 'MUST-HAVE' 
-                        ? originalReq.defaultScore 
-                        : Math.ceil(originalReq.defaultScore / 2);
-                } else {
-                    updatedReq.score = value;
-                }
-                return updatedReq;
+              const updatedReq = { ...req };
+              if (field === 'priority') {
+                const originalReq = getOriginalRequirement(description, categoryKey);
+                if (!originalReq) return req;
+                updatedReq.priority = value;
+                updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
+              } else {
+                updatedReq.score = value;
+              }
+              return updatedReq;
             }
             return req;
-        });
+          });
+          return { ...item, requirements: updatedGroupReqs };
+        } else {
+          if (item.description === description) {
+            const updatedReq = { ...item };
+            if (field === 'priority') {
+              const originalReq = getOriginalRequirement(description, categoryKey);
+              if (!originalReq) return item;
+              updatedReq.priority = value;
+              updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
+            } else {
+              updatedReq.score = value;
+            }
+            return updatedReq;
+          }
+          return item;
+        }
+      });
 
-        return {
-            ...prevJd,
-            [categoryKey]: updatedRequirements
-        };
+      newJd[categoryKey] = updatedCategory;
+      return newJd;
     });
   };
 
@@ -252,18 +282,27 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     let newJd = JSON.parse(JSON.stringify(editedJd));
 
     Object.keys(newJd).forEach(catKey => {
-      const category = newJd[catKey as CategoryKey];
+      const category = newJd[catKey as CategoryKey] as (Requirement | RequirementGroup)[] | undefined;
       if (Array.isArray(category)) {
-        category.forEach((req: Requirement) => {
-          const originalReq = getOriginalRequirement(req.description, catKey as CategoryKey);
-          if (originalReq) {
-            if (resetOption === 'both' || resetOption === 'scores') {
-                req.score = originalReq.score;
+        newJd[catKey as CategoryKey] = category.map(item => {
+            if (isRequirementGroup(item)) {
+                const updatedReqs = item.requirements.map(req => {
+                    const originalReq = getOriginalRequirement(req.description, catKey as CategoryKey);
+                    if (originalReq) {
+                        if (resetOption === 'both' || resetOption === 'scores') req.score = originalReq.score;
+                        if (resetOption === 'both' || resetOption === 'priorities') req.priority = originalReq.priority;
+                    }
+                    return req;
+                });
+                return { ...item, requirements: updatedReqs };
+            } else {
+                const originalReq = getOriginalRequirement(item.description, catKey as CategoryKey);
+                if (originalReq) {
+                    if (resetOption === 'both' || resetOption === 'scores') item.score = originalReq.score;
+                    if (resetOption === 'both' || resetOption === 'priorities') item.priority = originalReq.priority;
+                }
+                return item;
             }
-            if (resetOption === 'both' || resetOption === 'priorities') {
-                req.priority = originalReq.priority;
-            }
-          }
         });
       }
     });
@@ -272,7 +311,12 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     toast({ description: `Changes have been reset for: ${resetOption}.` });
   };
   
-  const hasMustHaveCert = editedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
+  const hasMustHaveCert = editedJd.certifications?.some(c => {
+    if (isRequirementGroup(c)) {
+        return c.requirements.some(r => r.priority === 'MUST-HAVE');
+    }
+    return c.priority === 'MUST-HAVE';
+  });
 
   const allSections = {
       education: { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
@@ -347,7 +391,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
                           <RequirementList
                             key={section.key}
                             title={section.title}
-                            requirements={editedJd[section.key as CategoryKey] as Requirement[] | undefined}
+                            requirements={editedJd[section.key as CategoryKey] as (Requirement | RequirementGroup)[] | undefined}
                             icon={section.icon}
                             categoryKey={section.key as CategoryKey}
                             onRequirementChange={handleRequirementChange}

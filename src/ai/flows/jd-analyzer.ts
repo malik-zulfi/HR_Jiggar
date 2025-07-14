@@ -2,7 +2,8 @@
 'use server';
 /**
  * @fileOverview Job Description (JD) Analyzer AI agent. This flow now also formats
- * the criteria into a pre-formatted string for use in other prompts.
+ * the criteria into a pre-formatted string for use in other prompts and can group
+ * requirements that represent conditional "OR" paths.
  *
  * - extractJDCriteria - A function that handles the JD criteria extraction process.
  * - ExtractJDCriteriaInput - The input type for the extractJDCriteria function.
@@ -15,6 +16,7 @@ import {
     ExtractJDCriteriaOutputSchema, 
     type ExtractJDCriteriaOutput,
     type Requirement, 
+    type RequirementGroup,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 
@@ -29,6 +31,17 @@ export async function extractJDCriteria(input: ExtractJDCriteriaInput): Promise<
   return extractJDCriteriaFlow(input);
 }
 
+const BaseRequirementSchema = z.object({
+    description: z.string(),
+});
+
+const GroupedRequirementSchema = z.object({
+    groupType: z.literal('OR'),
+    requirements: z.array(z.string()),
+});
+
+const FlexibleRequirementSchema = z.union([BaseRequirementSchema.shape.description, GroupedRequirementSchema]);
+
 const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({ 
     formattedCriteria: true,
     education: true,
@@ -39,12 +52,12 @@ const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({
     responsibilities: true,
     additionalRequirements: true,
 }).extend({
-    education: z.array(z.string()).describe('List of education requirements.'),
-    experience: z.array(z.string()).describe('List of experience requirements.'),
-    technicalSkills: z.array(z.string()).describe('List of technical skill requirements.'),
-    softSkills: z.array(z.string()).describe('List of soft skill requirements.'),
-    certifications: z.array(z.string()).describe('List of certification requirements.'),
-    responsibilities: z.array(z.string()).describe('List of responsibilities.'),
+    education: z.array(FlexibleRequirementSchema).describe('List of education requirements.'),
+    experience: z.array(FlexibleRequirementSchema).describe('List of experience requirements.'),
+    technicalSkills: z.array(FlexibleRequirementSchema).describe('List of technical skill requirements.'),
+    softSkills: z.array(FlexibleRequirementSchema).describe('List of soft skill requirements.'),
+    certifications: z.array(FlexibleRequirementSchema).describe('List of certification requirements.'),
+    responsibilities: z.array(FlexibleRequirementSchema).describe('List of responsibilities.'),
 });
 
 const prompt = ai.definePrompt({
@@ -56,7 +69,14 @@ const prompt = ai.definePrompt({
 
 First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
 
-Then, extract the key requirements as simple string arrays, categorizing them into technical skills, soft skills, experience, education, certifications, and responsibilities. Do NOT assign priority yet.
+Then, extract the key requirements. For each requirement, determine if it is a single item or a conditional "OR" group.
+
+**Requirement Extraction Rules:**
+
+1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as simple strings in the \`requirements\` array.
+2.  **Handle Associated Requirements:** If requirements are linked to an "OR" condition (e.g., "Bachelor's degree with 5 years experience OR Master's degree with 3 years experience"), you MUST group them correctly. The group should contain two strings: "Bachelor's degree with 5 years experience" and "Master's degree with 3 years experience".
+3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as a simple string.
+4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: technical skills, soft skills, experience, education, certifications, or responsibilities. Do NOT assign priority yet.
 
 Job Description:
 {{{jobDescription}}}
@@ -64,7 +84,7 @@ Job Description:
 Ensure the output is a valid JSON object.`,
 });
 
-const getPriority = (category: string, description: string): Requirement['priority'] => {
+const getPriority = (description: string): Requirement['priority'] => {
     const niceToHaveKeywords = ['nice to have', 'preferred', 'plus', 'bonus', 'desirable', 'advantageous', 'good to have'];
     const lowerDesc = description.toLowerCase();
 
@@ -75,7 +95,7 @@ const getPriority = (category: string, description: string): Requirement['priori
     return 'MUST-HAVE';
 };
 
-const getCategoryWeight = (category: keyof ExtractJDCriteriaOutput): number => {
+const getCategoryWeight = (category: keyof Omit<ExtractJDCriteriaOutput, 'jobTitle' | 'positionNumber' | 'code' | 'grade' | 'department' | 'formattedCriteria'>): number => {
     switch(category) {
         case 'education':
         case 'experience':
@@ -113,20 +133,26 @@ const extractJDCriteriaFlow = ai.defineFlow(
         education: [], experience: [], technicalSkills: [], softSkills: [], responsibilities: [], certifications: [], additionalRequirements: []
     };
     
-    const processCategory = (items: string[], category: keyof ExtractJDCriteriaOutput) => {
+    const processCategory = (items: (string | { groupType: 'OR'; requirements: string[] })[] | undefined, category: keyof typeof structuredData) => {
         if (!items || items.length === 0) return [];
         
-        const defaultWeight = getCategoryWeight(category);
+        const defaultWeight = getCategoryWeight(category as any);
 
-        return items.map((desc): Requirement => {
-            const priority = getPriority(category.toString(), desc);
-            const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
-            return {
-                description: desc,
-                priority: priority,
-                score: score,
-                defaultScore: score,
-            };
+        return items.map((item): Requirement | RequirementGroup => {
+            if (typeof item === 'string') {
+                const priority = getPriority(item);
+                const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
+                return { description: item, priority, score, defaultScore: score };
+            } else { // It's a group
+                return {
+                    groupType: 'OR',
+                    requirements: item.requirements.map(desc => {
+                        const priority = getPriority(desc);
+                        const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
+                        return { description: desc, priority, score, defaultScore: score };
+                    })
+                };
+            }
         });
     };
 
@@ -137,11 +163,17 @@ const extractJDCriteriaFlow = ai.defineFlow(
     structuredData.certifications = processCategory(certifications, 'certifications');
     structuredData.responsibilities = processCategory(responsibilities, 'responsibilities');
     
-    const hasMustHaveCert = structuredData.certifications?.some(c => c.priority === 'MUST-HAVE');
+    const hasMustHaveCert = structuredData.certifications?.some(c => 'priority' in c && c.priority === 'MUST-HAVE');
 
-    const formatSection = (title: string, items: Requirement[] | undefined) => {
+    const formatSection = (title: string, items: (Requirement | RequirementGroup)[] | undefined) => {
         if (!items || items.length === 0) return '';
-        return items.map(item => `- ${title} (${item.priority.replace('-', ' ')}): ${item.description}`).join('\n') + '\n';
+        return items.map(item => {
+            if ('groupType' in item) {
+                const groupPriority = item.requirements.some(r => r.priority === 'MUST-HAVE') ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+                return `- ${title} (${groupPriority.replace('-', ' ')}): ${item.requirements.map(r => r.description).join(' OR ')}`;
+            }
+            return `- ${title} (${item.priority.replace('-', ' ')}): ${item.description}`;
+        }).join('\n') + '\n';
     };
 
     let formattedCriteria = '';
