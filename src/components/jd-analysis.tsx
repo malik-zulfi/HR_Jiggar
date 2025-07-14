@@ -59,7 +59,6 @@ const RequirementList = ({ title, requirements, icon, categoryKey, onRequirement
         {requirements.map((item, index) => {
           if (isRequirementGroup(item)) {
             // Render Requirement Group
-            const groupDescription = item.requirements.map(r => r.description).join(' OR ');
             return (
                 <li key={`${categoryKey}-group-${index}`} className="p-3 rounded-lg border bg-secondary/30">
                     <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-primary/80">
@@ -230,47 +229,58 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     value: any
   ) => {
     setEditedJd(prevJd => {
-      const newJd = JSON.parse(JSON.stringify(prevJd));
-      const category = newJd[categoryKey] as (Requirement | RequirementGroup)[] | undefined;
-      if (!Array.isArray(category)) return prevJd;
+        const newJd = { ...prevJd };
+        const category = prevJd[categoryKey];
+        if (!Array.isArray(category)) return prevJd;
 
-      const updatedCategory = category.map(item => {
-        if (isRequirementGroup(item)) {
-          const updatedGroupReqs = item.requirements.map(req => {
-            if (req.description === description) {
-              const updatedReq = { ...req };
-              if (field === 'priority') {
+        const updatedCategory = category.map(item => {
+            if (isRequirementGroup(item)) {
+                // Find if the requirement is in this group
+                const reqIndex = item.requirements.findIndex(r => r.description === description);
+                if (reqIndex === -1) {
+                    return item; // Not in this group, return original group
+                }
+
+                // It's in this group, so we need to update it
+                const updatedGroupReqs = item.requirements.map(req => {
+                    if (req.description !== description) return req;
+                    
+                    const updatedReq = { ...req };
+                    const originalReq = getOriginalRequirement(description, categoryKey);
+
+                    if (field === 'priority') {
+                        if (originalReq) {
+                            updatedReq.priority = value;
+                            updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
+                        }
+                    } else {
+                        updatedReq.score = value;
+                    }
+                    return updatedReq;
+                });
+                // Return a new group object with the updated requirements
+                return { ...item, requirements: updatedGroupReqs };
+
+            } else { // It's a single requirement
+                if (item.description !== description) return item;
+                
+                const updatedReq = { ...item };
                 const originalReq = getOriginalRequirement(description, categoryKey);
-                if (!originalReq) return req;
-                updatedReq.priority = value;
-                updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
-              } else {
-                updatedReq.score = value;
-              }
-              return updatedReq;
-            }
-            return req;
-          });
-          return { ...item, requirements: updatedGroupReqs };
-        } else {
-          if (item.description === description) {
-            const updatedReq = { ...item };
-            if (field === 'priority') {
-              const originalReq = getOriginalRequirement(description, categoryKey);
-              if (!originalReq) return item;
-              updatedReq.priority = value;
-              updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
-            } else {
-              updatedReq.score = value;
-            }
-            return updatedReq;
-          }
-          return item;
-        }
-      });
 
-      newJd[categoryKey] = updatedCategory;
-      return newJd;
+                if (field === 'priority') {
+                    if (originalReq) {
+                        updatedReq.priority = value;
+                        updatedReq.score = value === 'MUST-HAVE' ? originalReq.defaultScore : Math.ceil(originalReq.defaultScore / 2);
+                    }
+                } else {
+                    updatedReq.score = value;
+                }
+                return updatedReq;
+            }
+        });
+        
+        // Return a new state object with the updated category array
+        return { ...newJd, [categoryKey]: updatedCategory };
     });
   };
 
