@@ -41,7 +41,7 @@ const DynamicCriteriaPromptInputSchema = z.object({
     cv: z.string().describe('The CV to analyze.'),
     candidateName: z.string().optional().describe("The candidate's full name, if already parsed."),
     candidateEmail: z.string().optional().describe("The candidate's email, if already parsed."),
-    totalExperience: z.string().nullable().optional().describe("The candidate's pre-calculated total years of experience (e.g., '8.5 years'). Use this value when assessing experience requirements."),
+    totalExperience: z.string().nullable().optional().describe("The candidate's pre-calculated total years of experience (e.g., '8.5 years'). Use this as the primary source of truth for all experience assessments."),
 });
 
 // The prompt will only return the analysis part. Score and recommendation are calculated programmatically.
@@ -75,22 +75,14 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Important Reasoning Rules:**
 
-*   **Experience and Education Assessment:**
-    *   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{totalExperience}}}' value. However, for requirements asking for experience in a **specific field** (e.g., "5 years in fire protection"), you MUST analyze the candidate's work history within the CV to calculate their experience in that specific area only. Your final alignment status MUST be based on this specific calculation.
-    *   **Partial Alignment on Overall Experience:** If a candidate does not meet a specific **education or experience** requirement, but their **overall** total experience ('{{{totalExperience}}}') is greater than or equal to the years mentioned in that requirement, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate does not have the required degree, their overall experience of 10 years exceeds the requirement."
-    *   **Strict Experience Comparison:** For all other cases, if a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as **'Not Aligned'**.
-    *   **Experience Gap Exception:** If the candidate's total experience is less than the required number but the gap is **3 months or less**, you should mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state the small gap (e.g., "Partially aligned, as they are only 2 months short of the required 5 years.").
-
-*   **Grouped and General Requirements:**
-    *   **Explicit "OR" Check for Education:** When an education requirement lists multiple degrees with "OR" (e.g., "Degree in A OR B"), you MUST check the CV for each degree option individually. If the candidate possesses **any one** of the listed degrees, you MUST mark the requirement as **'Aligned'**. Only mark it as 'Not Aligned' if you can confirm none of the options are met.
-    *   **General "OR" Groups:** If a requirement contains multiple options joined by "OR" (e.g., 'experience with X OR Y'), you MUST treat this as a single requirement. The candidate is considered **'Aligned'** if they meet **ANY ONE** of the specified options. Do not mark it as 'Partially Aligned' if only one option is met.
-    *   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
-
-*   **General Assessment Rules:**
-    *   **Infer Responsibilities from Seniority:** Do not penalize candidates if their CV doesn't explicitly state a responsibility that is clearly implied by their job title. For example, if the requirement is 'provide guidance to peers' and the candidate's title is 'Senior Engineer', 'Lead', 'Coordinator' or 'Project Manager', you MUST infer that they perform this function and mark the requirement as **'Aligned'**. Justify this by referencing their title.
-    *   **Flexible NICE-TO-HAVE Assessment:** For requirements marked as 'NICE-TO-HAVE', be more flexible. If a candidate demonstrates proficiency (e.g., "good" or "proficient") but the requirement specifies a higher level (e.g., "excellent" or "expert"), you should mark this as **'Partially Aligned'**, not 'Not Aligned'.
-    *   **Handle Equivalencies:** Recognize and correctly interpret common abbreviations and equivalent terms. For example, 'B.Sc.' is a 'Bachelor of Science' and fully meets a 'Bachelor's degree' requirement. 'MS' is a 'Master's degree'.
-    *   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning.
+*   **Use Pre-Calculated Experience:** When assessing experience-related requirements, you MUST use the provided total years of experience ('{{{totalExperience}}}') as the primary source of truth. Do not re-calculate it from the CV text.
+*   **Strict Experience Comparison:** If a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as **'Not Aligned'**.
+*   **Experience Gap Exception:** If the candidate's total experience is less than the required number but the gap is **3 months or less**, you should mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state the small gap (e.g., "Partially aligned, as they are only 2 months short of the required 5 years.").
+*   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
+*   **Infer Responsibilities from Seniority:** Do not penalize candidates if their CV doesn't explicitly state a responsibility that is clearly implied by their job title. For example, if the requirement is 'provide guidance to peers' and the candidate's title is 'Senior Engineer', 'Lead', 'Coordinator' or 'Project Manager', you MUST infer that they perform this function and mark the requirement as **'Aligned'**. Justify this by referencing their title.
+*   **Flexible NICE-TO-HAVE Assessment:** For requirements marked as 'NICE-TO-HAVE', be more flexible. If a candidate demonstrates proficiency (e.g., "good" or "proficient") but the requirement specifies a higher level (e.g., "excellent" or "expert"), you should mark this as **'Partially Aligned'**, not 'Not Aligned'.
+*   **Handle Equivalencies:** Recognize and correctly interpret common abbreviations and equivalent terms. For example, 'B.Sc.' is a 'Bachelor of Science' and fully meets a 'Bachelor's degree' requirement. 'MS' is a 'Master's degree'.
+*   **Avoid Overly Literal Matching:** Do not fail a candidate just because the wording in their CV isn't an exact verbatim match to the requirement. Focus on the substance and meaning.
 
 **Final Output:**
 Based on your detailed analysis, provide an overall alignment summary, a list of strengths, a list of weaknesses, and 2-3 suggested interview probes to explore weak areas. Do NOT provide a numeric score or a final recommendation like "Recommended". The final output must be a valid JSON object matching the provided schema.
@@ -207,14 +199,13 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     output.maxScore = maxScore;
 
     const isDisqualified = output.alignmentDetails.some(detail =>
-        (detail.category.toLowerCase().includes('experience') || detail.category.toLowerCase().includes('education')) &&
         detail.priority === 'MUST-HAVE' &&
         detail.status === 'Not Aligned'
     );
 
     if (isDisqualified) {
       output.recommendation = 'Not Recommended';
-      const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement in Education or Experience.';
+      const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement.';
       if (!output.weaknesses.includes(disqualificationReason)) {
            output.weaknesses.push(disqualificationReason);
       }
@@ -234,3 +225,5 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

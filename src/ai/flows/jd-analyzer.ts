@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Job Description (JD) Analyzer AI agent. This flow now also formats
+ * @fileOverview Job Description (JD) Analyzer AI agent. This flow also formats
  * the criteria into a pre-formatted string for use in other prompts and can group
  * requirements that represent conditional "OR" paths.
  *
@@ -74,9 +74,8 @@ Then, extract the key requirements. For each requirement, determine if it is a s
 **Requirement Extraction Rules:**
 
 1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as simple strings in the \`requirements\` array.
-2.  **Handle Associated Requirements:** If requirements are linked to an "OR" condition (e.g., "Bachelor's degree with 5 years experience OR Master's degree with 3 years experience"), you MUST group them correctly. The group should contain two strings: "Bachelor's degree with 5 years experience" and "Master's degree with 3 years experience".
-3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as a simple string.
-4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: technical skills, soft skills, experience, education, certifications, or responsibilities. Do NOT assign priority yet.
+2.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as a simple string.
+3.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: technical skills, soft skills, experience, education, certifications, or responsibilities. Do NOT assign priority yet.
 
 Job Description:
 {{{jobDescription}}}
@@ -200,3 +199,5 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
   }
 );
+
+    
