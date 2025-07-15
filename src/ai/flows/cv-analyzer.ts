@@ -51,6 +51,7 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     processingTime: true,
     candidateScore: true,
     maxScore: true,
+    totalExperience: true,
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -228,5 +229,3 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
