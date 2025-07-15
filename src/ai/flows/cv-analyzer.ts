@@ -149,6 +149,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     const output: AnalyzeCVAgainstJDOutput = {
         ...partialOutput,
         candidateName: toTitleCase(partialOutput.candidateName),
+        email: partialOutput.email ?? parsedCv?.email,
         alignmentScore: 0,
         recommendation: 'Not Recommended',
     };
