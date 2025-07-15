@@ -75,12 +75,13 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Important Reasoning Rules:**
 
-*   **Experience Assessment:**
-    *   **Partial Alignment on Overall Experience:** If a candidate does not meet the years of experience for a **specific** field (e.g., fire protection), but their **overall** total experience ('{{{totalExperience}}}') is greater than or equal to the required years, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate has less than the required 3 years of direct fire protection experience, their overall experience of 3.4 years meets the threshold."
+*   **Experience and Education Assessment:**
+    *   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{totalExperience}}}' value. However, for requirements asking for experience in a **specific field** (e.g., "5 years in fire protection"), you MUST analyze the candidate's work history within the CV to calculate their experience in that specific area only. Your final alignment status MUST be based on this specific calculation.
+    *   **Partial Alignment on Overall Experience:** If a candidate does not meet a specific **education or experience** requirement, but their **overall** total experience ('{{{totalExperience}}}') is greater than or equal to the years mentioned in that requirement, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate does not have the required degree, their overall experience of 10 years exceeds the requirement."
     *   **Strict Experience Comparison:** For all other cases, if a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as **'Not Aligned'**.
     *   **Experience Gap Exception:** If the candidate's total experience is less than the required number but the gap is **3 months or less**, you should mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state the small gap (e.g., "Partially aligned, as they are only 2 months short of the required 5 years.").
 
-*   **Education and Grouped Requirements:**
+*   **Grouped and General Requirements:**
     *   **Explicit "OR" Check for Education:** When an education requirement lists multiple degrees with "OR" (e.g., "Degree in A OR B"), you MUST check the CV for each degree option individually. If the candidate possesses **any one** of the listed degrees, you MUST mark the requirement as **'Aligned'**. Only mark it as 'Not Aligned' if you can confirm none of the options are met.
     *   **General "OR" Groups:** If a requirement contains multiple options joined by "OR" (e.g., 'experience with X OR Y'), you MUST treat this as a single requirement. The candidate is considered **'Aligned'** if they meet **ANY ONE** of the specified options. Do not mark it as 'Partially Aligned' if only one option is met.
     *   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
@@ -232,5 +233,3 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
