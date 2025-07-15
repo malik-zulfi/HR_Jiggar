@@ -6,7 +6,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AnalyzedCandidate, CandidateRecord } from "@/lib/types";
-import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw } from "lucide-react";
+import { TrendingUp, Lightbulb, ThumbsDown, ThumbsUp, AlertTriangle, ClipboardCheck, Trash2, ChevronDown, Clock, RefreshCw, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AlignmentTable from "./alignment-table";
 import { Checkbox } from "./ui/checkbox";
@@ -87,6 +87,14 @@ export default function CandidateCard({ candidate, isStale, isSelected, onToggle
                             )}
                         </div>
                     </Badge>
+                    {analysis.totalExperience && (
+                        <Badge variant="outline" className="font-normal text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                {analysis.totalExperience}
+                            </div>
+                        </Badge>
+                    )}
                      {isStale && (
                         <TooltipProvider>
                             <Tooltip>

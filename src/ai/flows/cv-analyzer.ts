@@ -51,6 +51,7 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     processingTime: true,
     candidateScore: true,
     maxScore: true,
+    totalExperience: true,
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -142,6 +143,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         ...partialOutput,
         candidateName: toTitleCase(partialOutput.candidateName),
         email: partialOutput.email ?? parsedCv?.email,
+        totalExperience: parsedCv?.totalExperience,
         alignmentScore: 0,
         recommendation: 'Not Recommended',
     };
