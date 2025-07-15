@@ -6,6 +6,7 @@ import { useState, useEffect, createContext, useContext } from 'react';
 import type { AssessmentSession, CvDatabaseRecord } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
+import Chatbot from '@/components/chatbot';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -90,6 +91,7 @@ export function ClientProvider({
   return (
     <AppContext.Provider value={contextValue}>
       {children}
+      <Chatbot sessions={history} cvDatabase={cvDatabase} />
     </AppContext.Provider>
   );
 }
