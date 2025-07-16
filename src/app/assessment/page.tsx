@@ -229,8 +229,12 @@ function AssessmentPage() {
         if (finalCandidateRecords.length > 0) {
             setHistory(prev => prev.map(session => {
                 if (session.id === sessionId) {
-                    const existingNames = new Set(session.candidates.map(c => c.analysis.candidateName.toLowerCase()));
-                    const newUniqueCandidates = finalCandidateRecords.filter(c => !existingNames.has(c.analysis.candidateName.toLowerCase()));
+                    const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+                    
+                    const newUniqueCandidates = finalCandidateRecords.filter(c => {
+                        const newEmail = c.analysis.email?.toLowerCase();
+                        return newEmail ? !existingEmails.has(newEmail) : true;
+                    });
                     
                     if (newUniqueCandidates.length < finalCandidateRecords.length) {
                          toast({ variant: 'destructive', description: `Some candidates already existed in this session and were skipped.` });
@@ -639,15 +643,28 @@ function AssessmentPage() {
   const handleAnalyzeFromDb = useCallback(async (selectedCvsFromDb: CvDatabaseRecord[]) => {
     if (selectedCvsFromDb.length === 0) return;
     if (!activeSession?.analyzedJd) return;
+    
+    // Filter out candidates already in the session
+    const sessionEmails = new Set(activeSession.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+    const newCvsToAdd = selectedCvsFromDb.filter(cv => !sessionEmails.has(cv.email.toLowerCase()));
 
-    const uploadedFiles: UploadedFile[] = selectedCvsFromDb.map(cv => ({
+    if (newCvsToAdd.length < selectedCvsFromDb.length) {
+        toast({ variant: 'destructive', description: "Some selected candidates are already in this session and were skipped." });
+    }
+
+    if (newCvsToAdd.length === 0) {
+        setIsAddFromDbOpen(false);
+        return;
+    }
+
+    const uploadedFiles: UploadedFile[] = newCvsToAdd.map(cv => ({
         name: cv.cvFileName,
         content: cv.cvContent,
     }));
     
     await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId);
     setIsAddFromDbOpen(false);
-  }, [activeSession, processAndAnalyzeCandidates]);
+  }, [activeSession, processAndAnalyzeCandidates, toast]);
   
   const handleGenerateSummary = async () => {
     if (!activeSession || activeSession.candidates.length === 0 || !activeSession.analyzedJd) return;
@@ -757,7 +774,7 @@ function AssessmentPage() {
         let allNewPositions: SuitablePosition[] = [];
         for (const candidate of cvDatabase) {
             const result = await findSuitablePositionsForCandidate({
-                candidate,
+                candidates: [candidate], // Pass one candidate at a time
                 assessmentSessions: history,
                 existingSuitablePositions: suitablePositions,
             });
@@ -1167,4 +1184,3 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
- 

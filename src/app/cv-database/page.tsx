@@ -27,6 +27,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAppContext } from '@/components/client-provider';
+import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -416,16 +417,60 @@ export default function CvDatabasePage() {
         });
     };
 
-    const handleQuickAddToAssessment = useCallback((candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
+    const handleQuickAddToAssessment = useCallback(async (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
         if (candidates.length === 0) return;
-        
-        const pendingQueue = candidates.map(candidate => ({ candidate, assessment }));
-
-        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingQueue));
-        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
-        
-        window.location.href = '/assessment';
-    }, []);
+    
+        const candidateRecords = await Promise.all(candidates.map(async candidateDbRecord => {
+            const analysis = await analyzeCVAgainstJD({ 
+                jobDescriptionCriteria: assessment.analyzedJd, 
+                cv: candidateDbRecord.cvContent,
+                parsedCv: candidateDbRecord,
+            });
+    
+            return {
+                cvName: candidateDbRecord.cvFileName,
+                cvContent: candidateDbRecord.cvContent,
+                analysis,
+                isStale: false,
+            };
+        }));
+    
+        setHistory(prev => {
+            return prev.map(session => {
+                if (session.id === assessment.id) {
+                    const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+                    const newUniqueCandidates = candidateRecords.filter(c => {
+                        const newEmail = c.analysis.email?.toLowerCase();
+                        return newEmail ? !existingEmails.has(newEmail) : true;
+                    });
+    
+                    if (newUniqueCandidates.length < candidateRecords.length) {
+                        toast({ variant: 'destructive', description: "Some selected candidates were already in this session and were skipped." });
+                    }
+    
+                    if (newUniqueCandidates.length > 0) {
+                        const allCandidates = [...session.candidates, ...newUniqueCandidates];
+                        allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                        return { ...session, candidates: allCandidates, summary: null };
+                    }
+                }
+                return session;
+            });
+        });
+    
+        const candidateEmailsToRemove = new Set(candidates.map(c => c.email));
+        setSuitablePositions(prev => prev.filter(p => !(candidateEmailsToRemove.has(p.candidateEmail) && p.assessment.id === assessment.id)));
+    
+        toast({
+            title: `Assessment Complete`,
+            description: `${candidates.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
+            action: (
+                <button onClick={() => { localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id); window.location.href = '/assessment'; }} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                    View
+                </button>
+            ),
+        });
+    }, [setHistory, setSuitablePositions, toast]);
     
     const handleAddFromPopover = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
