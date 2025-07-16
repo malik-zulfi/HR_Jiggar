@@ -24,7 +24,7 @@ interface HeaderProps {
     activePage?: 'dashboard' | 'assessment' | 'cv-database';
     notificationCount?: number;
     suitablePositions?: SuitablePosition[];
-    onAddCandidate?: (position: SuitablePosition) => void;
+    onAddCandidates?: (positions: SuitablePosition[]) => void;
     isRelevanceCheckEnabled?: boolean;
     onRelevanceCheckToggle?: (enabled: boolean) => void;
     onManualCheck?: () => void;
@@ -35,7 +35,7 @@ export function Header({
     activePage,
     notificationCount = 0,
     suitablePositions = [],
-    onAddCandidate = () => {},
+    onAddCandidates = () => {},
     isRelevanceCheckEnabled = false,
     onRelevanceCheckToggle = () => {},
     onManualCheck = () => {},
@@ -251,7 +251,7 @@ export function Header({
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-                <NotificationPopover positions={suitablePositions} onAddCandidate={onAddCandidate} />
+                <NotificationPopover positions={suitablePositions} onAddCandidates={onAddCandidates} />
             </Popover>
         </div>
 

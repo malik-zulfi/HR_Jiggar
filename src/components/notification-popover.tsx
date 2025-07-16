@@ -7,19 +7,67 @@ import { PopoverContent } from '@/components/ui/popover';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SuitablePosition, AssessmentSession } from '@/lib/types';
 import { Plus, Users } from 'lucide-react';
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { ScrollArea } from './ui/scroll-area';
+import { Checkbox } from './ui/checkbox';
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
-const NotificationPopover = ({ positions, onAddCandidate }: {
+const NotificationPopover = ({ positions, onAddCandidates }: {
     positions: SuitablePosition[];
-    onAddCandidate: (position: SuitablePosition) => void;
+    onAddCandidates: (positions: SuitablePosition[]) => void;
 }) => {
-    const handleQuickAdd = (e: React.MouseEvent, position: SuitablePosition) => {
+    const [selectedCandidates, setSelectedCandidates] = useState<Record<string, Set<string>>>({});
+
+    const handleBulkAdd = (e: React.MouseEvent, assessmentId: string, candidatesInGroup: SuitablePosition[]) => {
         e.preventDefault();
         e.stopPropagation();
-        onAddCandidate(position);
+        
+        const selectedEmails = selectedCandidates[assessmentId] || new Set();
+        if (selectedEmails.size === 0) return;
+
+        const positionsToAdd = candidatesInGroup.filter(p => selectedEmails.has(p.candidateEmail));
+        onAddCandidates(positionsToAdd);
+        
+        // Clear selection for this group
+        setSelectedCandidates(prev => {
+            const newSelections = { ...prev };
+            delete newSelections[assessmentId];
+            return newSelections;
+        });
+    };
+    
+    const handleToggleCandidate = (assessmentId: string, candidateEmail: string) => {
+        setSelectedCandidates(prev => {
+            const newSelections = { ...prev };
+            const selectionForGroup = new Set(newSelections[assessmentId] || []);
+            
+            if (selectionForGroup.has(candidateEmail)) {
+                selectionForGroup.delete(candidateEmail);
+            } else {
+                selectionForGroup.add(candidateEmail);
+            }
+            
+            if (selectionForGroup.size === 0) {
+                 delete newSelections[assessmentId];
+            } else {
+                newSelections[assessmentId] = selectionForGroup;
+            }
+
+            return newSelections;
+        });
+    };
+
+    const handleToggleAll = (assessmentId: string, candidatesInGroup: SuitablePosition[], allSelected: boolean) => {
+        setSelectedCandidates(prev => {
+            const newSelections = { ...prev };
+            if (allSelected) {
+                delete newSelections[assessmentId];
+            } else {
+                newSelections[assessmentId] = new Set(candidatesInGroup.map(c => c.candidateEmail));
+            }
+            return newSelections;
+        });
     };
 
     const groupedPositions = useMemo(() => {
@@ -56,43 +104,57 @@ const NotificationPopover = ({ positions, onAddCandidate }: {
             </div>
             <ScrollArea className="max-h-96">
                 <div className="flex flex-col">
-                    {groupedPositionsArray.map(({ assessmentInfo, candidates }) => (
-                         <div key={assessmentInfo.id} className="border-b last:border-b-0">
-                            <Link 
-                                href="/assessment" 
-                                onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id)}
-                                className="block p-3 bg-secondary/30 hover:bg-secondary/50"
-                            >
-                                <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.jobTitle}>
-                                    {assessmentInfo.analyzedJd.jobTitle}
-                                </h5>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                    <Users className="h-3 w-3" /> {candidates.length} new suitable candidate(s)
-                                </p>
-                            </Link>
-                            <div className="p-2 space-y-1">
-                                {candidates.map((pos) => (
-                                     <div key={pos.candidateEmail} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/30">
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-medium text-sm truncate">{pos.candidateName}</p>
+                    {groupedPositionsArray.map(({ assessmentInfo, candidates }) => {
+                         const selectedForGroup = selectedCandidates[assessmentInfo.id] || new Set();
+                         const allSelectedInGroup = selectedForGroup.size === candidates.length;
+
+                         return (
+                            <div key={assessmentInfo.id} className="border-b last:border-b-0">
+                                <div className="p-3 bg-secondary/30 hover:bg-secondary/50 flex justify-between items-center">
+                                    <Link 
+                                        href="/assessment" 
+                                        onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id)}
+                                        className="flex-1"
+                                    >
+                                        <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.jobTitle}>
+                                            {assessmentInfo.analyzedJd.jobTitle}
+                                        </h5>
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                            <Users className="h-3 w-3" /> {candidates.length} new suitable candidate(s)
+                                        </p>
+                                    </Link>
+                                    <Button size="sm" variant="outline" disabled={selectedForGroup.size === 0} onClick={(e) => handleBulkAdd(e, assessmentInfo.id, candidates)}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Selected ({selectedForGroup.size})
+                                    </Button>
+                                </div>
+                                <div className="p-2 space-y-1">
+                                     <div className="flex items-center gap-3 p-2 text-xs font-medium text-muted-foreground">
+                                        <Checkbox
+                                            id={`select-all-${assessmentInfo.id}`}
+                                            checked={allSelectedInGroup}
+                                            onCheckedChange={() => handleToggleAll(assessmentInfo.id, candidates, allSelectedInGroup)}
+                                        />
+                                        <label htmlFor={`select-all-${assessmentInfo.id}`} className="cursor-pointer">
+                                            Select all
+                                        </label>
+                                    </div>
+                                    {candidates.map((pos) => (
+                                        <div key={pos.candidateEmail} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/30">
+                                            <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                                <Checkbox
+                                                    id={`select-${assessmentInfo.id}-${pos.candidateEmail}`}
+                                                    checked={selectedForGroup.has(pos.candidateEmail)}
+                                                    onCheckedChange={() => handleToggleCandidate(assessmentInfo.id, pos.candidateEmail)}
+                                                />
+                                                <label htmlFor={`select-${assessmentInfo.id}-${pos.candidateEmail}`} className="font-medium text-sm truncate cursor-pointer">{pos.candidateName}</label>
+                                            </div>
                                         </div>
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-primary" onClick={(e) => handleQuickAdd(e, pos)}>
-                                                        <Plus className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Quick-add {pos.candidateName} to this assessment</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                     </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </ScrollArea>
         </PopoverContent>

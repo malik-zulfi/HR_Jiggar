@@ -340,34 +340,47 @@ function AssessmentPage() {
     setSelectedCandidates(new Set());
   }, [activeSessionId]);
 
-  const handleQuickAddToAssessment = useCallback(async (position: SuitablePosition) => {
-    const { candidateEmail, assessment } = position;
-    const candidateDbRecord = cvDatabase.find(c => c.email === candidateEmail);
+  const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
+    if (positions.length === 0) return;
 
-    if (!candidateDbRecord) {
-        toast({ variant: 'destructive', description: "Could not find candidate record in the database." });
+    const { assessment } = positions[0];
+    const candidateDbRecords = positions.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean) as CvDatabaseRecord[];
+
+    if (candidateDbRecords.length === 0) {
+        toast({ variant: 'destructive', description: "Could not find candidate records in the database." });
         return;
     }
     
-    toast({ description: `Assessing ${candidateDbRecord.name} for ${assessment.analyzedJd.jobTitle}...` });
+    toast({ description: `Assessing ${candidateDbRecords.length} candidate(s) for ${assessment.analyzedJd.jobTitle}...` });
 
     try {
-        const analysis = await analyzeCVAgainstJD({ 
-            jobDescriptionCriteria: assessment.analyzedJd, 
-            cv: candidateDbRecord.cvContent,
-            parsedCv: candidateDbRecord,
-        });
+        const analyses = await Promise.all(candidateDbRecords.map(candidateDbRecord => 
+            analyzeCVAgainstJD({ 
+                jobDescriptionCriteria: assessment.analyzedJd, 
+                cv: candidateDbRecord.cvContent,
+                parsedCv: candidateDbRecord,
+            })
+        ));
 
-        const newCandidateRecord: CandidateRecord = {
-            cvName: candidateDbRecord.cvFileName,
-            cvContent: candidateDbRecord.cvContent,
+        const newCandidateRecords: CandidateRecord[] = analyses.map((analysis, index) => ({
+            cvName: candidateDbRecords[index].cvFileName,
+            cvContent: candidateDbRecords[index].cvContent,
             analysis,
             isStale: false,
-        };
+        }));
 
         const updatedHistory = history.map(session => {
             if (session.id === assessment.id) {
-                const newCandidates = [...session.candidates, newCandidateRecord]
+                const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+                const uniqueNewCandidates = newCandidateRecords.filter(c => !existingEmails.has(c.analysis.email?.toLowerCase()));
+
+                if (uniqueNewCandidates.length < newCandidateRecords.length) {
+                    toast({ variant: 'destructive', description: "Some candidates already existed in this session and were skipped." });
+                }
+
+                if(uniqueNewCandidates.length === 0) return session;
+
+                const newCandidates = [...session.candidates, ...uniqueNewCandidates]
                     .sort((a,b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
                 return { ...session, candidates: newCandidates };
             }
@@ -376,11 +389,12 @@ function AssessmentPage() {
         
         setHistory(updatedHistory);
         
-        setSuitablePositions(prev => prev.filter(p => !(p.candidateEmail === candidateEmail && p.assessment.id === assessment.id)));
+        const handledEmails = new Set(positions.map(p => p.candidateEmail));
+        setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
 
         toast({
             title: 'Assessment Complete',
-            description: `${candidateDbRecord.name} has been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
+            description: `${newCandidateRecords.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
             action: (
                 <button onClick={() => setActiveSessionId(assessment.id)} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
                     View
@@ -389,7 +403,7 @@ function AssessmentPage() {
         });
 
     } catch (error: any) {
-        toast({ variant: 'destructive', title: `Failed to assess ${candidateDbRecord.name}`, description: error.message });
+        toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
     }
   }, [cvDatabase, history, toast, setHistory]);
 
@@ -817,7 +831,7 @@ function AssessmentPage() {
         activePage="assessment"
         notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
         suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
-        onAddCandidate={handleQuickAddToAssessment}
+        onAddCandidates={handleQuickAddToAssessment}
         isRelevanceCheckEnabled={isRelevanceCheckEnabled}
         onRelevanceCheckToggle={(enabled) => {
             setIsRelevanceCheckEnabled(enabled);

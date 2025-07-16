@@ -417,64 +417,80 @@ export default function CvDatabasePage() {
         });
     };
 
-    const handleQuickAddToAssessment = useCallback(async (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => {
-        if (candidates.length === 0) return;
+    const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
+        if (positions.length === 0) return;
     
-        const candidateRecords = await Promise.all(candidates.map(async candidateDbRecord => {
-            const analysis = await analyzeCVAgainstJD({ 
-                jobDescriptionCriteria: assessment.analyzedJd, 
-                cv: candidateDbRecord.cvContent,
-                parsedCv: candidateDbRecord,
-            });
-    
-            return {
-                cvName: candidateDbRecord.cvFileName,
-                cvContent: candidateDbRecord.cvContent,
+        const { assessment } = positions[0];
+        const candidateDbRecords = positions.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean) as CvDatabaseRecord[];
+
+        if (candidateDbRecords.length === 0) {
+            toast({ variant: 'destructive', description: "Could not find candidate records in the database." });
+            return;
+        }
+
+        toast({ description: `Assessing ${candidateDbRecords.length} candidate(s) for ${assessment.analyzedJd.jobTitle}...` });
+
+        try {
+            const analyses = await Promise.all(candidateDbRecords.map(candidateDbRecord => 
+                analyzeCVAgainstJD({ 
+                    jobDescriptionCriteria: assessment.analyzedJd, 
+                    cv: candidateDbRecord.cvContent,
+                    parsedCv: candidateDbRecord,
+                })
+            ));
+
+            const newCandidateRecords: CandidateRecord[] = analyses.map((analysis, index) => ({
+                cvName: candidateDbRecords[index].cvFileName,
+                cvContent: candidateDbRecords[index].cvContent,
                 analysis,
                 isStale: false,
-            };
-        }));
-    
-        setHistory(prev => {
-            return prev.map(session => {
-                if (session.id === assessment.id) {
-                    const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
-                    const newUniqueCandidates = candidateRecords.filter(c => {
-                        const newEmail = c.analysis.email?.toLowerCase();
-                        return newEmail ? !existingEmails.has(newEmail) : true;
-                    });
-    
-                    if (newUniqueCandidates.length < candidateRecords.length) {
-                        toast({ variant: 'destructive', description: "Some selected candidates were already in this session and were skipped." });
-                    }
-    
-                    if (newUniqueCandidates.length > 0) {
+            }));
+
+            setHistory(prev => {
+                return prev.map(session => {
+                    if (session.id === assessment.id) {
+                        const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+                        const newUniqueCandidates = newCandidateRecords.filter(c => !existingEmails.has(c.analysis.email?.toLowerCase()));
+
+                        if (newUniqueCandidates.length < newCandidateRecords.length) {
+                             toast({ variant: 'destructive', description: "Some selected candidates were already in this session and were skipped." });
+                        }
+
+                        if(newUniqueCandidates.length === 0) return session;
+
                         const allCandidates = [...session.candidates, ...newUniqueCandidates];
                         allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
                         return { ...session, candidates: allCandidates, summary: null };
                     }
-                }
-                return session;
+                    return session;
+                });
             });
-        });
-    
-        const candidateEmailsToRemove = new Set(candidates.map(c => c.email));
-        setSuitablePositions(prev => prev.filter(p => !(candidateEmailsToRemove.has(p.candidateEmail) && p.assessment.id === assessment.id)));
-    
-        toast({
-            title: `Assessment Complete`,
-            description: `${candidates.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
-            action: (
-                <button onClick={() => { localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id); window.location.href = '/assessment'; }} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                    View
-                </button>
-            ),
-        });
-    }, [setHistory, setSuitablePositions, toast]);
+        
+            const handledEmails = new Set(positions.map(p => p.candidateEmail));
+            setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
+        
+            toast({
+                title: `Assessment Complete`,
+                description: `${candidateDbRecords.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
+                action: (
+                    <button onClick={() => { localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id); window.location.href = '/assessment'; }} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                        View
+                    </button>
+                ),
+            });
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
+        }
+    }, [cvDatabase, setHistory, setSuitablePositions, toast]);
     
     const handleAddFromPopover = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
-        await handleQuickAddToAssessment([candidate], assessment);
+        const position: SuitablePosition = {
+            candidateEmail: candidate.email,
+            candidateName: candidate.name,
+            assessment,
+        };
+        await handleQuickAddToAssessment([position]);
     }, [handleQuickAddToAssessment]);
 
     useEffect(() => {
@@ -522,10 +538,7 @@ export default function CvDatabasePage() {
                 activePage="cv-database"
                 notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
                 suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
-                onAddCandidate={(position) => {
-                    const candidate = cvDatabase.find(c => c.email === position.candidateEmail);
-                    if (candidate) handleQuickAddToAssessment([candidate], position.assessment);
-                }}
+                onAddCandidates={handleQuickAddToAssessment}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
                 onManualCheck={() => runRelevanceCheck(cvDatabase)}
@@ -869,7 +882,7 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
     candidates: CvDatabaseRecord[];
     assessments: AssessmentSession[];
     onDelete: (emails: string[]) => void;
-    onAddToAssessment: (candidates: CvDatabaseRecord[], assessment: AssessmentSession) => void;
+    onAddToAssessment: (positions: SuitablePosition[]) => void;
     onClear: () => void;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -895,7 +908,12 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
     }, [selectedCandidates, assessments]);
 
     const handleBulkAdd = (assessment: AssessmentSession) => {
-        onAddToAssessment(selectedCandidates, assessment);
+        const positionsToAdd: SuitablePosition[] = selectedCandidates.map(c => ({
+            candidateEmail: c.email,
+            candidateName: c.name,
+            assessment,
+        }));
+        onAddToAssessment(positionsToAdd);
         onClear();
         setIsOpen(false);
     };
