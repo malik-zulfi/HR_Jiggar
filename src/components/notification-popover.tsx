@@ -4,9 +4,8 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PopoverContent } from '@/components/ui/popover';
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SuitablePosition, AssessmentSession, CandidateRecord, CvDatabaseRecord } from '@/lib/types';
-import { Plus, Users, Loader2 } from 'lucide-react';
+import { Plus, Users, Loader2, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import { ScrollArea } from './ui/scroll-area';
 import { Checkbox } from './ui/checkbox';
@@ -182,11 +181,11 @@ const NotificationPopover = ({ positions, onClearNotifications }: {
 
                          return (
                             <div key={assessmentInfo.id} className="border-b last:border-b-0">
-                                <div className="p-3 bg-secondary/30 hover:bg-secondary/50 flex justify-between items-center">
+                                <div className="p-3 bg-secondary/30 hover:bg-secondary/50 flex justify-between items-center gap-2">
                                     <Link 
                                         href="/assessment" 
                                         onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id)}
-                                        className="flex-1"
+                                        className="flex-1 overflow-hidden"
                                     >
                                         <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.jobTitle}>
                                             {assessmentInfo.analyzedJd.jobTitle}
@@ -201,7 +200,7 @@ const NotificationPopover = ({ positions, onClearNotifications }: {
                                         ) : (
                                             <Plus className="mr-2 h-4 w-4" />
                                         )}
-                                        Add Selected ({selectedForGroup.size})
+                                        Add ({selectedForGroup.size})
                                     </Button>
                                 </div>
                                 <div className="p-2 space-y-1">
@@ -233,6 +232,12 @@ const NotificationPopover = ({ positions, onClearNotifications }: {
                     })}
                 </div>
             </ScrollArea>
+             <div className="p-2 border-t bg-secondary/30">
+                <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => onClearNotifications(positions)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Clear All Notifications
+                </Button>
+            </div>
         </PopoverContent>
     );
 };
