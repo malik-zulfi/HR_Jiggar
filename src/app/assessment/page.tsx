@@ -50,10 +50,9 @@ type RelevanceCheckStatus = Record<string, boolean>;
 
 
 function AssessmentPage() {
-  const { history, setHistory, cvDatabase, setCvDatabase } = useAppContext();
+  const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
   const { toast } = useToast();
 
-  const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
@@ -296,18 +295,12 @@ function AssessmentPage() {
               localStorage.removeItem(PENDING_ASSESSMENT_KEY);
           }
       }
-
-      const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
-      if (savedSuitablePositions) {
-          setSuitablePositions(JSON.parse(savedSuitablePositions));
-      }
       
       const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
       setIsRelevanceCheckEnabled(relevanceEnabled);
 
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
-      localStorage.removeItem(SUITABLE_POSITIONS_KEY);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
   }, [history]); // Depend on history to re-run once it's hydrated
@@ -332,10 +325,6 @@ function AssessmentPage() {
     }
   }, [cvDatabase]);
 
-  useEffect(() => {
-    localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
-  }, [suitablePositions]);
-  
   useEffect(() => {
     setSelectedCandidates(new Set());
   }, [activeSessionId]);
@@ -405,7 +394,7 @@ function AssessmentPage() {
     } catch (error: any) {
         toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
     }
-  }, [cvDatabase, history, toast, setHistory]);
+  }, [cvDatabase, history, toast, setHistory, setSuitablePositions]);
 
 
   const handleNewSession = () => {
@@ -813,7 +802,7 @@ function AssessmentPage() {
         setManualCheckStatus('done');
          setTimeout(() => setManualCheckStatus('idle'), 3000);
     }
-  }, [cvDatabase, history, suitablePositions, toast]);
+  }, [cvDatabase, history, suitablePositions, toast, setSuitablePositions]);
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
@@ -829,9 +818,6 @@ function AssessmentPage() {
     <div className="flex flex-col min-h-screen bg-secondary/40">
       <Header
         activePage="assessment"
-        notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
-        suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
-        onAddCandidates={handleQuickAddToAssessment}
         isRelevanceCheckEnabled={isRelevanceCheckEnabled}
         onRelevanceCheckToggle={(enabled) => {
             setIsRelevanceCheckEnabled(enabled);

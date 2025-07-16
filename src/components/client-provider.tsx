@@ -3,19 +3,22 @@
 
 import * as React from 'react';
 import { useState, useEffect, createContext, useContext } from 'react';
-import type { AssessmentSession, CvDatabaseRecord } from '@/lib/types';
+import type { AssessmentSession, CvDatabaseRecord, SuitablePosition } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import Chatbot from '@/components/chatbot';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
+const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 
 interface AppContextType {
   history: AssessmentSession[];
   setHistory: React.Dispatch<React.SetStateAction<AssessmentSession[]>>;
   cvDatabase: CvDatabaseRecord[];
   setCvDatabase: React.Dispatch<React.SetStateAction<CvDatabaseRecord[]>>;
+  suitablePositions: SuitablePosition[];
+  setSuitablePositions: React.Dispatch<React.SetStateAction<SuitablePosition[]>>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -35,10 +38,12 @@ export function ClientProvider({
 }>) {
   const [history, setHistory] = useState<AssessmentSession[]>([]);
   const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
+  const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
+      // Load history
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedStateJSON && savedStateJSON !== '[]') {
         const parsedJSON = JSON.parse(savedStateJSON);
@@ -53,6 +58,7 @@ export function ClientProvider({
         localStorage.removeItem(LOCAL_STORAGE_KEY);
       }
       
+      // Load CV Database
       const savedCvDbJSON = localStorage.getItem(CV_DB_STORAGE_KEY);
       if (savedCvDbJSON && savedCvDbJSON !== '[]') {
         const parsedCvDb = JSON.parse(savedCvDbJSON);
@@ -66,6 +72,13 @@ export function ClientProvider({
       } else if (savedCvDbJSON === '[]') {
         localStorage.removeItem(CV_DB_STORAGE_KEY);
       }
+      
+      // Load Suitable Positions
+      const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
+      if (savedSuitablePositions) {
+          setSuitablePositions(JSON.parse(savedSuitablePositions));
+      }
+
     } catch (error) {
       console.error("Failed to load global state from localStorage", error);
     } finally {
@@ -73,11 +86,19 @@ export function ClientProvider({
     }
   }, []);
 
+  useEffect(() => {
+    if (!isLoading) {
+      localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
+    }
+  }, [suitablePositions, isLoading]);
+
   const contextValue = {
     history,
     setHistory,
     cvDatabase,
     setCvDatabase,
+    suitablePositions,
+    setSuitablePositions,
   };
 
   if (isLoading) {

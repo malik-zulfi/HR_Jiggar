@@ -15,7 +15,7 @@ import { parseCv } from '@/ai/flows/cv-parser';
 import ProgressLoader from '@/components/progress-loader';
 import { Input } from "@/components/ui/input";
 import CvDisplay from '@/components/cv-display';
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -32,7 +32,6 @@ import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const HISTORY_STORAGE_KEY = 'jiggar-history';
-const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
@@ -56,7 +55,7 @@ type CandidateAssessmentInfo = {
 
 
 export default function CvDatabasePage() {
-    const { history, setHistory, cvDatabase, setCvDatabase } = useAppContext();
+    const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
     const { toast } = useToast();
     const [cvsToUpload, setCvsToUpload] = useState<UploadedFile[]>([]);
     const [jobCode, setJobCode] = useState<JobCode | null>(null);
@@ -68,7 +67,6 @@ export default function CvDatabasePage() {
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
     
-    const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
     const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>('idle');
     const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
@@ -186,11 +184,6 @@ export default function CvDatabasePage() {
     useEffect(() => {
         if (cvDatabase.length === 0 && history.length === 0) return;
         try {
-            const savedSuitablePositions = localStorage.getItem(SUITABLE_POSITIONS_KEY);
-            if (savedSuitablePositions) {
-                setSuitablePositions(JSON.parse(savedSuitablePositions));
-            }
-            
             const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
             setIsRelevanceCheckEnabled(relevanceEnabled);
 
@@ -223,10 +216,6 @@ export default function CvDatabasePage() {
             localStorage.removeItem(HISTORY_STORAGE_KEY);
         }
     }, [history]);
-
-    useEffect(() => {
-        localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
-    }, [suitablePositions]);
     
     const handleRelevanceToggle = (enabled: boolean) => {
         setIsRelevanceCheckEnabled(enabled);
@@ -271,7 +260,7 @@ export default function CvDatabasePage() {
             setRelevanceCheckStatus('done');
             setTimeout(() => setRelevanceCheckStatus('idle'), 2000);
         }
-    }, [isRelevanceCheckEnabled, history, suitablePositions, toast]);
+    }, [isRelevanceCheckEnabled, history, suitablePositions, toast, setSuitablePositions]);
 
     const handleNewCandidatesAdded = useCallback((newCandidates: CvDatabaseRecord[]) => {
         runRelevanceCheck(newCandidates);
@@ -536,9 +525,6 @@ export default function CvDatabasePage() {
         <div className="flex flex-col min-h-screen bg-secondary/40">
             <Header
                 activePage="cv-database"
-                notificationCount={isRelevanceCheckEnabled ? suitablePositions.length : 0}
-                suitablePositions={isRelevanceCheckEnabled ? suitablePositions : []}
-                onAddCandidates={handleQuickAddToAssessment}
                 isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
                 onManualCheck={() => runRelevanceCheck(cvDatabase)}

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings, Wand2, Bell, Loader2, Upload, Download } from "lucide-react";
@@ -13,18 +13,15 @@ import NotificationPopover from "@/components/notification-popover";
 import { cn } from '@/lib/utils';
 import type { SuitablePosition } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAppContext } from './client-provider';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
-const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 
 interface HeaderProps {
     activePage?: 'dashboard' | 'assessment' | 'cv-database';
-    notificationCount?: number;
-    suitablePositions?: SuitablePosition[];
-    onAddCandidates?: (positions: SuitablePosition[]) => void;
     isRelevanceCheckEnabled?: boolean;
     onRelevanceCheckToggle?: (enabled: boolean) => void;
     onManualCheck?: () => void;
@@ -33,9 +30,6 @@ interface HeaderProps {
 
 export function Header({ 
     activePage,
-    notificationCount = 0,
-    suitablePositions = [],
-    onAddCandidates = () => {},
     isRelevanceCheckEnabled = false,
     onRelevanceCheckToggle = () => {},
     onManualCheck = () => {},
@@ -44,6 +38,7 @@ export function Header({
     const { toast } = useToast();
     const pathname = usePathname();
     const importInputRef = useRef<HTMLInputElement>(null);
+    const { suitablePositions, setSuitablePositions } = useAppContext();
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : 'dashboard');
 
     const navItems = [
@@ -121,6 +116,12 @@ export function Header({
         };
         reader.readAsText(file);
     };
+
+    const handleClearNotifications = (positions: SuitablePosition[]) => {
+        const handledKeys = new Set(positions.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+        setSuitablePositions(prev => prev.filter(p => !handledKeys.has(`${p.candidateEmail}-${p.assessment.id}`)));
+    };
+
 
   return (
     <header className="p-2 border-b bg-card sticky top-0 z-20">
@@ -238,9 +239,9 @@ export function Header({
                             <PopoverTrigger asChild>
                                 <Button variant="ghost" size="icon" className="relative">
                                     <Bell className="h-5 w-5" />
-                                    {notificationCount > 0 && (
+                                    {suitablePositions.length > 0 && (
                                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-                                            {notificationCount}
+                                            {suitablePositions.length}
                                         </span>
                                     )}
                                 </Button>
@@ -251,7 +252,7 @@ export function Header({
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-                <NotificationPopover positions={suitablePositions} onAddCandidates={onAddCandidates} />
+                <NotificationPopover positions={suitablePositions} onClearNotifications={handleClearNotifications} />
             </Popover>
         </div>
 
