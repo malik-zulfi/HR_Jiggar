@@ -1,14 +1,13 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings, Wand2, Bell, Loader2, Upload, Download } from "lucide-react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Switch } from "@/components/ui/switch";
 import NotificationPopover from "@/components/notification-popover";
 import { cn } from '@/lib/utils';
 import type { SuitablePosition } from '@/lib/types';
@@ -18,12 +17,10 @@ import { useAppContext } from './client-provider';
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
-const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 
 interface HeaderProps {
     activePage?: 'dashboard' | 'assessment' | 'cv-database';
-    onRelevanceCheckToggle?: (enabled: boolean) => void;
     onManualCheck?: () => void;
     manualCheckStatus?: 'idle' | 'loading' | 'done';
     onQuickAdd: (positions: SuitablePosition[]) => void;
@@ -31,14 +28,14 @@ interface HeaderProps {
 
 export function Header({ 
     activePage,
+    onManualCheck,
+    manualCheckStatus,
     onQuickAdd
 }: HeaderProps) {
     const { toast } = useToast();
     const pathname = usePathname();
     const importInputRef = useRef<HTMLInputElement>(null);
     const { suitablePositions, setSuitablePositions } = useAppContext();
-    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
-    const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
 
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : 'dashboard');
 
@@ -172,31 +169,28 @@ export function Header({
                 <PopoverContent align="end" className="w-80">
                     <div className="grid gap-4">
                         <div className="space-y-2">
-                            <h4 className="font-medium leading-none">Settings</h4>
+                            <h4 className="font-medium leading-none">Settings & Data</h4>
                             <p className="text-sm text-muted-foreground">
-                                Manage background AI features and application data.
+                                Manage application data and features.
                             </p>
                         </div>
                         <div className="flex flex-col gap-4">
                             <div className="rounded-md border p-4 space-y-3">
-                                <div className="flex items-center space-x-2">
-                                    <Wand2 className="h-5 w-5 text-primary" />
-                                    <div className="flex-1 space-y-1">
-                                        <p className="text-sm font-medium leading-none">
-                                        AI Relevance Check
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                        Automatically find relevant jobs for candidates.
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        checked={isRelevanceCheckEnabled}
-                                        onCheckedChange={(checked) => {
-                                            setIsRelevanceCheckEnabled(checked);
-                                            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(checked));
-                                        }}
-                                    />
-                                </div>
+                                <h5 className="text-sm font-medium leading-none">
+                                    AI Actions
+                                </h5>
+                                 <p className="text-xs text-muted-foreground">
+                                    Manually run AI checks across your entire database. This can be time-consuming.
+                                </p>
+                                 <Button 
+                                    variant="outline" 
+                                    className="w-full"
+                                    onClick={onManualCheck}
+                                    disabled={!onManualCheck || manualCheckStatus === 'loading'}
+                                 >
+                                    {manualCheckStatus === 'loading' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    {manualCheckStatus === 'loading' ? 'Checking...' : 'Run Relevance Check'}
+                                </Button>
                             </div>
                             <div className="rounded-md border p-4 space-y-3">
                                 <h5 className="text-sm font-medium leading-none">
@@ -258,5 +252,3 @@ export function Header({
     </header>
   );
 }
-
-    

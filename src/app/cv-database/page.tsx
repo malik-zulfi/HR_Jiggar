@@ -59,6 +59,7 @@ export default function CvDatabasePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'createdAt', direction: 'descending' });
+    const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
     
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
@@ -192,37 +193,38 @@ export default function CvDatabasePage() {
         }
     }, [cvDatabase, history]);
     
-    const handleRelevanceToggle = (enabled: boolean) => {
-        if (!enabled) {
-            setSuitablePositions([]);
-        }
-    };
 
     const runRelevanceCheck = useCallback(async (candidatesToCheck: CvDatabaseRecord[]) => {
-        const isRelevanceCheckEnabled = localStorage.getItem('jiggar-relevance-check-enabled') === 'true';
-
-        if (!isRelevanceCheckEnabled || history.length === 0 || candidatesToCheck.length === 0) {
+        if (history.length === 0 || candidatesToCheck.length === 0) {
+            toast({ variant: 'destructive', title: "Cannot Run Check", description: "There are no jobs or candidates to check." });
             return;
         }
-
+        
+        setManualCheckStatus('loading');
         toast({ description: `Checking for suitable positions for ${candidatesToCheck.length} candidate(s)...` });
 
         try {
-            const result = await findSuitablePositionsForCandidate({
-                candidates: candidatesToCheck,
-                assessmentSessions: history,
-                existingSuitablePositions: suitablePositions
-            });
+            let allNewPositions: SuitablePosition[] = [];
+            for (const candidate of candidatesToCheck) {
+                const result = await findSuitablePositionsForCandidate({
+                    candidates: [candidate],
+                    assessmentSessions: history,
+                    existingSuitablePositions: suitablePositions
+                });
+                if (result.newlyFoundPositions.length > 0) {
+                    allNewPositions.push(...result.newlyFoundPositions);
+                }
+            }
             
-            if (result.newlyFoundPositions.length > 0) {
+            if (allNewPositions.length > 0) {
                 setSuitablePositions(prev => {
                     const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-                    const uniqueNewPositions = result.newlyFoundPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
+                    const uniqueNewPositions = allNewPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
                     return [...prev, ...uniqueNewPositions];
                 });
                 toast({
                     title: "New Opportunities Found!",
-                    description: `Found ${result.newlyFoundPositions.length} new relevant position(s). Check the notifications panel.`,
+                    description: `Found ${allNewPositions.length} new relevant position(s). Check the notifications panel.`,
                 });
             } else {
                  toast({ description: `No new relevant positions found for the selected candidate(s).` });
@@ -230,6 +232,9 @@ export default function CvDatabasePage() {
         } catch (error: any) {
             console.error(`Relevance check failed:`, error);
             toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
+        } finally {
+            setManualCheckStatus('done');
+            setTimeout(() => setManualCheckStatus('idle'), 3000);
         }
     }, [history, suitablePositions, toast, setSuitablePositions]);
 
@@ -456,8 +461,8 @@ export default function CvDatabasePage() {
         <div className="flex flex-col min-h-screen bg-secondary/40">
             <Header
                 activePage="cv-database"
-                onRelevanceCheckToggle={handleRelevanceToggle}
                 onManualCheck={() => runRelevanceCheck(cvDatabase)}
+                manualCheckStatus={manualCheckStatus}
                 onQuickAdd={handleQuickAddToAssessment}
             />
             <main className="flex-1 p-4 md:p-8">
@@ -897,5 +902,3 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
         </div>
     );
 };
-
-    
