@@ -30,10 +30,7 @@ import { useAppContext } from '@/components/client-provider';
 import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
 
 
-const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
-const HISTORY_STORAGE_KEY = 'jiggar-history';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
-const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 
@@ -44,7 +41,6 @@ type Conflict = {
     newRecord: ParseCvOutput & { cvFileName: string; cvContent: string; jobCode: JobCode; };
     existingRecord: CvDatabaseRecord;
 };
-type RelevanceCheckStatus = 'idle' | 'loading' | 'done';
 type SortDescriptor = { column: 'name' | 'totalExperience' | 'createdAt'; direction: 'ascending' | 'descending'; };
 type CandidateAssessmentInfo = {
     sessionId: string;
@@ -66,9 +62,6 @@ export default function CvDatabasePage() {
     
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
-    
-    const [relevanceCheckStatus, setRelevanceCheckStatus] = useState<RelevanceCheckStatus>('idle');
-    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
     
     const [selectedCv, setSelectedCv] = useState<CvDatabaseRecord | null>(null);
     const [selectedCvEmails, setSelectedCvEmails] = useState<Set<string>>(new Set());
@@ -184,53 +177,34 @@ export default function CvDatabasePage() {
     useEffect(() => {
         if (cvDatabase.length === 0 && history.length === 0) return;
         try {
-            const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
-            setIsRelevanceCheckEnabled(relevanceEnabled);
-
-
             const params = new URLSearchParams(window.location.search);
             const emailToOpen = params.get('email');
             if (emailToOpen) {
                 const cvToOpen = cvDatabase.find(cv => cv.email === emailToOpen);
                 if (cvToOpen) {
                     setSelectedCv(cvToOpen);
+                    // Clean up the URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
                 }
             }
         } catch (error) {
-            console.error("Failed to load data from localStorage", error);
+            console.error("Failed to process URL parameters", error);
         }
     }, [cvDatabase, history]);
-
-    useEffect(() => {
-        if (cvDatabase.length > 0) {
-            localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
-        } else {
-            localStorage.removeItem(CV_DB_STORAGE_KEY);
-        }
-    }, [cvDatabase]);
-    
-    useEffect(() => {
-        if (history.length > 0) {
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-        } else {
-            localStorage.removeItem(HISTORY_STORAGE_KEY);
-        }
-    }, [history]);
     
     const handleRelevanceToggle = (enabled: boolean) => {
-        setIsRelevanceCheckEnabled(enabled);
-        localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
         if (!enabled) {
             setSuitablePositions([]);
         }
     };
 
     const runRelevanceCheck = useCallback(async (candidatesToCheck: CvDatabaseRecord[]) => {
+        const isRelevanceCheckEnabled = localStorage.getItem('jiggar-relevance-check-enabled') === 'true';
+
         if (!isRelevanceCheckEnabled || history.length === 0 || candidatesToCheck.length === 0) {
             return;
         }
 
-        setRelevanceCheckStatus('loading');
         toast({ description: `Checking for suitable positions for ${candidatesToCheck.length} candidate(s)...` });
 
         try {
@@ -256,11 +230,8 @@ export default function CvDatabasePage() {
         } catch (error: any) {
             console.error(`Relevance check failed:`, error);
             toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
-        } finally {
-            setRelevanceCheckStatus('done');
-            setTimeout(() => setRelevanceCheckStatus('idle'), 2000);
         }
-    }, [isRelevanceCheckEnabled, history, suitablePositions, toast, setSuitablePositions]);
+    }, [history, suitablePositions, toast, setSuitablePositions]);
 
     const handleNewCandidatesAdded = useCallback((newCandidates: CvDatabaseRecord[]) => {
         runRelevanceCheck(newCandidates);
@@ -416,61 +387,21 @@ export default function CvDatabasePage() {
             toast({ variant: 'destructive', description: "Could not find candidate records in the database." });
             return;
         }
-
-        toast({ description: `Assessing ${candidateDbRecords.length} candidate(s) for ${assessment.analyzedJd.jobTitle}...` });
-
-        try {
-            const analyses = await Promise.all(candidateDbRecords.map(candidateDbRecord => 
-                analyzeCVAgainstJD({ 
-                    jobDescriptionCriteria: assessment.analyzedJd, 
-                    cv: candidateDbRecord.cvContent,
-                    parsedCv: candidateDbRecord,
-                })
-            ));
-
-            const newCandidateRecords: CandidateRecord[] = analyses.map((analysis, index) => ({
-                cvName: candidateDbRecords[index].cvFileName,
-                cvContent: candidateDbRecords[index].cvContent,
-                analysis,
-                isStale: false,
-            }));
-
-            setHistory(prev => {
-                return prev.map(session => {
-                    if (session.id === assessment.id) {
-                        const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
-                        const newUniqueCandidates = newCandidateRecords.filter(c => !existingEmails.has(c.analysis.email?.toLowerCase()));
-
-                        if (newUniqueCandidates.length < newCandidateRecords.length) {
-                             toast({ variant: 'destructive', description: "Some selected candidates were already in this session and were skipped." });
-                        }
-
-                        if(newUniqueCandidates.length === 0) return session;
-
-                        const allCandidates = [...session.candidates, ...newUniqueCandidates];
-                        allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                        return { ...session, candidates: allCandidates, summary: null };
-                    }
-                    return session;
-                });
-            });
         
-            const handledEmails = new Set(positions.map(p => p.candidateEmail));
-            setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
+        // Set active session in localStorage and navigate.
+        // The assessment page will handle the actual processing on load.
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+        const pendingItems = candidateDbRecords.map(candidate => ({ candidate, assessment }));
+        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
         
-            toast({
-                title: `Assessment Complete`,
-                description: `${candidateDbRecords.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
-                action: (
-                    <button onClick={() => { localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id); window.location.href = '/assessment'; }} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                        View
-                    </button>
-                ),
-            });
-        } catch (error: any) {
-             toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
-        }
-    }, [cvDatabase, setHistory, setSuitablePositions, toast]);
+        // Clear handled notifications
+        const handledEmails = new Set(positions.map(p => p.candidateEmail));
+        setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
+        
+        // Navigate
+        window.location.href = '/assessment';
+
+    }, [cvDatabase, setSuitablePositions, toast]);
     
     const handleAddFromPopover = useCallback(async (candidate: CvDatabaseRecord, assessment: AssessmentSession, closePopover: () => void) => {
         closePopover();
@@ -525,10 +456,9 @@ export default function CvDatabasePage() {
         <div className="flex flex-col min-h-screen bg-secondary/40">
             <Header
                 activePage="cv-database"
-                isRelevanceCheckEnabled={isRelevanceCheckEnabled}
                 onRelevanceCheckToggle={handleRelevanceToggle}
                 onManualCheck={() => runRelevanceCheck(cvDatabase)}
-                manualCheckStatus={relevanceCheckStatus}
+                onQuickAdd={handleQuickAddToAssessment}
             />
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto space-y-6">
@@ -967,3 +897,5 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
         </div>
     );
 };
+
+    

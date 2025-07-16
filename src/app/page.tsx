@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History, UserX } from 'lucide-react';
-import type { AnalyzedCandidate } from '@/lib/types';
+import type { AnalyzedCandidate, SuitablePosition } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   ChartContainer,
@@ -22,6 +22,7 @@ import { useAppContext } from '@/components/client-provider';
 
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
+const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 type TopCandidate = AnalyzedCandidate & {
     jobTitle: string;
@@ -38,7 +39,7 @@ const chartConfig = {
 
 
 export default function DashboardPage() {
-    const { history, cvDatabase } = useAppContext();
+    const { history, cvDatabase, setSuitablePositions, suitablePositions } = useAppContext();
     const [filters, setFilters] = useState({ code: 'all', department: 'all' });
 
     const filteredHistory = useMemo(() => {
@@ -154,12 +155,29 @@ export default function DashboardPage() {
     const handleViewInTool = (sessionId: string) => {
         localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
     };
+
+    const handleQuickAddToAssessment = useCallback((positions: SuitablePosition[]) => {
+        if (positions.length === 0) return;
+        const { assessment } = positions[0];
+        const candidateDbRecords = positions.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean);
+
+        if (candidateDbRecords.length === 0) return;
+
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+        const pendingItems = candidateDbRecords.map(candidate => ({ candidate, assessment }));
+        localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
+        
+        const handledEmails = new Set(positions.map(p => p.candidateEmail));
+        setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
+        
+        window.location.href = '/assessment';
+    }, [cvDatabase, setSuitablePositions]);
     
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
 
     return (
         <div className="flex flex-col min-h-screen bg-secondary/40">
-            <Header activePage="dashboard" />
+            <Header activePage="dashboard" onQuickAdd={handleQuickAddToAssessment} />
 
             <main className="flex-1 p-4 md:p-8">
                 <div className="container mx-auto">
@@ -374,3 +392,5 @@ export default function DashboardPage() {
         </div>
     );
 }
+
+    

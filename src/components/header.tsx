@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings, Wand2, Bell, Loader2, Upload, Download } from "lucide-react";
@@ -18,27 +18,28 @@ import { useAppContext } from './client-provider';
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
+const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 
 
 interface HeaderProps {
     activePage?: 'dashboard' | 'assessment' | 'cv-database';
-    isRelevanceCheckEnabled?: boolean;
     onRelevanceCheckToggle?: (enabled: boolean) => void;
     onManualCheck?: () => void;
     manualCheckStatus?: 'idle' | 'loading' | 'done';
+    onQuickAdd: (positions: SuitablePosition[]) => void;
 }
 
 export function Header({ 
     activePage,
-    isRelevanceCheckEnabled = false,
-    onRelevanceCheckToggle = () => {},
-    onManualCheck = () => {},
-    manualCheckStatus = 'idle',
+    onQuickAdd
 }: HeaderProps) {
     const { toast } = useToast();
     const pathname = usePathname();
     const importInputRef = useRef<HTMLInputElement>(null);
     const { suitablePositions, setSuitablePositions } = useAppContext();
+    const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
+    const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : 'dashboard');
 
     const navItems = [
@@ -117,9 +118,9 @@ export function Header({
         reader.readAsText(file);
     };
 
-    const handleClearNotifications = (positions: SuitablePosition[]) => {
-        const handledKeys = new Set(positions.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-        setSuitablePositions(prev => prev.filter(p => !handledKeys.has(`${p.candidateEmail}-${p.assessment.id}`)));
+    const handleClearNotifications = (positionsToClear: SuitablePosition[]) => {
+        const clearedKeys = new Set(positionsToClear.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+        setSuitablePositions(prev => prev.filter(p => !clearedKeys.has(`${p.candidateEmail}-${p.assessment.id}`)));
     };
 
 
@@ -190,19 +191,12 @@ export function Header({
                                     </div>
                                     <Switch
                                         checked={isRelevanceCheckEnabled}
-                                        onCheckedChange={onRelevanceCheckToggle}
+                                        onCheckedChange={(checked) => {
+                                            setIsRelevanceCheckEnabled(checked);
+                                            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(checked));
+                                        }}
                                     />
                                 </div>
-                                {isRelevanceCheckEnabled && (
-                                     <Button variant="outline" size="sm" className="w-full" onClick={onManualCheck} disabled={manualCheckStatus === 'loading'}>
-                                        {manualCheckStatus === 'loading' ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                                        ) : (
-                                            <Wand2 className="mr-2 h-4 w-4"/>
-                                        )}
-                                         Run on entire database
-                                     </Button>
-                                )}
                             </div>
                             <div className="rounded-md border p-4 space-y-3">
                                 <h5 className="text-sm font-medium leading-none">
@@ -252,7 +246,11 @@ export function Header({
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-                <NotificationPopover positions={suitablePositions} onClearNotifications={handleClearNotifications} />
+                <NotificationPopover 
+                    positions={suitablePositions} 
+                    onAddCandidates={onQuickAdd}
+                    onClearNotifications={handleClearNotifications} 
+                />
             </Popover>
         </div>
 
@@ -260,3 +258,5 @@ export function Header({
     </header>
   );
 }
+
+    

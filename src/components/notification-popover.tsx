@@ -4,24 +4,19 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PopoverContent } from '@/components/ui/popover';
-import type { SuitablePosition, AssessmentSession, CandidateRecord, CvDatabaseRecord } from '@/lib/types';
+import type { SuitablePosition, AssessmentSession } from '@/lib/types';
 import { Plus, Users, Loader2, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import { ScrollArea } from './ui/scroll-area';
 import { Checkbox } from './ui/checkbox';
-import { useToast } from '@/hooks/use-toast';
-import { analyzeCVAgainstJD } from '@/ai/flows/cv-analyzer';
-import { useAppContext } from './client-provider';
-
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 
-const NotificationPopover = ({ positions, onClearNotifications }: {
+const NotificationPopover = ({ positions, onAddCandidates, onClearNotifications }: {
     positions: SuitablePosition[];
+    onAddCandidates: (positions: SuitablePosition[]) => void;
     onClearNotifications: (positions: SuitablePosition[]) => void;
 }) => {
-    const { toast } = useToast();
-    const { cvDatabase, setHistory } = useAppContext();
     const [selectedCandidates, setSelectedCandidates] = useState<Record<string, Set<string>>>({});
     const [loadingAssessments, setLoadingAssessments] = useState<Set<string>>(new Set());
 
@@ -33,79 +28,23 @@ const NotificationPopover = ({ positions, onClearNotifications }: {
         if (selectedEmails.size === 0) return;
 
         const positionsToAdd = candidatesInGroup.filter(p => selectedEmails.has(p.candidateEmail));
-        const candidateDbRecords = positionsToAdd.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean) as CvDatabaseRecord[];
-
-        if (candidateDbRecords.length === 0) {
-            toast({ variant: 'destructive', description: "Could not find candidate records in the database." });
-            return;
-        }
-
+        
         setLoadingAssessments(prev => new Set(prev).add(assessmentId));
-        toast({ description: `Assessing ${candidateDbRecords.length} candidate(s) for ${positionsToAdd[0].assessment.analyzedJd.jobTitle}...` });
+        
+        // The actual logic is now handled by the parent component, which will also handle navigation
+        onAddCandidates(positionsToAdd);
+        
+        // We can optimistically clear the selections, the parent will handle the full notification removal
+        setSelectedCandidates(prev => {
+            const newSelections = { ...prev };
+            delete newSelections[assessmentId];
+            return newSelections;
+        });
+        
+        // No need for a finally block to reset loading state here, as the component will re-render
+        // after navigation or notification state changes.
 
-        try {
-            const analyses = await Promise.all(candidateDbRecords.map(candidateDbRecord => 
-                analyzeCVAgainstJD({ 
-                    jobDescriptionCriteria: positionsToAdd[0].assessment.analyzedJd, 
-                    cv: candidateDbRecord.cvContent,
-                    parsedCv: candidateDbRecord,
-                })
-            ));
-
-            const newCandidateRecords: CandidateRecord[] = analyses.map((analysis, index) => ({
-                cvName: candidateDbRecords[index].cvFileName,
-                cvContent: candidateDbRecords[index].cvContent,
-                analysis,
-                isStale: false,
-            }));
-
-            setHistory(prev => {
-                return prev.map(session => {
-                    if (session.id === assessmentId) {
-                        const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
-                        const uniqueNewCandidates = newCandidateRecords.filter(c => !existingEmails.has(c.analysis.email?.toLowerCase()));
-
-                        if (uniqueNewCandidates.length < newCandidateRecords.length) {
-                             toast({ variant: 'destructive', description: "Some selected candidates were already in this session and were skipped." });
-                        }
-
-                        if(uniqueNewCandidates.length === 0) return session;
-
-                        const allCandidates = [...session.candidates, ...uniqueNewCandidates];
-                        allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                        return { ...session, candidates: allCandidates, summary: null };
-                    }
-                    return session;
-                });
-            });
-            
-            toast({
-                title: `Assessment Complete`,
-                description: `${newCandidateRecords.length} candidate(s) have been added to the "${positionsToAdd[0].assessment.analyzedJd.jobTitle}" assessment.`,
-                action: (
-                    <button onClick={() => { localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentId); window.location.href = '/assessment'; }} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                        View
-                    </button>
-                ),
-            });
-            
-            onClearNotifications(positionsToAdd);
-            setSelectedCandidates(prev => {
-                const newSelections = { ...prev };
-                delete newSelections[assessmentId];
-                return newSelections;
-            });
-
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
-        } finally {
-            setLoadingAssessments(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(assessmentId);
-                return newSet;
-            });
-        }
-    }, [selectedCandidates, cvDatabase, setHistory, toast, onClearNotifications]);
+    }, [selectedCandidates, onAddCandidates]);
     
     const handleToggleCandidate = (assessmentId: string, candidateEmail: string) => {
         setSelectedCandidates(prev => {
@@ -184,7 +123,7 @@ const NotificationPopover = ({ positions, onClearNotifications }: {
                                 <div className="p-3 bg-secondary/30 hover:bg-secondary/50 flex justify-between items-center gap-2">
                                     <Link 
                                         href="/assessment" 
-                                        onClick={() => localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id)}
+                                        onClick={(e) => { e.preventDefault(); localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id); window.location.href = '/assessment'; }}
                                         className="flex-1 overflow-hidden"
                                     >
                                         <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.jobTitle}>

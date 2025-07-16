@@ -32,7 +32,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import NotificationPopover from "@/components/notification-popover";
 import { useAppContext } from "@/components/client-provider";
 
 
@@ -305,30 +304,6 @@ function AssessmentPage() {
     }
   }, [history]); // Depend on history to re-run once it's hydrated
 
-  useEffect(() => {
-    if (history.length > 0) {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
-      } catch (error) { console.error("Failed to save history to localStorage", error); }
-    } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-    }
-  }, [history]);
-
-  useEffect(() => {
-    if (cvDatabase.length > 0) {
-      try {
-        localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
-      } catch (error) { console.error("Failed to save CV DB to localStorage", error); }
-    } else {
-      localStorage.removeItem(CV_DB_STORAGE_KEY);
-    }
-  }, [cvDatabase]);
-
-  useEffect(() => {
-    setSelectedCandidates(new Set());
-  }, [activeSessionId]);
-
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
 
@@ -340,61 +315,20 @@ function AssessmentPage() {
         return;
     }
     
-    toast({ description: `Assessing ${candidateDbRecords.length} candidate(s) for ${assessment.analyzedJd.jobTitle}...` });
+    // Set active session in localStorage and navigate.
+    // The assessment page will handle the actual processing on load.
+    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
+    const pendingItems = candidateDbRecords.map(candidate => ({ candidate, assessment }));
+    localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
+    
+    // Clear handled notifications
+    const handledEmails = new Set(positions.map(p => p.candidateEmail));
+    setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
+    
+    // Navigate
+    window.location.href = '/assessment';
 
-    try {
-        const analyses = await Promise.all(candidateDbRecords.map(candidateDbRecord => 
-            analyzeCVAgainstJD({ 
-                jobDescriptionCriteria: assessment.analyzedJd, 
-                cv: candidateDbRecord.cvContent,
-                parsedCv: candidateDbRecord,
-            })
-        ));
-
-        const newCandidateRecords: CandidateRecord[] = analyses.map((analysis, index) => ({
-            cvName: candidateDbRecords[index].cvFileName,
-            cvContent: candidateDbRecords[index].cvContent,
-            analysis,
-            isStale: false,
-        }));
-
-        const updatedHistory = history.map(session => {
-            if (session.id === assessment.id) {
-                const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
-                const uniqueNewCandidates = newCandidateRecords.filter(c => !existingEmails.has(c.analysis.email?.toLowerCase()));
-
-                if (uniqueNewCandidates.length < newCandidateRecords.length) {
-                    toast({ variant: 'destructive', description: "Some candidates already existed in this session and were skipped." });
-                }
-
-                if(uniqueNewCandidates.length === 0) return session;
-
-                const newCandidates = [...session.candidates, ...uniqueNewCandidates]
-                    .sort((a,b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                return { ...session, candidates: newCandidates };
-            }
-            return session;
-        });
-        
-        setHistory(updatedHistory);
-        
-        const handledEmails = new Set(positions.map(p => p.candidateEmail));
-        setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
-
-        toast({
-            title: 'Assessment Complete',
-            description: `${newCandidateRecords.length} candidate(s) have been added to the "${assessment.analyzedJd.jobTitle}" assessment.`,
-            action: (
-                <button onClick={() => setActiveSessionId(assessment.id)} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                    View
-                </button>
-            ),
-        });
-
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: `Failed to assess candidates`, description: error.message });
-    }
-  }, [cvDatabase, history, toast, setHistory, setSuitablePositions]);
+  }, [cvDatabase, toast, setSuitablePositions]);
 
 
   const handleNewSession = () => {
@@ -818,14 +752,7 @@ function AssessmentPage() {
     <div className="flex flex-col min-h-screen bg-secondary/40">
       <Header
         activePage="assessment"
-        isRelevanceCheckEnabled={isRelevanceCheckEnabled}
-        onRelevanceCheckToggle={(enabled) => {
-            setIsRelevanceCheckEnabled(enabled);
-            localStorage.setItem(RELEVANCE_CHECK_ENABLED_KEY, String(enabled));
-            if(!enabled) setSuitablePositions([]);
-        }}
-        onManualCheck={handleManualRelevanceCheck}
-        manualCheckStatus={manualCheckStatus}
+        onQuickAdd={handleQuickAddToAssessment}
       />
       <main className="flex-1 p-4 md:p-8">
         <div className="container mx-auto space-y-6">
@@ -1184,3 +1111,5 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
+
+    
