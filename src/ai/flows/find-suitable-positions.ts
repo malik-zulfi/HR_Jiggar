@@ -86,8 +86,6 @@ const findSuitablePositionsFlow = ai.defineFlow(
     async (input) => {
         const { candidates, assessmentSessions, existingSuitablePositions } = input;
         
-        // This is a crucial pre-filtering step. For each candidate, we find which sessions
-        // they have NOT been assessed for AND have a matching job code.
         const candidatesWithUnassessedSessions = candidates.map(candidate => {
             const unassessedSessions = assessmentSessions.filter(session => {
                 const hasMatchingJobCode = session.analyzedJd.code === candidate.jobCode;
@@ -104,22 +102,20 @@ const findSuitablePositionsFlow = ai.defineFlow(
             return { newlyFoundPositions: [] };
         }
 
-        // We will call the AI in a loop for each candidate with their specific list of unassessed sessions.
-        // This is more precise than sending a giant list to the AI and hoping it figures it out.
         let allSuitableMatches: FindSuitablePositionsOutput['newlyFoundPositions'] = [];
 
         for (const { candidate, unassessedSessions } of candidatesWithUnassessedSessions) {
             if (unassessedSessions.length === 0) continue;
 
             const { output } = await withRetry(() => findSuitablePositionsPrompt({
-                candidates: [candidate], // Send one candidate at a time
-                assessmentSessions: unassessedSessions, // Send only their unassessed sessions
+                candidates: [candidate],
+                assessmentSessions: unassessedSessions,
                 existingSuitablePositions: existingSuitablePositions,
             }));
             
             if (output && output.suitableMatches) {
                 const positionsForCandidate = output.suitableMatches.map(match => {
-                    const assessment = assessmentSessions.find(s => s.id === match.assessmentSessionId);
+                    const assessment = unassessedSessions.find(s => s.id === match.assessmentSessionId);
                     if (!assessment) return null;
                     return {
                         candidateEmail: candidate.email,
