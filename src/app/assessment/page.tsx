@@ -47,7 +47,6 @@ type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 type RelevanceCheckStatus = Record<string, boolean>;
-type StatusFilter = "all" | "issues";
 
 
 function AssessmentPage() {
@@ -57,7 +56,6 @@ function AssessmentPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const [jdFile, setJdFile] = useState<UploadedFile | null>(null);
   const [cvs, setCvs] = useState<UploadedFile[]>([]);
@@ -95,17 +93,6 @@ function AssessmentPage() {
     });
   }, [history, searchQuery]);
 
-  const filteredCandidates = useMemo(() => {
-    if (!activeSession) return [];
-    if (statusFilter === 'all') return activeSession.candidates;
-
-    return activeSession.candidates.filter(candidate => {
-        return candidate.analysis.alignmentDetails.some(detail => 
-            detail.status === 'Partially Aligned' || detail.status === 'Not Aligned'
-        );
-    });
-  }, [activeSession, statusFilter]);
-  
   const newCvStatusList = useMemo(() => {
     const statuses = Object.values(newCvProcessingStatus);
     if (statuses.length === 0) return null;
@@ -922,19 +909,6 @@ function AssessmentPage() {
                                     </CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                     <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                                        <SelectTrigger className="w-[200px]">
-                                            <SelectValue placeholder="Filter by status..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                <div className="flex items-center gap-2"><ListFilter className="h-4 w-4" /> Show All Candidates</div>
-                                            </SelectItem>
-                                            <SelectItem value="issues">
-                                                <div className="flex items-center gap-2"><ListFilter className="h-4 w-4" /> Show with Issues</div>
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
                                     {activeSession.candidates.length > 0 && !isAssessingNewCvs && (
                                         <Button 
                                             variant="outline" 
@@ -961,7 +935,7 @@ function AssessmentPage() {
                           {activeSession.candidates.length > 0 && (
                             <div className={cn((isReassessing) && "opacity-60 pointer-events-none")}>
                               <Accordion type="single" collapsible className="w-full">
-                                  {filteredCandidates.map((c, i) => (
+                                  {activeSession.candidates.map((c, i) => (
                                       <CandidateCard 
                                           key={`${c.analysis.candidateName}-${i}`} 
                                           candidate={c}
@@ -972,11 +946,6 @@ function AssessmentPage() {
                                       />
                                   ))}
                               </Accordion>
-                              {filteredCandidates.length === 0 && (
-                                <div className="text-center text-muted-foreground py-8">
-                                    No candidates match the current filter.
-                                </div>
-                              )}
                             </div>
                           )}
                         </CardContent>
