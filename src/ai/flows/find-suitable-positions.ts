@@ -87,12 +87,13 @@ const findSuitablePositionsFlow = ai.defineFlow(
         const { candidates, assessmentSessions, existingSuitablePositions } = input;
         
         // This is a crucial pre-filtering step. For each candidate, we find which sessions
-        // they have NOT been assessed for. This prevents the AI from recommending jobs
-        // where the candidate is already in the session.
+        // they have NOT been assessed for AND have a matching job code.
         const candidatesWithUnassessedSessions = candidates.map(candidate => {
-            const unassessedSessions = assessmentSessions.filter(session => 
-                !session.candidates.some(c => c.analysis.email?.toLowerCase() === candidate.email.toLowerCase())
-            );
+            const unassessedSessions = assessmentSessions.filter(session => {
+                const hasMatchingJobCode = session.analyzedJd.code === candidate.jobCode;
+                const isNotAssessed = !session.candidates.some(c => c.analysis.email?.toLowerCase() === candidate.email.toLowerCase());
+                return hasMatchingJobCode && isNotAssessed;
+            });
             return {
                 candidate: candidate,
                 unassessedSessions,
