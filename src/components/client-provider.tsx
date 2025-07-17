@@ -88,7 +88,7 @@ export function ClientProvider({
 
   useEffect(() => {
     if (!isLoading) {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
     }
   }, [history, isLoading]);
 
