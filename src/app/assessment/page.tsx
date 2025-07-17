@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2 } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { bulkAnalyzeCVs } from "@/ai/flows/bulk-cv-analyzer";
@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppContext } from "@/components/client-provider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
@@ -46,6 +47,7 @@ type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
 type RelevanceCheckStatus = Record<string, boolean>;
+type StatusFilter = "all" | "issues";
 
 
 function AssessmentPage() {
@@ -55,6 +57,7 @@ function AssessmentPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const [jdFile, setJdFile] = useState<UploadedFile | null>(null);
   const [cvs, setCvs] = useState<UploadedFile[]>([]);
@@ -91,6 +94,17 @@ function AssessmentPage() {
         return nameMatch || titleMatch || codeMatch || gradeMatch || departmentMatch;
     });
   }, [history, searchQuery]);
+
+  const filteredCandidates = useMemo(() => {
+    if (!activeSession) return [];
+    if (statusFilter === 'all') return activeSession.candidates;
+
+    return activeSession.candidates.filter(candidate => {
+        return candidate.analysis.alignmentDetails.some(detail => 
+            detail.status === 'Partially Aligned' || detail.status === 'Not Aligned'
+        );
+    });
+  }, [activeSession, statusFilter]);
   
   const newCvStatusList = useMemo(() => {
     const statuses = Object.values(newCvProcessingStatus);
@@ -896,27 +910,42 @@ function AssessmentPage() {
                 {showReviewSection && (
                     <Card>
                         <CardHeader>
-                            <div className="flex items-center justify-between gap-4">
-                                <div>
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <div className="flex-1">
                                     <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
                                     <CardDescription>
                                       {isAssessingNewCvs 
                                           ? 'Assessing new candidates...' 
                                           : isReassessing
                                           ? 'Re-assessing candidates...'
-                                          : 'Review assessments, select candidates to re-assess, or re-assess all.'}
+                                          : 'Review assessments, apply filters, or re-assess candidates.'}
                                     </CardDescription>
                                 </div>
-                                 {activeSession.candidates.length > 0 && !isAssessingNewCvs && (
-                                    <Button 
-                                        variant="outline" 
-                                        onClick={handleReassessClick}
-                                        disabled={isReassessing}
-                                    >
-                                        {isReassessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                                        {isReassessing ? "Re-assessing..." : reassessButtonText}
-                                    </Button>
-                                 )}
+                                <div className="flex items-center gap-2">
+                                     <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                                        <SelectTrigger className="w-[200px]">
+                                            <SelectValue placeholder="Filter by status..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">
+                                                <div className="flex items-center gap-2"><ListFilter className="h-4 w-4" /> Show All Candidates</div>
+                                            </SelectItem>
+                                            <SelectItem value="issues">
+                                                <div className="flex items-center gap-2"><ListFilter className="h-4 w-4" /> Show with Issues</div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {activeSession.candidates.length > 0 && !isAssessingNewCvs && (
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={handleReassessClick}
+                                            disabled={isReassessing}
+                                        >
+                                            {isReassessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                            {isReassessing ? "Re-assessing..." : reassessButtonText}
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -932,7 +961,7 @@ function AssessmentPage() {
                           {activeSession.candidates.length > 0 && (
                             <div className={cn((isReassessing) && "opacity-60 pointer-events-none")}>
                               <Accordion type="single" collapsible className="w-full">
-                                  {activeSession.candidates.map((c, i) => (
+                                  {filteredCandidates.map((c, i) => (
                                       <CandidateCard 
                                           key={`${c.analysis.candidateName}-${i}`} 
                                           candidate={c}
@@ -943,6 +972,11 @@ function AssessmentPage() {
                                       />
                                   ))}
                               </Accordion>
+                              {filteredCandidates.length === 0 && (
+                                <div className="text-center text-muted-foreground py-8">
+                                    No candidates match the current filter.
+                                </div>
+                              )}
                             </div>
                           )}
                         </CardContent>
@@ -1111,5 +1145,3 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
-
-    
