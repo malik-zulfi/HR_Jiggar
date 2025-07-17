@@ -1,9 +1,10 @@
 
 "use client";
 
+import { useState } from "react";
 import type { AlignmentDetail } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, AlertTriangle, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, HelpCircle, ListFilter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -13,6 +14,8 @@ import {
 } from "@/components/ui/tooltip";
 import React from "react";
 import { Badge } from "./ui/badge";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Label } from "./ui/label";
 
 const statusInfo: Record<AlignmentDetail['status'], { icon: React.ReactNode; label: string }> = {
   'Aligned': { icon: <CheckCircle2 className="h-5 w-5 text-chart-2" />, label: 'Aligned' },
@@ -33,8 +36,8 @@ const statusLegend = [
     { label: 'Not Mentioned', icon: <HelpCircle className="h-4 w-4 text-muted-foreground" /> }
 ];
 
-const Legend = () => (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 px-4 pt-4 text-xs text-muted-foreground">
+const Legend = ({ filter, setFilter }: { filter: 'all' | 'issues', setFilter: (value: 'all' | 'issues') => void }) => (
+    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 px-4 pt-4 text-xs text-muted-foreground">
         <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
             <span className="font-semibold text-sm">Priority:</span>
             {priorityLegend.map(item => (
@@ -44,7 +47,7 @@ const Legend = () => (
                 </div>
             ))}
         </div>
-        <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+         <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
             <span className="font-semibold text-sm">Status:</span>
             {statusLegend.map(item => (
                 <div key={item.label} className="flex items-center gap-2">
@@ -53,6 +56,16 @@ const Legend = () => (
                 </div>
             ))}
         </div>
+        <RadioGroup value={filter} onValueChange={setFilter} className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+                <RadioGroupItem value="all" id="r-all" />
+                <Label htmlFor="r-all" className="cursor-pointer">All</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+                <RadioGroupItem value="issues" id="r-issues" />
+                <Label htmlFor="r-issues" className="cursor-pointer">Issues Only</Label>
+            </div>
+        </RadioGroup>
     </div>
 );
 
@@ -61,6 +74,8 @@ interface AlignmentTableProps {
 }
 
 export default function AlignmentTable({ details }: AlignmentTableProps) {
+  const [filter, setFilter] = useState<'all' | 'issues'>('all');
+
   if (!details || details.length === 0) {
     return (
         <div className="flex items-center justify-center p-8 border rounded-lg bg-muted/50">
@@ -69,7 +84,11 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
     );
   }
 
-  const groupedDetails = details.reduce((acc, item) => {
+  const filteredDetails = filter === 'issues'
+    ? details.filter(d => d.status === 'Partially Aligned' || d.status === 'Not Aligned')
+    : details;
+  
+  const groupedDetails = filteredDetails.reduce((acc, item) => {
     const category = item.category;
     if (!acc[category]) {
       acc[category] = [];
@@ -78,12 +97,12 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
     return acc;
   }, {} as Record<string, AlignmentDetail[]>);
   
-  const categoriesInOrder = [...new Set(details.map(d => d.category))];
+  const categoriesInOrder = [...new Set(filteredDetails.map(d => d.category))];
 
   return (
     <TooltipProvider>
       <div className="rounded-lg border bg-card">
-        <Legend />
+        <Legend filter={filter} setFilter={setFilter} />
         <div className="overflow-x-auto border-t">
             <Table className="table-fixed w-full">
                 <TableHeader>
@@ -95,7 +114,7 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {categoriesInOrder.map((category) => {
+                    {filteredDetails.length > 0 ? categoriesInOrder.map((category) => {
                         const items = groupedDetails[category];
                         if (!items || items.length === 0) return null;
 
@@ -151,7 +170,13 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                 })}
                             </React.Fragment>
                         );
-                    })}
+                    }) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                No issues found for this candidate.
+                            </TableCell>
+                        </TableRow>
+                    )}
                 </TableBody>
             </Table>
         </div>
