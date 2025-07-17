@@ -85,7 +85,7 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
   }
 
   const filteredDetails = filter === 'issues'
-    ? details.filter(d => d.status === 'Partially Aligned' || d.status === 'Not Aligned')
+    ? details.filter(d => d.status === 'Partially Aligned' || d.status === 'Not Aligned' || d.status === 'Not Mentioned')
     : details;
   
   const groupedDetails = filteredDetails.reduce((acc, item) => {
