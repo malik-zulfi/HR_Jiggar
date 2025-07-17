@@ -36,17 +36,12 @@ import { useAppContext } from "@/components/client-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
-const LOCAL_STORAGE_KEY = 'jiggar-history';
-const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
-const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
-const RELEVANCE_CHECK_ENABLED_KEY = 'jiggar-relevance-check-enabled';
 const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
-type RelevanceCheckStatus = Record<string, boolean>;
 
 
 function AssessmentPage() {
@@ -69,9 +64,6 @@ function AssessmentPage() {
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
   
-  const [isRelevanceCheckEnabled, setIsRelevanceCheckEnabled] = useState(false);
-  const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
-
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
   const filteredHistory = useMemo(() => {
@@ -259,7 +251,7 @@ function AssessmentPage() {
     // and processing any pending bulk-added candidates.
 
     // Guard against running this logic before the history state is hydrated from localStorage
-    if (history.length === 0) {
+    if (history.length === 0 && localStorage.getItem('jiggar-history')) {
         return;
     }
 
@@ -296,9 +288,6 @@ function AssessmentPage() {
           }
       }
       
-      const relevanceEnabled = localStorage.getItem(RELEVANCE_CHECK_ENABLED_KEY) === 'true';
-      setIsRelevanceCheckEnabled(relevanceEnabled);
-
     } catch (error) {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
@@ -703,41 +692,6 @@ function AssessmentPage() {
 
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
-
-  const handleManualRelevanceCheck = useCallback(async () => {
-    setManualCheckStatus('loading');
-    toast({ description: "Running relevance check on all existing candidates..." });
-
-    try {
-        let allNewPositions: SuitablePosition[] = [];
-        for (const candidate of cvDatabase) {
-            const result = await findSuitablePositionsForCandidate({
-                candidates: [candidate], // Pass one candidate at a time
-                assessmentSessions: history,
-                existingSuitablePositions: suitablePositions,
-            });
-            if (result.newlyFoundPositions.length > 0) {
-                allNewPositions.push(...result.newlyFoundPositions);
-            }
-        }
-        
-        if (allNewPositions.length > 0) {
-            setSuitablePositions(prev => {
-                const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-                const uniqueNewPositions = allNewPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
-                return [...prev, ...uniqueNewPositions];
-            });
-            toast({ title: "Relevance Check Complete", description: `Found ${allNewPositions.length} new potential matches.` });
-        } else {
-            toast({ title: "Relevance Check Complete", description: "No new relevant positions found for existing candidates." });
-        }
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: "Manual Check Failed", description: error.message });
-    } finally {
-        setManualCheckStatus('done');
-         setTimeout(() => setManualCheckStatus('idle'), 3000);
-    }
-  }, [cvDatabase, history, suitablePositions, toast, setSuitablePositions]);
   
   const acceptedFileTypes = ".pdf,.docx,.txt";
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
@@ -809,7 +763,10 @@ function AssessmentPage() {
                         onClick={() => setActiveSessionId(session.id)}
                       >
                         <CardHeader className="flex-1">
-                          <CardTitle className="text-base truncate">{session.analyzedJd.jobTitle || session.jdName}</CardTitle>
+                          <CardTitle className="text-base truncate">
+                            {session.analyzedJd.positionNumber ? `${session.analyzedJd.positionNumber} - ` : ''}
+                            {session.analyzedJd.jobTitle || session.jdName}
+                          </CardTitle>
                           <CardDescription className="flex items-center gap-1 text-xs pt-1">
                             <Users className="h-3 w-3" /> {session.candidates.length} Candidate(s)
                           </CardDescription>
@@ -905,7 +862,7 @@ function AssessmentPage() {
                                           ? 'Assessing new candidates...' 
                                           : isReassessing
                                           ? 'Re-assessing candidates...'
-                                          : 'Review assessments, apply filters, or re-assess candidates.'}
+                                          : 'Review assessments, or re-assess candidates.'}
                                     </CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
