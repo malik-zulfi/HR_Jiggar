@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Bot, X, Send, Loader2, MessageSquare, Eraser } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card";
@@ -35,10 +35,10 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
   const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   
-  const initialMessage: ChatMessage = {
+  const initialMessage: ChatMessage = useMemo(() => ({
       role: 'assistant',
       content: "Hello! I'm your recruitment assistant. Ask me anything about your positions and candidates."
-  };
+  }), []);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -50,7 +50,7 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
     if (isOpen && chatHistory.length === 0) {
         setChatHistory([initialMessage]);
     }
-  }, [isOpen, chatHistory.length]);
+  }, [isOpen, chatHistory.length, initialMessage]);
 
   const handleSend = async () => {
     if (!query.trim()) return;

@@ -77,7 +77,7 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       // Header creation
       const headerRow1: (string | null)[] = ['', ''];
       const headerRow2: string[] = ['Priority', 'Requirement'];
-      const merges = [];
+      const merges: { s: { r: number; c: number; }; e: { r: number; c: number; }; }[] = [];
       
       candidateNames.forEach((name, index) => {
           headerRow1.push(name, null); // Push name and a null for the merge

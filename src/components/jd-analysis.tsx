@@ -328,7 +328,7 @@ export default function JdAnalysis({ analysis, originalAnalysis, onSaveChanges, 
     return c.priority === 'MUST-HAVE';
   });
 
-  const allSections = {
+  const allSections: Record<string, { key: CategoryKey; title: string; icon: React.ReactNode }> = {
       education: { key: 'education', title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
       experience: { key: 'experience', title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
       certifications: { key: 'certifications', title: 'Certifications', icon: <Star className="h-5 w-5" /> },

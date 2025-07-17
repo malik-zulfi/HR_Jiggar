@@ -199,7 +199,7 @@ function AssessmentPage() {
 
                     setNewCvProcessingStatus(prev => ({
                         ...prev,
-                        [result.fileName]: { ...prev[result.fileName], status: 'done', candidateName: result.analysis.candidateName }
+                        [result.fileName]: { ...prev[result.fileName], status: 'done', candidateName: result.analysis?.candidateName }
                     }));
                     successCount++;
                 } else {
@@ -302,7 +302,7 @@ function AssessmentPage() {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [history]); // Depend on history to re-run once it's hydrated
+  }, [history, processAndAnalyzeCandidates]); // Depend on history to re-run once it's hydrated
 
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
@@ -322,7 +322,7 @@ function AssessmentPage() {
     localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
     
     // Clear handled notifications
-    const handledEmails = new Set(positions.map(p => p.candidateEmail));
+    const handledEmails = new Set(positions.map((p: { candidateEmail: any; }) => p.candidateEmail));
     setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
     
     // Navigate
@@ -601,7 +601,7 @@ function AssessmentPage() {
     
     await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId);
     setIsAddFromDbOpen(false);
-  }, [activeSession, processAndAnalyzeCandidates, toast]);
+  }, [activeSession, processAndAnalyzeCandidates, toast, activeSessionId]);
   
   const handleGenerateSummary = async () => {
     if (!activeSession || activeSession.candidates.length === 0 || !activeSession.analyzedJd) return;

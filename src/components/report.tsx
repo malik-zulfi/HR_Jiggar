@@ -148,7 +148,12 @@ const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => {
 
 
 export default function Report({ summary, candidates, analyzedJd }: ReportProps) {
-  const hasMustHaveCert = analyzedJd.certifications?.some(c => c.priority === 'MUST-HAVE');
+  const hasMustHaveCert = analyzedJd.certifications?.some(c => {
+    if ('groupType' in c) {
+        return c.requirements.some(r => r.priority === 'MUST-HAVE');
+    }
+    return c.priority === 'MUST-HAVE';
+  });
 
   return (
     <div id="pdf-report" className="p-8 bg-white text-black font-sans" style={{ width: '800px' }}>
@@ -173,13 +178,13 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
         <h2 className="text-2xl font-bold mb-1 text-gray-800">{analyzedJd.jobTitle || 'Job Description Breakdown'}</h2>
         {analyzedJd.positionNumber && <p className="text-md text-gray-600 mb-4">Position #{analyzedJd.positionNumber}</p>}
         <div className="columns-2 gap-8">
-            <RequirementList title="Education" requirements={analyzedJd.education} />
-            <RequirementList title="Experience" requirements={analyzedJd.experience} />
-            {hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications} />}
-            <RequirementList title="Technical Skills" requirements={analyzedJd.technicalSkills} />
-            <RequirementList title="Soft Skills" requirements={analyzedJd.softSkills} />
-            {!hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications} />}
-            <RequirementList title="Responsibilities" requirements={analyzedJd.responsibilities} />
+            <RequirementList title="Education" requirements={analyzedJd.education as Requirement[]} />
+            <RequirementList title="Experience" requirements={analyzedJd.experience as Requirement[]} />
+            {hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications as Requirement[]} />}
+            <RequirementList title="Technical Skills" requirements={analyzedJd.technicalSkills as Requirement[]} />
+            <RequirementList title="Soft Skills" requirements={analyzedJd.softSkills as Requirement[]} />
+            {!hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications as Requirement[]} />}
+            <RequirementList title="Responsibilities" requirements={analyzedJd.responsibilities as Requirement[]} />
         </div>
       </div>
       
@@ -242,7 +247,7 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
             
             <div className="mb-4">
                 <h4 className="font-bold text-lg mb-1">Alignment Summary</h4>
-                <p className="text-gray-700 italic border-l-4 border-gray-300 pl-3">"{candidate.alignmentSummary}"</p>
+                <p className="text-gray-700 italic border-l-4 border-gray-300 pl-3">&quot;{candidate.alignmentSummary}&quot;</p>
             </div>
 
             <div className="grid grid-cols-2 gap-6 mb-4">

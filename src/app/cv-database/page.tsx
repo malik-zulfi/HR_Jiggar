@@ -400,7 +400,7 @@ export default function CvDatabasePage() {
         localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
         
         // Clear handled notifications
-        const handledEmails = new Set(positions.map(p => p.candidateEmail));
+        const handledEmails = new Set(positions.map((p: { candidateEmail: any; }) => p.candidateEmail));
         setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
         
         // Navigate
@@ -470,7 +470,7 @@ export default function CvDatabasePage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><FileUp /> Add New Candidates</CardTitle>
-                            <CardDescription>Upload CVs and tag them with a job code to add them to the central database. If a candidate's email already exists, you will be asked to confirm the replacement.</CardDescription>
+                            <CardDescription>Upload CVs and tag them with a job code to add them to the central database. If a candidate&apos;s email already exists, you will be asked to confirm the replacement.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid md:grid-cols-3 gap-4 items-end">
@@ -710,7 +710,7 @@ export default function CvDatabasePage() {
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" /> Replace Existing Candidate?</DialogTitle>
                             <DialogDescription>
-                                A candidate with the email <span className="font-bold text-foreground">{currentConflict.existingRecord.email}</span> already exists. Do you want to replace the existing record with the new CV you've uploaded?
+                                A candidate with the email <span className="font-bold text-foreground">{currentConflict.existingRecord.email}</span> already exists. Do you want to replace the existing record with the new CV you&apos;ve uploaded?
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid grid-cols-2 gap-4 text-sm my-4">
