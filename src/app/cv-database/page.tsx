@@ -59,7 +59,6 @@ export default function CvDatabasePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [cvResetKey, setCvResetKey] = useState(0);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'createdAt', direction: 'descending' });
-    const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
     
     const [conflictQueue, setConflictQueue] = useState<Conflict[]>([]);
     const [currentConflict, setCurrentConflict] = useState<Conflict | null>(null);
@@ -200,7 +199,6 @@ export default function CvDatabasePage() {
             return;
         }
         
-        setManualCheckStatus('loading');
         toast({ description: `Checking for suitable positions for ${candidatesToCheck.length} candidate(s)...` });
 
         try {
@@ -232,9 +230,6 @@ export default function CvDatabasePage() {
         } catch (error: any) {
             console.error(`Relevance check failed:`, error);
             toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
-        } finally {
-            setManualCheckStatus('done');
-            setTimeout(() => setManualCheckStatus('idle'), 3000);
         }
     }, [history, suitablePositions, toast, setSuitablePositions]);
 
@@ -461,8 +456,6 @@ export default function CvDatabasePage() {
         <div className="flex flex-col min-h-screen bg-background">
             <Header
                 activePage="cv-database"
-                onManualCheck={() => runRelevanceCheck(cvDatabase)}
-                manualCheckStatus={manualCheckStatus}
                 onQuickAdd={handleQuickAddToAssessment}
             />
             <main className="flex-1 p-4 md:p-6">

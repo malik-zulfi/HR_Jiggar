@@ -20,21 +20,17 @@ const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 
 interface HeaderProps {
     activePage?: 'dashboard' | 'assessment' | 'cv-database' | 'notifications';
-    onManualCheck?: () => void;
-    manualCheckStatus?: 'idle' | 'loading' | 'done';
     onQuickAdd: (positions: SuitablePosition[]) => void;
 }
 
 export function Header({ 
     activePage,
-    onManualCheck,
-    manualCheckStatus,
     onQuickAdd
 }: HeaderProps) {
     const { toast } = useToast();
     const pathname = usePathname();
     const importInputRef = useRef<HTMLInputElement>(null);
-    const { suitablePositions, setSuitablePositions } = useAppContext();
+    const { suitablePositions, runGlobalRelevanceCheck, manualCheckStatus } = useAppContext();
 
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : pathname.includes('notifications') ? 'notifications' : 'dashboard');
 
@@ -178,8 +174,8 @@ export function Header({
                                  <Button 
                                     variant="outline" 
                                     className="w-full"
-                                    onClick={onManualCheck}
-                                    disabled={!onManualCheck || manualCheckStatus === 'loading'}
+                                    onClick={runGlobalRelevanceCheck}
+                                    disabled={manualCheckStatus === 'loading'}
                                  >
                                     {manualCheckStatus === 'loading' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     {manualCheckStatus === 'loading' ? 'Checking...' : 'Run Relevance Check'}

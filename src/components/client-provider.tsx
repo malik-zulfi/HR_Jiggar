@@ -2,11 +2,13 @@
 "use client";
 
 import * as React from 'react';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import type { AssessmentSession, CvDatabaseRecord, SuitablePosition } from '@/lib/types';
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import Chatbot from '@/components/chatbot';
+import { useToast } from '@/hooks/use-toast';
+import { findSuitablePositionsForCandidate } from '@/ai/flows/find-suitable-positions';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -19,6 +21,8 @@ interface AppContextType {
   setCvDatabase: React.Dispatch<React.SetStateAction<CvDatabaseRecord[]>>;
   suitablePositions: SuitablePosition[];
   setSuitablePositions: React.Dispatch<React.SetStateAction<SuitablePosition[]>>;
+  runGlobalRelevanceCheck: () => Promise<void>;
+  manualCheckStatus: 'idle' | 'loading' | 'done';
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -40,6 +44,8 @@ export function ClientProvider({
   const [cvDatabase, setCvDatabase] = useState<CvDatabaseRecord[]>([]);
   const [suitablePositions, setSuitablePositions] = useState<SuitablePosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+  const { toast } = useToast();
 
   useEffect(() => {
     try {
@@ -103,6 +109,52 @@ export function ClientProvider({
       localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
     }
   }, [suitablePositions, isLoading]);
+  
+  const runGlobalRelevanceCheck = useCallback(async () => {
+    if (history.length === 0 || cvDatabase.length === 0) {
+        toast({ variant: 'destructive', title: "Cannot Run Check", description: "There are no jobs or candidates to check." });
+        return;
+    }
+    
+    setManualCheckStatus('loading');
+    toast({ description: `Checking for suitable positions for all ${cvDatabase.length} candidate(s)...` });
+
+    try {
+        let allNewPositions: SuitablePosition[] = [];
+        // Check all candidates one by one to avoid overly large individual calls
+        for (const candidate of cvDatabase) {
+            const result = await findSuitablePositionsForCandidate({
+                candidates: [candidate],
+                assessmentSessions: history,
+                existingSuitablePositions: suitablePositions
+            });
+            if (result.newlyFoundPositions.length > 0) {
+                allNewPositions.push(...result.newlyFoundPositions);
+            }
+        }
+        
+        if (allNewPositions.length > 0) {
+            setSuitablePositions(prev => {
+                const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+                const uniqueNewPositions = allNewPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
+                return [...prev, ...uniqueNewPositions];
+            });
+            toast({
+                title: "New Opportunities Found!",
+                description: `Found ${allNewPositions.length} new relevant position(s). Check the notifications panel.`,
+            });
+        } else {
+             toast({ description: `No new relevant positions found.` });
+        }
+    } catch (error: any) {
+        console.error(`Global relevance check failed:`, error);
+        toast({ variant: 'destructive', title: "Relevance Check Failed", description: error.message });
+    } finally {
+        setManualCheckStatus('done');
+        setTimeout(() => setManualCheckStatus('idle'), 3000);
+    }
+  }, [history, cvDatabase, suitablePositions, toast, setSuitablePositions]);
+
 
   const contextValue = {
     history,
@@ -111,6 +163,8 @@ export function ClientProvider({
     setCvDatabase,
     suitablePositions,
     setSuitablePositions,
+    runGlobalRelevanceCheck,
+    manualCheckStatus,
   };
 
   if (isLoading) {
