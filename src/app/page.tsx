@@ -176,10 +176,10 @@ export default function DashboardPage() {
     const hasActiveFilters = filters.code !== 'all' || filters.department !== 'all';
 
     return (
-        <div className="flex flex-col min-h-screen bg-secondary/40">
+        <div className="flex flex-col min-h-screen bg-background">
             <Header activePage="dashboard" onQuickAdd={handleQuickAddToAssessment} />
 
-            <main className="flex-1 p-4 md:p-8">
+            <main className="flex-1 p-4 md:p-6">
                 <div className="container mx-auto">
                     <Card className="mb-6">
                         <CardHeader>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                             <CardDescription>Use the slicers below to filter the dashboard metrics.</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
-                            <div className="grid gap-2 w-full sm:w-auto">
+                            <div className="grid gap-1.5 w-full sm:w-auto">
                                 <label className="text-sm font-medium">Job Code</label>
                                 <Select value={filters.code} onValueChange={(value) => handleFilterChange('code', value)}>
                                     <SelectTrigger className="w-full sm:w-[180px]">
@@ -200,7 +200,7 @@ export default function DashboardPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="grid gap-2 w-full sm:w-auto">
+                            <div className="grid gap-1.5 w-full sm:w-auto">
                                  <label className="text-sm font-medium">Department</label>
                                  <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)}>
                                     <SelectTrigger className="w-full sm:w-[180px]">
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Positions Assessed</CardTitle>
@@ -265,10 +265,10 @@ export default function DashboardPage() {
                         </Card>
                     </div>
 
-                    <div className="grid gap-6 mt-6 md:grid-cols-2">
+                    <div className="grid gap-4 mt-4 md:grid-cols-2">
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Award className="text-chart-4" /> Top 5 Candidates</CardTitle>
+                                <CardTitle className="flex items-center gap-2 text-base"><Award className="text-chart-4" /> Top 5 Candidates</CardTitle>
                                 <CardDescription>Highest scoring candidates across all assessments.</CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -309,7 +309,7 @@ export default function DashboardPage() {
                         
                         <Card className="col-span-2 md:col-span-1">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
+                                <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="text-chart-2" /> Candidate Distribution</CardTitle>
                                 <CardDescription>Visual breakdown of all candidates in the database by job code.</CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -347,9 +347,9 @@ export default function DashboardPage() {
                         </Card>
                     </div>
 
-                    <Card className="mt-6">
+                    <Card className="mt-4">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><History className="text-primary"/> Recent Assessments</CardTitle>
+                            <CardTitle className="flex items-center gap-2 text-base"><History className="text-primary"/> Recent Assessments</CardTitle>
                             <CardDescription>The 5 most recently created assessments.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -392,5 +392,3 @@ export default function DashboardPage() {
         </div>
     );
 }
-
-    

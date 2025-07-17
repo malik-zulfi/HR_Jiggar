@@ -741,13 +741,13 @@ function AssessmentPage() {
   const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/40">
+    <div className="flex flex-col min-h-screen bg-background">
       <Header
         activePage="assessment"
         onQuickAdd={handleQuickAddToAssessment}
       />
-      <main className="flex-1 p-4 md:p-8">
-        <div className="container mx-auto space-y-6">
+      <main className="flex-1 p-4 md:p-6">
+        <div className="container mx-auto space-y-4">
             <AlertDialog open={replacementPrompt.isOpen} onOpenChange={(isOpen) => !isOpen && setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -845,7 +845,7 @@ function AssessmentPage() {
               </Card>
             </>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
                 <Button variant="outline" onClick={() => setActiveSessionId(null)} className="mb-2">
                     <ArrowLeft className="mr-2 h-4 w-4"/>
                     Back to all assessments
@@ -861,7 +861,7 @@ function AssessmentPage() {
                 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><UserPlus /> Step 2: Add Candidates</CardTitle>
+                        <CardTitle className="flex items-center gap-2 text-base"><UserPlus /> Step 2: Add Candidates</CardTitle>
                         <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -908,7 +908,7 @@ function AssessmentPage() {
                         <CardHeader>
                             <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <div className="flex-1">
-                                    <CardTitle className="flex items-center gap-2"><Users /> Step 3: Review Candidates</CardTitle>
+                                    <CardTitle className="flex items-center gap-2 text-base"><Users /> Step 3: Review Candidates</CardTitle>
                                     <CardDescription>
                                       {isAssessingNewCvs 
                                           ? 'Assessing new candidates...' 
@@ -965,7 +965,7 @@ function AssessmentPage() {
                   <>
                       <Card>
                           <CardHeader>
-                              <CardTitle className="flex items-center gap-2"><Lightbulb /> Step 4: Generate Summary</CardTitle>
+                              <CardTitle className="flex items-center gap-2 text-base"><Lightbulb /> Step 4: Generate Summary</CardTitle>
                               <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
                           </CardHeader>
                           <CardContent>

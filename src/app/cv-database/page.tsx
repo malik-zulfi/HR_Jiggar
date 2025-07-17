@@ -458,15 +458,15 @@ export default function CvDatabasePage() {
     };
     
     return (
-        <div className="flex flex-col min-h-screen bg-secondary/40">
+        <div className="flex flex-col min-h-screen bg-background">
             <Header
                 activePage="cv-database"
                 onManualCheck={() => runRelevanceCheck(cvDatabase)}
                 manualCheckStatus={manualCheckStatus}
                 onQuickAdd={handleQuickAddToAssessment}
             />
-            <main className="flex-1 p-4 md:p-8">
-                <div className="container mx-auto space-y-6">
+            <main className="flex-1 p-4 md:p-6">
+                <div className="container mx-auto space-y-4">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><FileUp /> Add New Candidates</CardTitle>
