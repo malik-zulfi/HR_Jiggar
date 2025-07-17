@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Briefcase, Users, Award, Database, BarChart3, Filter, X, History, UserX } from 'lucide-react';
-import type { AnalyzedCandidate, SuitablePosition } from '@/lib/types';
+import type { AnalyzedCandidate, SuitablePosition, CvDatabaseRecord } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   ChartContainer,
@@ -159,7 +159,7 @@ export default function DashboardPage() {
     const handleQuickAddToAssessment = useCallback((positions: SuitablePosition[]) => {
         if (positions.length === 0) return;
         const { assessment } = positions[0];
-        const candidateDbRecords = positions.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean);
+        const candidateDbRecords = positions.map(p => cvDatabase.find(c => c.email === p.candidateEmail)).filter(Boolean) as CvDatabaseRecord[];
 
         if (candidateDbRecords.length === 0) return;
 

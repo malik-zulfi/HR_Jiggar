@@ -8,7 +8,6 @@ import { Bot, PlusSquare, Database, LayoutDashboard, GanttChartSquare, Settings,
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import NotificationPopover from "@/components/notification-popover";
 import { cn } from '@/lib/utils';
 import type { SuitablePosition } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +19,7 @@ const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 
 
 interface HeaderProps {
-    activePage?: 'dashboard' | 'assessment' | 'cv-database';
+    activePage?: 'dashboard' | 'assessment' | 'cv-database' | 'notifications';
     onManualCheck?: () => void;
     manualCheckStatus?: 'idle' | 'loading' | 'done';
     onQuickAdd: (positions: SuitablePosition[]) => void;
@@ -37,7 +36,7 @@ export function Header({
     const importInputRef = useRef<HTMLInputElement>(null);
     const { suitablePositions, setSuitablePositions } = useAppContext();
 
-    const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : 'dashboard');
+    const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : pathname.includes('notifications') ? 'notifications' : 'dashboard');
 
     const navItems = [
         { href: '/', icon: LayoutDashboard, label: 'Dashboard', page: 'dashboard' },
@@ -114,12 +113,6 @@ export function Header({
         };
         reader.readAsText(file);
     };
-
-    const handleClearNotifications = (positionsToClear: SuitablePosition[]) => {
-        const clearedKeys = new Set(positionsToClear.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-        setSuitablePositions(prev => prev.filter(p => !clearedKeys.has(`${p.candidateEmail}-${p.assessment.id}`)));
-    };
-
 
   return (
     <header className="p-2 border-b bg-card sticky top-0 z-20">
@@ -220,32 +213,25 @@ export function Header({
                 </PopoverContent>
             </Popover>
 
-            <Popover>
-                <TooltipProvider>
-                     <Tooltip>
-                        <TooltipTrigger asChild>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="relative">
-                                    <Bell className="h-5 w-5" />
-                                    {suitablePositions.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-                                            {suitablePositions.length}
-                                        </span>
-                                    )}
-                                </Button>
-                            </PopoverTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Suitable Position Alerts</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-                <NotificationPopover 
-                    positions={suitablePositions} 
-                    onAddCandidates={onQuickAdd}
-                    onClearNotifications={handleClearNotifications} 
-                />
-            </Popover>
+            <TooltipProvider>
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Link href="/notifications">
+                            <Button variant="ghost" size="icon" className={cn("relative", currentPage === 'notifications' && 'bg-primary/10 text-primary')}>
+                                <Bell className="h-5 w-5" />
+                                {suitablePositions.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
+                                        {suitablePositions.length}
+                                    </span>
+                                )}
+                            </Button>
+                        </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Notifications</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         </div>
 
       </div>
