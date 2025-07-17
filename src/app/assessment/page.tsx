@@ -28,6 +28,7 @@ import ProgressLoader from "@/components/progress-loader";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,7 +43,11 @@ const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
-
+type ReplacementPrompt = {
+    isOpen: boolean;
+    existingSession: AssessmentSession | null;
+    newJd: ExtractJDCriteriaOutput | null;
+};
 
 function AssessmentPage() {
   const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
@@ -63,6 +68,7 @@ function AssessmentPage() {
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
+  const [replacementPrompt, setReplacementPrompt] = useState<ReplacementPrompt>({ isOpen: false, existingSession: null, newJd: null });
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -338,6 +344,30 @@ function AssessmentPage() {
     toast({ description: "Assessment deleted." });
   };
 
+    const handleReplaceJd = () => {
+        const { existingSession, newJd } = replacementPrompt;
+        if (!existingSession || !newJd) return;
+
+        setHistory(prev =>
+            prev.map(s => {
+                if (s.id === existingSession.id) {
+                    return {
+                        ...s,
+                        originalAnalyzedJd: JSON.parse(JSON.stringify(newJd)),
+                        analyzedJd: newJd,
+                        candidates: s.candidates.map(c => ({ ...c, isStale: true })),
+                        summary: null,
+                    };
+                }
+                return s;
+            })
+        );
+        setActiveSessionId(existingSession.id);
+        setIsJdAnalysisOpen(true);
+        toast({ description: `Replaced JD for "${newJd.jobTitle}". Existing candidates marked for re-assessment.` });
+        setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null });
+    };
+
   const handleJdUpload = async (files: UploadedFile[]) => {
     if(files.length === 0) return;
     
@@ -347,7 +377,7 @@ function AssessmentPage() {
     const steps = [
       "Initializing analysis engine...",
       "Parsing job description document...",
-      "Identifying key responsibilities...",
+      "Extracting key responsibilities...",
       "Extracting technical skill requirements...",
       "Analyzing soft skill criteria...",
       "Categorizing requirements by priority...",
@@ -374,6 +404,13 @@ function AssessmentPage() {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      const existingSession = history.find(s => s.analyzedJd.positionNumber && s.analyzedJd.positionNumber === result.positionNumber);
+      
+      if (existingSession) {
+          setReplacementPrompt({ isOpen: true, existingSession, newJd: result });
+          return;
+      }
 
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
@@ -711,6 +748,21 @@ function AssessmentPage() {
       />
       <main className="flex-1 p-4 md:p-8">
         <div className="container mx-auto space-y-6">
+            <AlertDialog open={replacementPrompt.isOpen} onOpenChange={(isOpen) => !isOpen && setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Duplicate Position Number Found</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            An assessment for Position No. <span className="font-bold">{replacementPrompt.existingSession?.analyzedJd.positionNumber}</span> already exists.
+                            Do you want to replace the old Job Description with this new one? Existing candidates will be kept and marked as stale for re-assessment.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleReplaceJd}>Replace</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
           {!activeSession ? (
             <>
