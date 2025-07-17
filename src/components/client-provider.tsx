@@ -88,6 +88,18 @@ export function ClientProvider({
 
   useEffect(() => {
     if (!isLoading) {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+    }
+  }, [history, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
+    }
+  }, [cvDatabase, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) {
       localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
     }
   }, [suitablePositions, isLoading]);
