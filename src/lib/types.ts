@@ -219,7 +219,6 @@ export type ParseCvInput = z.infer<typeof ParseCvInputSchema>;
 
 // Output will be most of CvDatabaseRecordSchema, minus the fields the flow doesn't set itself.
 export const ParseCvOutputSchema = CvDatabaseRecordSchema.omit({
-    jobCode: true,
     cvFileName: true,
     cvContent: true,
     createdAt: true,

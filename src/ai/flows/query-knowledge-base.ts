@@ -81,6 +81,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
     const { query, sessions, cvDatabase, chatHistory } = input;
     
     // Create a summarized version of the data to pass to the prompt
+    // This now correctly handles the more flexible jobCode schema
     const knowledgeBase = {
         assessmentSessions: sessions.map(session => ({
             sessionId: session.id,
@@ -95,7 +96,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
                 recommendation: c.analysis.recommendation,
                 strengths: c.analysis.strengths,
                 weaknesses: c.analysis.weaknesses,
-                cvContent: c.cvContent,
+                cvContent: c.cvContent, // Pass CV content for context if needed
             })),
         })),
         cvDatabase: cvDatabase.map(cv => ({
