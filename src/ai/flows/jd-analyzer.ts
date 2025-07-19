@@ -213,5 +213,3 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
   }
 );
-
-    
