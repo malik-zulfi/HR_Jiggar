@@ -67,7 +67,7 @@ const prompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
-First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available). The job code MUST be one of "OCN", "WEX", or "SAN". If the code in the document is more specific (e.g., "SAN05"), extract only the parent code ("SAN").
+First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
 
 Then, extract the key requirements. For each requirement, determine if it is a single item or a conditional "OR" group.
 
@@ -76,7 +76,7 @@ Then, extract the key requirements. For each requirement, determine if it is a s
 1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as simple strings in the \`requirements\` array.
 2.  **Handle Associated Requirements:** If requirements are clearly linked within an "OR" condition (e.g., "Bachelor's degree in Law... with a minimum ten (10) years experience OR Chartered Professional Membership... with a minimum twelve (12) years experience"), you MUST treat each part of the "OR" statement as a complete, distinct requirement string within the group's \`requirements\` array. Do not split the degree from its associated experience.
 3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as a simple string.
-4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: education, experience, technicalSkills, softSkills, certifications, or responsibilities. It is crucial to extract requirements into as many relevant categories as possible. Do NOT assign priority yet.
+4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: education, experience, technicalSkills, softSkills, certifications, or responsibilities. Do NOT assign priority yet.
 
 Job Description:
 {{{jobDescription}}}
@@ -125,18 +125,6 @@ const extractJDCriteriaFlow = ai.defineFlow(
     if (!rawOutput) {
         throw new Error("JD Analysis failed to return a valid response.");
     }
-
-    // Enforce valid job code
-    const validJobCodes = ["OCN", "WEX", "SAN"];
-    let finalCode: string | undefined = undefined;
-    if (rawOutput.code) {
-        const uppercaseCode = rawOutput.code.toUpperCase();
-        const matchedCode = validJobCodes.find(c => uppercaseCode.startsWith(c));
-        if (matchedCode) {
-            finalCode = matchedCode;
-        }
-    }
-    rawOutput.code = finalCode;
 
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, ...rest } = rawOutput;
     

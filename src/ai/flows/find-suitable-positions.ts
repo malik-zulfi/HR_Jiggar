@@ -86,51 +86,35 @@ const findSuitablePositionsFlow = ai.defineFlow(
     async (input) => {
         const { candidates, assessmentSessions, existingSuitablePositions } = input;
         
-        const candidatesWithUnassessedSessions = candidates.map(candidate => {
-            const unassessedSessions = assessmentSessions.filter(session => {
-                const hasMatchingJobCode = session.analyzedJd.code === candidate.jobCode;
-                const isNotAssessed = !session.candidates.some(c => c.analysis.email?.toLowerCase() === candidate.email.toLowerCase());
-                return hasMatchingJobCode && isNotAssessed;
-            });
-            return {
-                candidate: candidate,
-                unassessedSessions,
-            };
-        }).filter(c => c.unassessedSessions.length > 0);
-
-        if (candidatesWithUnassessedSessions.length === 0) {
+        if (candidates.length === 0 || assessmentSessions.length === 0) {
             return { newlyFoundPositions: [] };
         }
 
-        let allSuitableMatches: FindSuitablePositionsOutput['newlyFoundPositions'] = [];
+        const { output } = await withRetry(() => findSuitablePositionsPrompt({
+            candidates,
+            assessmentSessions,
+            existingSuitablePositions,
+        }));
 
-        for (const { candidate, unassessedSessions } of candidatesWithUnassessedSessions) {
-            if (unassessedSessions.length === 0) continue;
-
-            const { output } = await withRetry(() => findSuitablePositionsPrompt({
-                candidates: [candidate],
-                assessmentSessions: unassessedSessions,
-                existingSuitablePositions: existingSuitablePositions,
-            }));
-            
-            if (output && output.suitableMatches) {
-                const positionsForCandidate = output.suitableMatches.map(match => {
-                    const assessment = unassessedSessions.find(s => s.id === match.assessmentSessionId);
-                    if (!assessment) return null;
-                    return {
-                        candidateEmail: candidate.email,
-                        candidateName: candidate.name,
-                        assessment,
-                    };
-                }).filter((p): p is FindSuitablePositionsOutput['newlyFoundPositions'][0] => p !== null);
-
-                allSuitableMatches.push(...positionsForCandidate);
-            }
+        if (!output || !output.suitableMatches) {
+            return { newlyFoundPositions: [] };
         }
         
-        return { newlyFoundPositions: allSuitableMatches };
+        const newlyFoundPositions = output.suitableMatches.map(match => {
+            const assessment = assessmentSessions.find(s => s.id === match.assessmentSessionId);
+            const candidate = candidates.find(c => c.email === match.candidateEmail);
+            if (!assessment || !candidate) return null;
+            return {
+                candidateEmail: candidate.email,
+                candidateName: candidate.name,
+                assessment,
+            };
+        }).filter((p): p is FindSuitablePositionsOutput['newlyFoundPositions'][0] => p !== null);
+
+        return { newlyFoundPositions };
     }
 );
+
 
 export async function findSuitablePositionsForCandidate(input: FindSuitablePositionsInput): Promise<FindSuitablePositionsOutput> {
     return findSuitablePositionsFlow(input);

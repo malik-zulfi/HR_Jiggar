@@ -44,11 +44,7 @@ type JobCode = 'OCN' | 'WEX' | 'SAN';
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
-type ReplacementPrompt = {
-    isOpen: boolean;
-    existingSession: AssessmentSession | null;
-    newJd: ExtractJDCriteriaOutput | null;
-};
+
 
 function AssessmentPage() {
   const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
@@ -69,7 +65,6 @@ function AssessmentPage() {
 
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
-  const [replacementPrompt, setReplacementPrompt] = useState<ReplacementPrompt>({ isOpen: false, existingSession: null, newJd: null });
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -152,22 +147,15 @@ function AssessmentPage() {
         let finalCandidateRecords: CandidateRecord[] = [];
 
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
-        
-        const validJobCodes: JobCode[] = ['OCN', 'WEX', 'SAN'];
-        let parentJobCode: JobCode | undefined;
-
-        if (jd.code) {
-          parentJobCode = validJobCodes.find(c => jd.code?.startsWith(c));
-        }
 
         // First, parse all CVs to update the central database. This remains a parallel process.
-        await Promise.all(candidatesToProcess.map(async (cvFile) => {
-            if (parentJobCode) {
+        if (jd.code) {
+            await Promise.all(candidatesToProcess.map(async (cvFile) => {
                 try {
                     const parsedData = await parseCv({ cvText: cvFile.content });
                     const dbRecord: CvDatabaseRecord = {
                         ...parsedData,
-                        jobCode: parentJobCode,
+                        jobCode: jd.code, // Use the code from the JD
                         cvFileName: cvFile.name,
                         cvContent: cvFile.content,
                         createdAt: new Date().toISOString(),
@@ -180,8 +168,8 @@ function AssessmentPage() {
                         description: `Could not extract an email. Assessment will proceed.` 
                     });
                 }
-            }
-        }));
+            }));
+        }
 
         // Now, perform bulk analysis in a single API call
         try {
@@ -350,30 +338,6 @@ function AssessmentPage() {
     toast({ description: "Assessment deleted." });
   };
 
-    const handleReplaceJd = () => {
-        const { existingSession, newJd } = replacementPrompt;
-        if (!existingSession || !newJd) return;
-
-        setHistory(prev =>
-            prev.map(s => {
-                if (s.id === existingSession.id) {
-                    return {
-                        ...s,
-                        originalAnalyzedJd: JSON.parse(JSON.stringify(newJd)),
-                        analyzedJd: newJd,
-                        candidates: s.candidates.map(c => ({ ...c, isStale: true })),
-                        summary: null,
-                    };
-                }
-                return s;
-            })
-        );
-        setActiveSessionId(existingSession.id);
-        setIsJdAnalysisOpen(true);
-        toast({ description: `Replaced JD for "${newJd.jobTitle}". Existing candidates marked for re-assessment.` });
-        setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null });
-    };
-
   const handleJdUpload = async (files: UploadedFile[]) => {
     if(files.length === 0) return;
     
@@ -410,14 +374,7 @@ function AssessmentPage() {
       if (simulationInterval) clearInterval(simulationInterval);
       setJdAnalysisProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
       await new Promise(resolve => setTimeout(resolve, 500));
-
-      const existingSession = history.find(s => s.analyzedJd.positionNumber && s.analyzedJd.positionNumber === result.positionNumber);
       
-      if (existingSession) {
-          setReplacementPrompt({ isOpen: true, existingSession, newJd: result });
-          return;
-      }
-
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
@@ -754,21 +711,6 @@ function AssessmentPage() {
       />
       <main className="flex-1 p-4 md:p-6">
         <div className="container mx-auto space-y-4">
-            <AlertDialog open={replacementPrompt.isOpen} onOpenChange={(isOpen) => !isOpen && setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Duplicate Position Number Found</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            An assessment for Position No. <span className="font-bold">{replacementPrompt.existingSession?.analyzedJd.positionNumber}</span> already exists.
-                            Do you want to replace the old Job Description with this new one? Existing candidates will be kept and marked as stale for re-assessment.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReplaceJd}>Replace</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
 
           {!activeSession ? (
             <>
@@ -822,7 +764,6 @@ function AssessmentPage() {
                       >
                         <CardHeader className="flex-1">
                           <CardTitle className="text-base truncate">
-                            {session.analyzedJd.positionNumber ? `${session.analyzedJd.positionNumber} - ` : ''}
                             {session.analyzedJd.jobTitle || session.jdName}
                           </CardTitle>
                           <CardDescription className="flex items-center gap-1 text-xs pt-1">
@@ -1011,10 +952,7 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
     const compatibleCvs = useMemo(() => {
         if (!jobCode) return [];
-        const validJobCodes: JobCode[] = ['OCN', 'WEX', 'SAN'];
-        const parentJobCode = validJobCodes.find(c => jobCode.startsWith(c));
-        if (!parentJobCode) return [];
-        return allCvs.filter(cv => cv.jobCode === parentJobCode);
+        return allCvs.filter(cv => cv.jobCode === jobCode);
     }, [allCvs, jobCode]);
 
     const filteredCvs = useMemo(() => {
@@ -1056,7 +994,7 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
                 <DialogHeader>
                     <DialogTitle>Cannot Add from Database</DialogTitle>
                     <DialogDescription>
-                        The current Job Description does not have a valid job code (OCN, WEX, or SAN). Please edit the JD to add a valid code before adding candidates from the database.
+                        The current Job Description does not have a job code. Please edit the JD to add a code before adding candidates from the database.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
