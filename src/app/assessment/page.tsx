@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
 const PENDING_ASSESSMENT_KEY = 'jiggar-pending-assessment';
 
+type JobCode = 'OCN' | 'WEX' | 'SAN';
 type UploadedFile = { name: string; content: string };
 type CvProcessingStatus = Record<string, { status: 'processing' | 'done' | 'error', fileName: string, candidateName?: string }>;
 type ReassessStatus = Record<string, { status: 'processing' | 'done' | 'error'; candidateName: string }>;
@@ -152,16 +153,21 @@ function AssessmentPage() {
 
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
-        const jobCode = jd.code;
+        const validJobCodes: JobCode[] = ['OCN', 'WEX', 'SAN'];
+        let parentJobCode: JobCode | undefined;
+
+        if (jd.code) {
+          parentJobCode = validJobCodes.find(c => jd.code?.startsWith(c));
+        }
 
         // First, parse all CVs to update the central database. This remains a parallel process.
         await Promise.all(candidatesToProcess.map(async (cvFile) => {
-            if (jobCode) {
+            if (parentJobCode) {
                 try {
                     const parsedData = await parseCv({ cvText: cvFile.content });
                     const dbRecord: CvDatabaseRecord = {
                         ...parsedData,
-                        jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                        jobCode: parentJobCode,
                         cvFileName: cvFile.name,
                         cvContent: cvFile.content,
                         createdAt: new Date().toISOString(),
@@ -777,7 +783,7 @@ function AssessmentPage() {
               ) : (
                 <Card>
                     <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-base"><Briefcase /> Start a New Assessment</CardTitle>
                     <CardDescription>Upload or drop a Job Description (JD) file below to begin analysis.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -794,7 +800,7 @@ function AssessmentPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><History /> Past Assessments</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-base"><History /> Past Assessments</CardTitle>
                   <CardDescription>Select a past assessment to view or continue working on it.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1005,7 +1011,10 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
     const compatibleCvs = useMemo(() => {
         if (!jobCode) return [];
-        return allCvs.filter(cv => cv.jobCode === jobCode);
+        const validJobCodes: JobCode[] = ['OCN', 'WEX', 'SAN'];
+        const parentJobCode = validJobCodes.find(c => jobCode.startsWith(c));
+        if (!parentJobCode) return [];
+        return allCvs.filter(cv => cv.jobCode === parentJobCode);
     }, [allCvs, jobCode]);
 
     const filteredCvs = useMemo(() => {

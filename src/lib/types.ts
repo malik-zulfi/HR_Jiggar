@@ -202,7 +202,7 @@ export const CvDatabaseRecordSchema = z.object({
     currentTitle: z.string().optional().describe("Candidate's most recent job title."),
     currentCompany: z.string().optional().describe("Candidate's most recent company."),
     totalExperience: z.string().nullable().optional().describe("Total years of professional experience calculated from the CV."),
-    jobCode: z.string().optional().describe("Job code associated with this CV upload. Can be 'OCN', 'WEX', 'SAN', or a more specific derivative."),
+    jobCode: z.enum(['OCN', 'WEX', 'SAN']).describe("Job code associated with this CV upload."),
     cvFileName: z.string().describe("Original filename of the CV."),
     cvContent: z.string().describe("Full text content of the CV."),
     structuredContent: StructuredCvContentSchema.describe("The CV content, broken down into a structured format."),
