@@ -52,12 +52,12 @@ const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({
     responsibilities: true,
     additionalRequirements: true,
 }).extend({
-    education: z.array(FlexibleRequirementSchema).describe('List of education requirements.'),
-    experience: z.array(FlexibleRequirementSchema).describe('List of experience requirements.'),
-    technicalSkills: z.array(FlexibleRequirementSchema).describe('List of technical skill requirements.'),
-    softSkills: z.array(FlexibleRequirementSchema).describe('List of soft skill requirements.'),
-    certifications: z.array(FlexibleRequirementSchema).describe('List of certification requirements.'),
-    responsibilities: z.array(FlexibleRequirementSchema).describe('List of responsibilities.'),
+    education: z.array(FlexibleRequirementSchema).optional().describe('List of education requirements.'),
+    experience: z.array(FlexibleRequirementSchema).optional().describe('List of experience requirements.'),
+    technicalSkills: z.array(FlexibleRequirementSchema).optional().describe('List of technical skill requirements.'),
+    softSkills: z.array(FlexibleRequirementSchema).optional().describe('List of soft skill requirements.'),
+    certifications: z.array(FlexibleRequirementSchema).optional().describe('List of certification requirements.'),
+    responsibilities: z.array(FlexibleRequirementSchema).optional().describe('List of responsibilities.'),
 });
 
 const prompt = ai.definePrompt({
@@ -67,7 +67,7 @@ const prompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
-First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
+First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available). The job code MUST be one of "OCN", "WEX", or "SAN". If the code in the document is more specific (e.g., "SAN05"), extract only the parent code ("SAN").
 
 Then, extract the key requirements. For each requirement, determine if it is a single item or a conditional "OR" group.
 
@@ -125,6 +125,19 @@ const extractJDCriteriaFlow = ai.defineFlow(
     if (!rawOutput) {
         throw new Error("JD Analysis failed to return a valid response.");
     }
+
+    // Enforce valid job code
+    const validJobCodes = ["OCN", "WEX", "SAN"];
+    let finalCode: string | undefined = undefined;
+    if (rawOutput.code) {
+        const uppercaseCode = rawOutput.code.toUpperCase();
+        const matchedCode = validJobCodes.find(c => uppercaseCode.startsWith(c));
+        if (matchedCode) {
+            finalCode = matchedCode;
+        }
+    }
+    rawOutput.code = finalCode;
+
 
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, ...rest } = rawOutput;
     
