@@ -138,6 +138,20 @@ const extractJDCriteriaFlow = ai.defineFlow(
     }
     rawOutput.code = finalCode;
 
+    // Validate for completeness - ensure at least two requirement categories are present
+    const categoryKeys: (keyof typeof rawOutput)[] = ['education', 'experience', 'technicalSkills', 'softSkills', 'certifications', 'responsibilities'];
+    const populatedCategoryCount = categoryKeys.reduce((count, key) => {
+        const category = rawOutput[key];
+        if (category && Array.isArray(category) && category.length > 0) {
+            return count + 1;
+        }
+        return count;
+    }, 0);
+
+    if (populatedCategoryCount < 2) {
+        throw new Error("JD Analysis failed: The AI returned an incomplete set of requirements. Please try again.");
+    }
+
 
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, ...rest } = rawOutput;
     
