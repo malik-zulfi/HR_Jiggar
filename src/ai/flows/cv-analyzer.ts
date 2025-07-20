@@ -202,24 +202,28 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     output.candidateScore = candidateScore;
     output.maxScore = maxScore;
 
-    const isDisqualified = output.alignmentDetails.some(detail =>
+    const missedMustHaves = output.alignmentDetails.some(detail =>
         detail.priority === 'MUST-HAVE' &&
         detail.status === 'Not Aligned'
     );
 
-    if (isDisqualified) {
-      output.recommendation = 'Not Recommended';
-      const disqualificationReason = 'Does not meet a critical MUST-HAVE requirement.';
-      if (!output.weaknesses.includes(disqualificationReason)) {
-           output.weaknesses.push(disqualificationReason);
-      }
+    if (output.alignmentScore >= 75) {
+        output.recommendation = 'Strongly Recommended';
+    } else if (output.alignmentScore >= 50) {
+        output.recommendation = 'Recommended with Reservations';
     } else {
-        if (output.alignmentScore >= 75) {
-            output.recommendation = 'Strongly Recommended';
-        } else if (output.alignmentScore >= 40) {
+        output.recommendation = 'Not Recommended';
+    }
+    
+    if (missedMustHaves) {
+        const reason = 'Does not meet one or more critical MUST-HAVE requirements.';
+        if (!output.weaknesses.includes(reason)) {
+            output.weaknesses.push(reason);
+        }
+        // If score is high but they missed a must-have, keep them as "Recommended with Reservations"
+        // instead of instant disqualification, unless the score is already low.
+        if (output.alignmentScore >= 50) {
             output.recommendation = 'Recommended with Reservations';
-        } else {
-            output.recommendation = 'Not Recommended';
         }
     }
     
