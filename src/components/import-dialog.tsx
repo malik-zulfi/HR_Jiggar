@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAppContext, type ImportedData, type ImportMode } from './client-provider';
-import type { AssessmentSession, CvDatabaseRecord } from '@/lib/types';
+import type { AssessmentSession, CvDatabaseRecord, SuitablePosition } from '@/lib/types';
 import { AlertCircle, ArrowRight, CheckCircle, FileUp, Database, GanttChartSquare, RefreshCw, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from './ui/card';
@@ -32,7 +32,7 @@ interface ImportDialogProps {
 
 export default function ImportDialog({ isOpen, onClose, importedData }: ImportDialogProps) {
     const { toast } = useToast();
-    const { history, cvDatabase, handleBulkImport } = useAppContext();
+    const { history, cvDatabase, suitablePositions, handleBulkImport } = useAppContext();
     const [step, setStep] = useState<'options' | 'conflicts' | 'summary'>('options');
     const [importMode, setImportMode] = useState<ImportMode>('append');
     
