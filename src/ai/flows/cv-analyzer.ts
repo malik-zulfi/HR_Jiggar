@@ -39,9 +39,7 @@ export async function analyzeCVAgainstJD(input: AnalyzeCVAgainstJDInput): Promis
 const DynamicCriteriaPromptInputSchema = z.object({
     formattedCriteria: z.string().describe('The dynamically ordered, formatted list of job description criteria.'),
     cv: z.string().describe('The CV to analyze.'),
-    candidateName: z.string().optional().describe("The candidate's full name, if already parsed."),
-    candidateEmail: z.string().optional().describe("The candidate's email, if already parsed."),
-    totalExperience: z.string().nullable().optional().describe("The candidate's pre-calculated total years of experience (e.g., '8.5 years'). Use this as the primary source of truth for all experience assessments."),
+    parsedCv: ParseCvOutputSchema.nullable().optional().describe('Optional pre-parsed CV data including education and experience dates for complex calculations.'),
 });
 
 // The prompt will only return the analysis part. Score and recommendation are calculated programmatically.
@@ -65,20 +63,26 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
+**Pre-Parsed CV Data (for reference):**
+This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
+{{{json parsedCv}}}
+
 **Analysis Steps:**
 
-1.  **Extract Key Details:** If the candidate's name and email are not provided, extract the full name and primary email address from the CV. Format the name in Title Case (e.g., "John Doe"). If you cannot find an email, return an empty string for the email field. If the name and email are provided, use them directly.
+1.  **Extract Key Details:** If the candidate's name and email are not provided in the parsed data, extract the full name and primary email address from the raw CV text. Format the name in Title Case (e.g., "John Doe"). If you cannot find an email, return an empty string for the email field. If the name and email are provided, use them directly.
 
 2.  **Assess Each Requirement:**
-    *   For each requirement in the job description criteria, assess the candidate's CV.
+    *   For each requirement in the job description criteria, assess the candidate's CV using the pre-parsed data as your primary source.
     *   Determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     *   Provide a brief justification for your assessment for each requirement, citing evidence from the CV.
 
 **Important Reasoning Rules:**
 
-*   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{totalExperience}}}' value as the primary source of truth. However, for requirements asking for experience in a **specific field** (e.g., "5 years in fire protection"), you MUST analyze the candidate's work history within the CV to calculate their experience *in that specific area only*. Your final alignment status MUST be based on this specific calculation.
-*   **Partial Alignment on Overall Experience:** If a candidate does not meet the years of experience for a specific **education or experience** requirement, but their **overall** total experience ('{{{totalExperience}}}') is greater than or equal to the required years, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate has less than the required 3 years of direct fire protection experience, their overall experience of 3.4 years meets the threshold."
-*   **Strict Experience Comparison:** If a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as **'Not Aligned'**.
+*   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{parsedCv.totalExperience}}}' value as the primary source of truth.
+*   **Handle Post-Graduation Experience:** For requirements specifying **post-graduation experience** (e.g., "10 years of post-graduation experience"), you MUST first identify the graduation date from the \`parsedCv.structuredContent.education\` section. Then, calculate the candidate's work experience starting *only from that date*. Your alignment status for this requirement MUST be based on this specific calculation.
+*   **Calculate Specific Field Experience:** For requirements asking for experience in a **specific field** (e.g., "5 years in fire protection"), you MUST analyze the candidate's work history within the \`parsedCv.structuredContent.experience\` to calculate their experience *in that specific area only*. Your final alignment status MUST be based on this specific calculation.
+*   **Partial Alignment on Overall Experience:** If a candidate does not meet the years of experience for a specific **education or experience** requirement, but their **overall** total experience ('{{{parsedCv.totalExperience}}}') is greater than or equal to the required years, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate has less than the required 3 years of direct fire protection experience, their overall experience of 3.4 years meets the threshold."
+*   **Strict Experience Comparison:** If a requirement is for a specific number of years (e.g., '8 years of experience'), and the candidate's total experience ('{{{parsedCv.totalExperience}}}') is less than the required number by *more than 3 months*, you MUST mark that requirement as **'Not Aligned'**.
 *   **Experience Gap Exception:** If the candidate's total experience is less than the required number but the gap is **3 months or less**, you should mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state the small gap (e.g., "Partially aligned, as they are only 2 months short of the required 5 years.").
 *   **Infer Qualifications:** If a candidate lists a higher-level degree (e.g., a Master's or PhD), you MUST assume they have completed the prerequisite lower-level degree (a Bachelor's), even if the Bachelor's degree is not explicitly listed in their CV.
 *   **Explicit "OR" Check for Education:** When an education requirement lists multiple degrees with "OR" (e.g., "Degree in A OR B"), you MUST check the CV for each degree option individually. If the candidate possesses **any one** of the listed degrees, you MUST mark the requirement as **'Aligned'**. Only mark it as 'Not Aligned' if you can confirm none of the options are met.
@@ -93,7 +97,7 @@ Based on your detailed analysis, provide an overall alignment summary, a list of
 Job Description Criteria:
 {{{formattedCriteria}}}
 
-CV:
+Raw CV Text (for fallback text extraction if needed):
 {{{cv}}}
 `,
 });
@@ -124,9 +128,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
         formattedCriteria: jobDescriptionCriteria.formattedCriteria,
         cv,
-        candidateName: parsedCv?.name,
-        candidateEmail: parsedCv?.email,
-        totalExperience: parsedCv?.totalExperience,
+        parsedCv,
     }));
 
     if (!partialOutput || !partialOutput.candidateName) {

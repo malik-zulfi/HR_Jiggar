@@ -44,7 +44,7 @@ const prompt = ai.definePrompt({
 5.  **Structured Content**:
     *   **Summary**: Extract the professional summary or objective statement.
     *   **Experience**: Detail each work experience with job title, company, dates, and a list of responsibilities/achievements.
-    *   **Education**: List all educational qualifications with degree, institution, and year of completion or attendance dates.
+    *   **Education**: List all educational qualifications with degree, institution, and the year of completion or attendance dates. It is critical to capture the dates for each entry.
     *   **Skills**: Consolidate all technical and soft skills into a single list.
     *   **Projects**: If any projects are listed, extract their name, description, and technologies used. You MUST ensure that each project listed in the output is unique; do not include duplicate project entries.
 
