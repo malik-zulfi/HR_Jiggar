@@ -156,12 +156,18 @@ function AssessmentPage() {
 
         // First, parse all CVs to update the central database. This remains a parallel process.
         await Promise.all(candidatesToProcess.map(async (cvFile) => {
-            if (jobCode) {
+            let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
+
+            if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
+            else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
+            else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
+
+            if (recordJobCode) {
                 try {
                     const parsedData = await parseCv({ cvText: cvFile.content });
                     const dbRecord: CvDatabaseRecord = {
                         ...parsedData,
-                        jobCode: jobCode as 'OCN' | 'WEX' | 'SAN',
+                        jobCode: recordJobCode,
                         cvFileName: cvFile.name,
                         cvContent: cvFile.content,
                         createdAt: new Date().toISOString(),
@@ -777,10 +783,10 @@ function AssessmentPage() {
               ) : (
                 <Card>
                     <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Briefcase /> Start a New Assessment</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-base"><Briefcase /> Start a New Assessment</CardTitle>
                     <CardDescription>Upload or drop a Job Description (JD) file below to begin analysis.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-4">
                     <FileUploader
                         id="jd-uploader"
                         label="Job Description"
@@ -794,10 +800,10 @@ function AssessmentPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><History /> Past Assessments</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-base"><History /> Past Assessments</CardTitle>
                   <CardDescription>Select a past assessment to view or continue working on it.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4">
                   <div className="relative mb-4">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input 
@@ -814,7 +820,7 @@ function AssessmentPage() {
                         className="hover:shadow-md hover:border-primary/50 transition-all cursor-pointer flex flex-col"
                         onClick={() => setActiveSessionId(session.id)}
                       >
-                        <CardHeader className="flex-1">
+                        <CardHeader className="flex-1 p-4">
                           <CardTitle className="text-base truncate">
                             {session.analyzedJd.positionNumber ? `${session.analyzedJd.positionNumber} - ` : ''}
                             {session.analyzedJd.jobTitle || session.jdName}
@@ -864,7 +870,7 @@ function AssessmentPage() {
                         <CardTitle className="flex items-center gap-2 text-base"><UserPlus /> Step 2: Add Candidates</CardTitle>
                         <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-4">
                         <div className="grid md:grid-cols-2 gap-6 items-start">
                             <FileUploader
                                 key={cvResetKey}
@@ -931,7 +937,7 @@ function AssessmentPage() {
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-4">
                           {(reassessStatusList || newCvStatusList) && (
                               <div className="mb-4">
                                   <ProgressLoader
@@ -968,7 +974,7 @@ function AssessmentPage() {
                               <CardTitle className="flex items-center gap-2 text-base"><Lightbulb /> Step 4: Generate Summary</CardTitle>
                               <CardDescription>Create a summary report of all assessed candidates with a suggested interview strategy.</CardDescription>
                           </CardHeader>
-                          <CardContent>
+                          <CardContent className="p-4">
                               {summaryProgress ? (
                                   <ProgressLoader
                                       title="Generating Summary..."
