@@ -11,7 +11,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from '@/lib/utils';
 import type { SuitablePosition } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useAppContext } from './client-provider';
+import { useAppContext, type ImportedData } from './client-provider';
+import ImportDialog from './import-dialog';
 
 const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
@@ -31,6 +32,8 @@ export function Header({
     const pathname = usePathname();
     const importInputRef = useRef<HTMLInputElement>(null);
     const { suitablePositions, runGlobalRelevanceCheck, manualCheckStatus } = useAppContext();
+    const [isImporting, setIsImporting] = useState(false);
+    const [importedData, setImportedData] = useState<ImportedData | null>(null);
 
     const currentPage = activePage || (pathname.includes('assessment') ? 'assessment' : pathname.includes('database') ? 'cv-database' : pathname.includes('notifications') ? 'notifications' : 'dashboard');
 
@@ -76,7 +79,7 @@ export function Header({
         importInputRef.current?.click();
     };
 
-    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -87,20 +90,17 @@ export function Header({
                 if (typeof text !== 'string') {
                     throw new Error("File could not be read.");
                 }
-                const importedData = JSON.parse(text);
+                const data = JSON.parse(text);
                 
-                if (importedData.history && Array.isArray(importedData.history)) {
-                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(importedData.history));
-                }
-                if (importedData.cvDatabase && Array.isArray(importedData.cvDatabase)) {
-                    localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(importedData.cvDatabase));
-                }
-                if (importedData.suitablePositions && Array.isArray(importedData.suitablePositions)) {
-                    localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(importedData.suitablePositions));
-                }
-
-                toast({ title: "Import Successful", description: "Data has been imported. The page will now reload." });
-                setTimeout(() => window.location.reload(), 2000);
+                // Basic validation
+                const validatedData: ImportedData = {
+                    history: Array.isArray(data.history) ? data.history : [],
+                    cvDatabase: Array.isArray(data.cvDatabase) ? data.cvDatabase : [],
+                    suitablePositions: Array.isArray(data.suitablePositions) ? data.suitablePositions : []
+                };
+                
+                setImportedData(validatedData);
+                setIsImporting(true);
 
             } catch (error) {
                 console.error("Import failed:", error);
@@ -108,9 +108,20 @@ export function Header({
             }
         };
         reader.readAsText(file);
+        
+        // Reset file input to allow re-uploading the same file
+        if (event.target) {
+            event.target.value = "";
+        }
     };
 
+    const closeImportDialog = () => {
+        setIsImporting(false);
+        setImportedData(null);
+    }
+
   return (
+    <>
     <header className="p-2 border-b bg-card sticky top-0 z-20">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -197,7 +208,7 @@ export function Header({
                                       ref={importInputRef}
                                       className="hidden"
                                       accept="application/json"
-                                      onChange={handleImport}
+                                      onChange={handleFileSelect}
                                     />
                                     <Button variant="outline" className="w-full" onClick={handleExport}>
                                         <Download className="mr-2 h-4 w-4" /> Export
@@ -232,5 +243,11 @@ export function Header({
 
       </div>
     </header>
+    <ImportDialog
+        isOpen={isImporting}
+        onClose={closeImportDialog}
+        importedData={importedData}
+    />
+    </>
   );
 }

@@ -14,6 +14,13 @@ const LOCAL_STORAGE_KEY = 'jiggar-history';
 const CV_DB_STORAGE_KEY = 'jiggar-cv-database';
 const SUITABLE_POSITIONS_KEY = 'jiggar-suitable-positions';
 
+export type ImportMode = 'replace' | 'append';
+export type ImportedData = {
+    history: AssessmentSession[];
+    cvDatabase: CvDatabaseRecord[];
+    suitablePositions: SuitablePosition[];
+};
+
 interface AppContextType {
   history: AssessmentSession[];
   setHistory: React.Dispatch<React.SetStateAction<AssessmentSession[]>>;
@@ -23,6 +30,7 @@ interface AppContextType {
   setSuitablePositions: React.Dispatch<React.SetStateAction<SuitablePosition[]>>;
   runGlobalRelevanceCheck: () => Promise<void>;
   manualCheckStatus: 'idle' | 'loading' | 'done';
+  handleBulkImport: (data: ImportedData, mode: ImportMode) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -110,6 +118,38 @@ export function ClientProvider({
     }
   }, [suitablePositions, isLoading]);
   
+  const handleBulkImport = useCallback((data: ImportedData, mode: ImportMode) => {
+    if (mode === 'replace') {
+      setHistory(data.history || []);
+      setCvDatabase(data.cvDatabase || []);
+      setSuitablePositions(data.suitablePositions || []);
+      toast({ title: 'Import Complete', description: 'All data has been replaced.' });
+      return;
+    }
+
+    if (mode === 'append') {
+      // Append History
+      setHistory(prev => {
+        const existingIds = new Set(prev.map(s => s.id));
+        const newHistory = data.history.filter(s => !existingIds.has(s.id));
+        return [...prev, ...newHistory];
+      });
+      // Append CV Database
+      setCvDatabase(prev => {
+        const existingEmails = new Set(prev.map(c => c.email));
+        const newCvs = data.cvDatabase.filter(c => !existingEmails.has(c.email));
+        return [...prev, ...newCvs];
+      });
+      // Append Suitable Positions
+      setSuitablePositions(prev => {
+        const existingKeys = new Set(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+        const newPositions = data.suitablePositions.filter(p => !existingKeys.has(`${p.candidateEmail}-${p.assessment.id}`));
+        return [...prev, ...newPositions];
+      });
+      toast({ title: 'Import Complete', description: 'New data has been appended.' });
+    }
+  }, [toast]);
+  
   const runGlobalRelevanceCheck = useCallback(async () => {
     if (history.length === 0 || cvDatabase.length === 0) {
         toast({ variant: 'destructive', title: "Cannot Run Check", description: "There are no jobs or candidates to check." });
@@ -165,6 +205,7 @@ export function ClientProvider({
     setSuitablePositions,
     runGlobalRelevanceCheck,
     manualCheckStatus,
+    handleBulkImport,
   };
 
   if (isLoading) {
