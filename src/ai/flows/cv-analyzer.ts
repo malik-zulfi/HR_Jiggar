@@ -202,11 +202,6 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     output.candidateScore = candidateScore;
     output.maxScore = maxScore;
 
-    const missedMustHaves = output.alignmentDetails.some(detail =>
-        detail.priority === 'MUST-HAVE' &&
-        detail.status === 'Not Aligned'
-    );
-
     if (output.alignmentScore >= 75) {
         output.recommendation = 'Strongly Recommended';
     } else if (output.alignmentScore >= 50) {
@@ -214,16 +209,32 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     } else {
         output.recommendation = 'Not Recommended';
     }
-    
-    if (missedMustHaves) {
-        const reason = 'Does not meet one or more critical MUST-HAVE requirements.';
+
+    const missedCoreRequirement = output.alignmentDetails.some(detail =>
+        detail.priority === 'MUST-HAVE' &&
+        detail.status === 'Not Aligned' &&
+        (detail.category === 'Education' || detail.category === 'Experience')
+    );
+
+    if (missedCoreRequirement) {
+        output.recommendation = 'Not Recommended';
+        const reason = 'Does not meet a core MUST-HAVE requirement in Education or Experience.';
         if (!output.weaknesses.includes(reason)) {
             output.weaknesses.push(reason);
         }
-        // If score is high but they missed a must-have, keep them as "Recommended with Reservations"
-        // instead of instant disqualification, unless the score is already low.
-        if (output.alignmentScore >= 50) {
-            output.recommendation = 'Recommended with Reservations';
+    } else {
+        const missedAnyMustHave = output.alignmentDetails.some(detail =>
+            detail.priority === 'MUST-HAVE' && detail.status === 'Not Aligned'
+        );
+
+        if (missedAnyMustHave) {
+            const reason = 'Does not meet one or more critical MUST-HAVE requirements.';
+            if (!output.weaknesses.includes(reason)) {
+                output.weaknesses.push(reason);
+            }
+            if (output.alignmentScore >= 50) {
+                output.recommendation = 'Recommended with Reservations';
+            }
         }
     }
     
