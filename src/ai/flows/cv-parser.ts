@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Parses a CV to extract key information and structure its content.
@@ -43,7 +44,7 @@ const prompt = ai.definePrompt({
 5.  **Structured Content**:
     *   **Summary**: Extract the professional summary or objective statement.
     *   **Experience**: Detail each work experience with job title, company, dates, and a list of responsibilities/achievements.
-    *   **Education**: List all educational qualifications with degree, institution, and dates.
+    *   **Education**: List all educational qualifications with degree, institution, and year of completion or attendance dates.
     *   **Skills**: Consolidate all technical and soft skills into a single list.
     *   **Projects**: If any projects are listed, extract their name, description, and technologies used. You MUST ensure that each project listed in the output is unique; do not include duplicate project entries.
 
