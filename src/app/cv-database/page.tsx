@@ -216,8 +216,8 @@ export default function CvDatabasePage() {
             
             if (allNewPositions.length > 0) {
                 setSuitablePositions(prev => {
-                    const existingMap = new Map(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
-                    const uniqueNewPositions = allNewPositions.filter(p => !existingMap.has(`${p.candidateEmail}-${p.assessment.id}`));
+                    const existingSet = new Set(prev.map(p => `${p.candidateEmail}-${p.assessment.id}`));
+                    const uniqueNewPositions = allNewPositions.filter(p => !existingSet.has(`${p.candidateEmail}-${p.assessment.id}`));
                     return [...prev, ...uniqueNewPositions];
                 });
                 toast({
