@@ -49,7 +49,7 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     processingTime: true,
     candidateScore: true,
     maxScore: true,
-    totalExperience: true, // This is now handled programmatically
+    totalExperience: true,
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -66,7 +66,8 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 **Pre-Parsed CV Data (for reference):**
 This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
 The candidate's total experience has been pre-calculated for you. You MUST use this value. Do NOT re-calculate it.
-{{{json parsedCv}}}
+Total calculated experience: {{{parsedCv.totalExperience}}}
+Full parsed data: {{{json parsedCv}}}
 
 **Analysis Steps:**
 
@@ -144,6 +145,23 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         }
     }
     
+    // Programmatically override experience justifications to use the calculated value.
+    if (parsedCv?.totalExperience && partialOutput?.alignmentDetails) {
+      partialOutput.alignmentDetails.forEach(detail => {
+        if (detail.category === 'Experience') {
+          // Regex to find phrases like "X years of experience" in the justification.
+          const experienceRegex = /(\d+(\.\d+)?\+?)\s*years?/i;
+          if (experienceRegex.test(detail.justification)) {
+            // Replace the AI's potentially incorrect text with the factual, calculated value.
+            detail.justification = detail.justification.replace(
+              experienceRegex,
+              `a calculated total of ${parsedCv.totalExperience}`
+            );
+          }
+        }
+      });
+    }
+
     const output: AnalyzeCVAgainstJDOutput = {
         ...partialOutput,
         candidateName: toTitleCase(partialOutput.candidateName),
