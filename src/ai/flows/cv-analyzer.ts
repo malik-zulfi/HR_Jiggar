@@ -49,7 +49,7 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     processingTime: true,
     candidateScore: true,
     maxScore: true,
-    totalExperience: true,
+    totalExperience: true, // This is now handled programmatically
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -65,6 +65,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 
 **Pre-Parsed CV Data (for reference):**
 This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
+The candidate's total experience has been pre-calculated for you. You MUST use this value. Do NOT re-calculate it.
 {{{json parsedCv}}}
 
 **Analysis Steps:**
@@ -78,7 +79,7 @@ This data provides a structured view of the candidate's CV, including education 
 
 **Important Reasoning Rules:**
 
-*   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{parsedCv.totalExperience}}}' value as the primary source of truth.
+*   **Differentiate Total vs. Specific Experience:** For **general** experience requirements (e.g., "8 years of professional experience"), you MUST use the provided '{{{parsedCv.totalExperience}}}' value from the pre-parsed JSON as the primary source of truth.
 *   **Handle Post-Graduation Experience:** For requirements specifying **post-graduation experience** (e.g., "10 years of post-graduation experience"), you MUST first identify the graduation date from the \`parsedCv.structuredContent.education\` section. Then, calculate the candidate's work experience starting *only from that date*. Your alignment status for this requirement MUST be based on this specific calculation.
 *   **Calculate Specific Field Experience:** For requirements asking for experience in a **specific field** (e.g., "5 years in fire protection"), you MUST analyze the candidate's work history within the \`parsedCv.structuredContent.experience\` to calculate their experience *in that specific area only*. Your final alignment status MUST be based on this specific calculation.
 *   **Partial Alignment on Overall Experience:** If a candidate does not meet the years of experience for a specific **education or experience** requirement, but their **overall** total experience ('{{{parsedCv.totalExperience}}}') is greater than or equal to the required years, you MUST mark that requirement as **'Partially Aligned'**. Your justification MUST clearly state this, for example: "Partially aligned. While the candidate has less than the required 3 years of direct fire protection experience, their overall experience of 3.4 years meets the threshold."
