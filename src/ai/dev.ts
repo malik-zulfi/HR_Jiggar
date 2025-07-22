@@ -10,6 +10,5 @@ import '@/ai/flows/name-extractor.ts';
 import '@/ai/flows/query-knowledge-base.ts';
 import '@/ai/flows/cv-parser.ts';
 import '@/ai/flows/find-suitable-positions.ts';
-import '@/ai/flows/bulk-cv-analyzer.ts';
 
     

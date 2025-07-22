@@ -13,7 +13,6 @@ import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, Refres
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, AnalyzeCVAgainstJDOutput } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
-import { bulkAnalyzeCVs } from "@/ai/flows/bulk-cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
 import { summarizeCandidateAssessments } from "@/ai/flows/candidate-summarizer";
 import { parseCv } from "@/ai/flows/cv-parser";
@@ -449,62 +448,52 @@ function AssessmentPage() {
       return acc;
     }, {} as ReassessStatus);
     setReassessStatus(initialStatus);
+    let updatedCandidates: CandidateRecord[] = [];
+    let successCount = 0;
 
     try {
       toast({ description: `Re-assessing ${candidatesToReassess.length} candidate(s)...` });
       
-      const bulkInput = {
-        jobDescriptionCriteria: jd,
-        candidates: candidatesToReassess.map(c => ({ fileName: c.cvName, cv: c.cvContent })),
-      };
-      
-      const bulkResults = await bulkAnalyzeCVs(bulkInput);
-
-      const updatedCandidatesMap = new Map<string, CandidateRecord>();
-
-      for (const result of bulkResults.results) {
-        const originalCandidate = candidatesToReassess.find(c => c.cvName === result.fileName);
-        if (!originalCandidate) continue;
-
-        if (result.analysis) {
-          updatedCandidatesMap.set(originalCandidate.analysis.candidateName, {
-            ...originalCandidate,
-            analysis: result.analysis,
-            isStale: false,
-          });
-          setReassessStatus(prev => ({
-            ...prev,
-            [originalCandidate.analysis.candidateName]: { ...prev[originalCandidate.analysis.candidateName], status: 'done' }
-          }));
-        } else {
-          updatedCandidatesMap.set(originalCandidate.analysis.candidateName, originalCandidate); // Keep old version on error
-          console.error(`Error re-assessing CV for ${originalCandidate.analysis.candidateName}:`, result.error);
-          toast({
-            variant: "destructive",
-            title: `Re-assessment Failed for ${originalCandidate.analysis.candidateName}`,
-            description: result.error || "An unexpected error occurred. Please check the console.",
-          });
-          setReassessStatus(prev => ({
-            ...prev,
-            [originalCandidate.analysis.candidateName]: { ...prev[originalCandidate.analysis.candidateName], status: 'error' }
-          }));
-        }
+      for (const candidate of candidatesToReassess) {
+          try {
+              const analysis = await analyzeCVAgainstJD({
+                  jobDescriptionCriteria: jd,
+                  cv: candidate.cvContent,
+                  parsedCv: null, // Assuming we might not have the full DB record here easily
+              });
+              updatedCandidates.push({
+                  ...candidate,
+                  analysis,
+                  isStale: false,
+              });
+              setReassessStatus(prev => ({
+                  ...prev,
+                  [candidate.analysis.candidateName]: { ...prev[candidate.analysis.candidateName], status: 'done' }
+              }));
+              successCount++;
+          } catch(error: any) {
+               console.error(`Error re-assessing CV for ${candidate.analysis.candidateName}:`, error);
+                toast({
+                    variant: "destructive",
+                    title: `Re-assessment Failed for ${candidate.analysis.candidateName}`,
+                    description: error.message || "An unexpected error occurred. Please check the console.",
+                });
+                setReassessStatus(prev => ({
+                    ...prev,
+                    [candidate.analysis.candidateName]: { ...prev[candidate.analysis.candidateName], status: 'error' }
+                }));
+                updatedCandidates.push(candidate);
+          }
       }
 
       setHistory(prev =>
         prev.map(s => {
           if (s.id === activeSessionId) {
-            const newFullCandidateList = s.candidates.map(candidate => {
-              const updatedVersion = updatedCandidatesMap.get(candidate.analysis.candidateName);
-              if (updatedVersion) {
-                return updatedVersion;
-              }
-              if (isPartialReassess) {
-                return { ...candidate, isStale: true };
-              }
-              return candidate;
-            });
-
+            const updatedCandidatesMap = new Map(updatedCandidates.map(c => [c.analysis.candidateName, c]));
+            const newFullCandidateList = s.candidates.map(candidate => 
+                updatedCandidatesMap.get(candidate.analysis.candidateName) || candidate
+            );
+            
             newFullCandidateList.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
 
             return {
@@ -516,8 +505,9 @@ function AssessmentPage() {
           return s;
         })
       );
-
-      toast({ description: "Candidates have been re-assessed." });
+      if (successCount > 0) {
+        toast({ description: "Candidates have been re-assessed." });
+      }
     } catch (error: any) {
       console.error("Error re-assessing CVs:", error);
       toast({ variant: "destructive", title: "Re-assessment Error", description: error.message || "An unexpected error occurred." });
@@ -1113,5 +1103,3 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
-
-    
