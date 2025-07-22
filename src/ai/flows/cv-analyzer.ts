@@ -84,12 +84,15 @@ The candidate's total experience has been pre-calculated for you. You MUST use t
 {{{json parsedCv}}}
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 >>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
 =======
 >>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 >>>>>>> 67199ea64578c601c897c82462f6a39a442b7a65
+=======
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 
 **Analysis Steps:**
 
@@ -233,10 +236,13 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     }
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
     if (!candidateName) {
         throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
 =======
+=======
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 =======
 >>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
     
