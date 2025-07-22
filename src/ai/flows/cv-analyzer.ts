@@ -63,10 +63,23 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+**Primary Data Source:**
+You have been given pre-parsed JSON data from the CV. You MUST use this structured data as your primary source for analysis, especially for experience and education details. The candidate's total experience has been pre-calculated for you; use the value from the JSON.
+- Pre-parsed CV JSON: {{{json parsedCv}}}
+- Raw CV Text (for context and fallback): {{{cv}}}
+=======
+>>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
 **Pre-Parsed CV Data (for reference):**
 This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
 The candidate's total experience has been pre-calculated for you. You MUST use this value. Do NOT re-calculate it.
 {{{json parsedCv}}}
+<<<<<<< HEAD
+=======
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
+>>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
 
 **Analysis Steps:**
 
@@ -161,6 +174,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   async input => {
     const startTime = Date.now();
     
+<<<<<<< HEAD
     // Ensure candidate name exists, using a fallback if necessary.
     let candidateName = input.parsedCv?.name;
     if (!candidateName) {
@@ -171,6 +185,38 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
             console.error("Could not extract candidate name as a fallback.", nameError);
             // Proceed without a name if fallback fails, the prompt might still succeed.
         }
+=======
+    const {output: partialOutput} = await withRetry(() => analyzeCVAgainstJDPrompt({
+        formattedCriteria: jobDescriptionCriteria.formattedCriteria,
+        cv,
+        parsedCv,
+    }));
+
+<<<<<<< HEAD
+    if (!partialOutput) {
+        throw new Error("CV analysis failed to return a valid response.");
+    }
+
+    if (!partialOutput.candidateName) {
+        const fallbackName = await extractCandidateName({ cvText: cv });
+        if (!fallbackName.candidateName) {
+            // If we still can't get a name, we have to fail.
+            throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
+        }
+        partialOutput.candidateName = fallbackName.candidateName;
+=======
+    if (!partialOutput || !partialOutput.candidateName) {
+        const fallbackName = await extractCandidateName({ cvText: cv });
+        if (!fallbackName.candidateName) {
+            throw new Error("CV analysis failed: Could not determine the candidate's name.");
+        }
+        if(partialOutput) {
+            partialOutput.candidateName = fallbackName.candidateName;
+        } else {
+             throw new Error("CV analysis failed to return a valid partial response.");
+        }
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
+>>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
     }
 <<<<<<< HEAD
 <<<<<<< HEAD
