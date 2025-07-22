@@ -26,7 +26,7 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
         cv: candidate.cv,
         // We pass null for parsedCv here as this bulk flow focuses on analysis.
         // The single-entry point in the UI will still handle parsing for the DB.
-        parsedCv: null,
+        parsedCv: null, 
       });
       results.push({
         fileName: candidate.fileName,

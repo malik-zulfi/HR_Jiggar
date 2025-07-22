@@ -100,7 +100,7 @@ const summaryAndProbesPrompt = ai.definePrompt({
 3.  A list of the candidate's 'weaknesses'.
 4.  A list of 2-3 targeted 'interviewProbes' to explore weak areas.
 
-When evaluating experience, the candidate's total experience is officially calculated as: {{{totalExperience}}}. Use this value as the source of truth if a justification mentions years of experience.
+**Important Rule:** When evaluating experience, the candidate's total experience is officially calculated as: {{{totalExperience}}}. You MUST use this value as the single source of truth for the candidate's overall experience. Do not re-calculate it.
 
 Detailed Analysis:
 {{#each alignmentDetails}}
@@ -137,6 +137,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     }
     
     if (!candidateName) {
+        // Instead of throwing an error, we can proceed with a placeholder if needed,
+        // but for this app, a name is critical for display.
+        // Let's throw, but this can be changed if needed.
         throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
     }
     
@@ -190,21 +193,12 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         candidateScore += awardedPoints;
         maxScore += basePoints;
         
-        let finalJustification = analysisResult.justification;
-        // Override experience justifications to ensure consistency
-        if (category === 'Experience' && parsedCv?.totalExperience) {
-            const yearsRegex = /(\d+(\.\d+)?\+?)\s*years?/i;
-            if (yearsRegex.test(finalJustification)) {
-                finalJustification = finalJustification.replace(yearsRegex, `${parsedCv.totalExperience} (calculated total)`);
-            }
-        }
-
         alignmentDetails.push({
             category,
             requirement: reqDescription,
             priority: reqPriority,
             status: analysisResult.status,
-            justification: finalJustification,
+            justification: analysisResult.justification,
             score: awardedPoints,
             maxScore: basePoints,
         });
@@ -231,7 +225,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
 
     const missedCoreRequirement = alignmentDetails.some(detail =>
         detail.priority === 'MUST-HAVE' &&
-        detail.status !== 'Aligned' &&
+        detail.status !== 'Aligned' && 
         detail.status !== 'Partially Aligned' &&
         (detail.category === 'Education' || detail.category === 'Experience')
     );
