@@ -98,7 +98,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     }
     
     // Programmatic recommendation logic
-    let recommendation: AnalyzeCVAgainstJDOutput['recommendation'] = 'Recommended with Reservations';
+    let recommendation: AnalyzeCVAgainstJDOutput['recommendation'];
     
     const missedMustHaveCore = aiAnalysis.alignmentDetails.some(detail =>
       (detail.category === 'Experience' || detail.category === 'Education') &&
@@ -110,24 +110,8 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         recommendation = 'Not Recommended';
     } else if (aiAnalysis.alignmentScore >= 85) {
         recommendation = 'Strongly Recommended';
-    } else if (aiAnalysis.alignmentScore < 70) {
+    } else {
         recommendation = 'Recommended with Reservations';
-    } else { // Scores between 70 and 84.9
-        // If there are significant weaknesses or partially aligned MUST-HAVEs, recommend with reservations. Otherwise, recommend.
-        // For now, to match the schema, we will set this tier to "Recommended with Reservations" as well.
-        // A more nuanced recommendation would be to add "Recommended" to the schema.
-        // For now, let's keep it simple and align with the existing schema.
-        const significantWeaknesses = aiAnalysis.alignmentDetails.some(detail =>
-            detail.priority === 'MUST-HAVE' && (detail.status === 'Partially Aligned' || detail.status === 'Not Aligned')
-        );
-
-        if (significantWeaknesses) {
-             recommendation = 'Recommended with Reservations';
-        } else {
-            // Defaulting to "Recommended with Reservations" for this tier to match the strict schema.
-            // "Recommended" was causing a validation error.
-            recommendation = 'Recommended with Reservations';
-        }
     }
     
     const endTime = Date.now();
