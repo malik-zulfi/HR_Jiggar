@@ -16,7 +16,11 @@ import {
   ExtractJDCriteriaOutputSchema,
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
-  ParseCvOutputSchema
+  type Requirement,
+  type RequirementGroup,
+  ParseCvOutputSchema,
+  AlignmentDetailSchema,
+  type AlignmentDetail,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 import { extractCandidateName } from './name-extractor';
@@ -44,44 +48,73 @@ function toTitleCase(str: string): string {
     .join(' ');
 }
 
+function isRequirementGroup(item: Requirement | RequirementGroup): item is RequirementGroup {
+    return 'groupType' in item;
+}
 
-const analyzeCVAgainstJDPrompt = ai.definePrompt({
-  name: 'analyzeCVAgainstJDPrompt',
-  input: {schema: AnalyzeCVAgainstJDInputSchema},
-  output: {schema: AnalyzeCVAgainstJDOutputSchema},
-  config: { temperature: 0.1 },
-  prompt: `You are an expert recruitment assistant. Your task is to analyze a candidate's CV against a structured Job Description (JD) and produce a detailed JSON output.
+const SingleRequirementAnalysisInputSchema = z.object({
+    requirement: z.string(),
+    category: z.string(),
+    cv: z.string(),
+});
 
-**Important Reasoning Rules:**
-1.  **Candidate Name**: If the candidate's name is provided in the \`parsedCv\` object, you MUST use it. Otherwise, extract it from the CV text. Format it in Title Case.
-2.  **Experience Source of Truth**: If a pre-calculated \`totalExperience\` value is provided in \`parsedCv\`, you MUST use that value. Do NOT recalculate it.
-3.  **Post-Graduation Experience**: If a JD requirement specifies "post-graduation" experience, you MUST find the candidate's graduation date from the parsed education history and calculate their experience from that date forward to evaluate the requirement.
-4.  **Scoring**:
-    *   Iterate through every requirement in the \`jobDescriptionCriteria\`.
-    *   For each requirement, determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
-    *   Calculate the awarded points: 'Aligned' gets the full score, 'Partially Aligned' gets half, and the rest get zero.
-    *   Sum these to get the \`candidateScore\`. The \`maxScore\` is the sum of all possible requirement scores.
-    *   The final \`alignmentScore\` is \`(candidateScore / maxScore) * 100\`, rounded to the nearest integer.
-5.  **Recommendation Logic**:
-    *   Score >= 75%: "Strongly Recommended"
-    *   Score >= 50%: "Recommended with Reservations"
-    *   Score < 50%: "Not Recommended"
-    *   **Override**: If a candidate misses a MUST-HAVE requirement in Education or Experience, they are "Not Recommended". If they miss any other MUST-HAVE, they are "Recommended with Reservations" unless their score is high enough to make them "Strongly Recommended". Add this reason to the 'weaknesses' list.
-6.  **Summaries**: Generate a concise overall \`alignmentSummary\`, a list of key \`strengths\`, a list of specific \`weaknesses\`, and 2-3 targeted \`interviewProbes\` to explore the weaknesses.
+const SingleRequirementAnalysisOutputSchema = z.object({
+    status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']),
+    justification: z.string(),
+});
 
-**Job Description Criteria (JSON):**
-{{{json jobDescriptionCriteria}}}
+const singleRequirementAnalysisPrompt = ai.definePrompt({
+    name: 'singleRequirementAnalysisPrompt',
+    input: { schema: SingleRequirementAnalysisInputSchema },
+    output: { schema: SingleRequirementAnalysisOutputSchema },
+    config: { temperature: 0.0 },
+    prompt: `You are a single-task CV analyzer. Your job is to determine if the given CV meets one specific requirement.
+- CV Content: {{{cv}}}
+- Requirement Category: {{{category}}}
+- Requirement: "{{{requirement}}}"
 
-**Parsed CV Data (if available):**
-{{{json parsedCv}}}
+Analyze the CV and determine if the candidate is 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned' for this single requirement. Provide a brief justification based on the CV.`,
+});
 
-**Full CV Text:**
+const SummaryAndProbesInputSchema = z.object({
+    alignmentDetails: z.array(AlignmentDetailSchema),
+    cv: z.string(),
+    totalExperience: z.string().nullable().optional(),
+});
+
+const SummaryAndProbesOutputSchema = z.object({
+    alignmentSummary: z.string(),
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+    interviewProbes: z.array(z.string()),
+});
+
+const summaryAndProbesPrompt = ai.definePrompt({
+    name: 'summaryAndProbesPrompt',
+    input: { schema: SummaryAndProbesInputSchema },
+    output: { schema: SummaryAndProbesOutputSchema },
+    config: { temperature: 0.1 },
+    prompt: `You are a recruitment summary specialist. Based on the detailed requirement analysis provided below, please generate:
+1.  A concise overall 'alignmentSummary'.
+2.  A list of the candidate's key 'strengths'.
+3.  A list of the candidate's 'weaknesses'.
+4.  A list of 2-3 targeted 'interviewProbes' to explore weak areas.
+
+When evaluating experience, the candidate's total experience is officially calculated as: {{{totalExperience}}}. Use this value as the source of truth if a justification mentions years of experience.
+
+Detailed Analysis:
+{{#each alignmentDetails}}
+- Requirement: {{this.requirement}}
+  Status: {{this.status}}
+  Justification: {{this.justification}}
+{{/each}}
+
+CV for additional context:
 {{{cv}}}
-
-Produce a valid JSON object matching the output schema.
 `,
 });
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const analyzeCVAgainstJDFlow = ai.defineFlow(
   {
@@ -91,12 +124,12 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   },
   async input => {
     const startTime = Date.now();
+    const { jobDescriptionCriteria, cv, parsedCv } = input;
     
-    // Ensure there's a name, either from parsed data or by extraction.
-    let candidateName = input.parsedCv?.name || '';
+    let candidateName = parsedCv?.name || '';
     if (!candidateName) {
         try {
-            const fallbackName = await extractCandidateName({ cvText: input.cv });
+            const fallbackName = await extractCandidateName({ cvText: cv });
             candidateName = fallbackName.candidateName;
         } catch (nameError) {
              console.error("Could not extract candidate name as a fallback.", nameError);
@@ -106,25 +139,144 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     if (!candidateName) {
         throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
     }
-
-    const { output } = await withRetry(() => analyzeCVAgainstJDPrompt(input));
     
-    if (!output) {
-        throw new Error("CV analysis failed: The AI returned an invalid response.");
+    const allJdRequirements = [
+        ...(jobDescriptionCriteria.education || []).map(r => ({ ...r, category: 'Education' })),
+        ...(jobDescriptionCriteria.experience || []).map(r => ({ ...r, category: 'Experience' })),
+        ...(jobDescriptionCriteria.technicalSkills || []).map(r => ({ ...r, category: 'Technical Skill' })),
+        ...(jobDescriptionCriteria.softSkills || []).map(r => ({ ...r, category: 'Soft Skill' })),
+        ...(jobDescriptionCriteria.certifications || []).map(r => ({ ...r, category: 'Certification' })),
+        ...(jobDescriptionCriteria.responsibilities || []).map(r => ({ ...r, category: 'Responsibility' })),
+        ...(jobDescriptionCriteria.additionalRequirements || []).map(r => ({ ...r, category: 'Additional Requirement' })),
+    ];
+    
+    const alignmentDetails: AlignmentDetail[] = [];
+    let maxScore = 0;
+    let candidateScore = 0;
+
+    for (const req of allJdRequirements) {
+        // Add a delay here to avoid hitting the API rate limit
+        await delay(1000); 
+
+        let reqDescription: string;
+        let reqPriority: 'MUST-HAVE' | 'NICE-TO-HAVE';
+        let basePoints: number;
+        let category: string = req.category;
+
+        if (isRequirementGroup(req)) {
+            reqDescription = req.requirements.map(r => r.description).join(' OR ');
+            reqPriority = req.requirements.some(r => r.priority === 'MUST-HAVE') ? 'MUST-HAVE' : 'NICE-TO-HAVE';
+            basePoints = req.requirements.reduce((max, r) => Math.max(max, r.score), 0);
+        } else {
+            reqDescription = req.description;
+            reqPriority = req.priority;
+            basePoints = req.score;
+        }
+
+        const { output: analysisResult } = await withRetry(() => singleRequirementAnalysisPrompt({
+            requirement: reqDescription,
+            category: category,
+            cv: cv,
+        }));
+        
+        if (!analysisResult) continue;
+
+        let awardedPoints = 0;
+        if (analysisResult.status === 'Aligned') {
+            awardedPoints = basePoints;
+        } else if (analysisResult.status === 'Partially Aligned') {
+            awardedPoints = basePoints / 2;
+        }
+        candidateScore += awardedPoints;
+        maxScore += basePoints;
+        
+        let finalJustification = analysisResult.justification;
+        // Override experience justifications to ensure consistency
+        if (category === 'Experience' && parsedCv?.totalExperience) {
+            const yearsRegex = /(\d+(\.\d+)?\+?)\s*years?/i;
+            if (yearsRegex.test(finalJustification)) {
+                finalJustification = finalJustification.replace(yearsRegex, `${parsedCv.totalExperience} (calculated total)`);
+            }
+        }
+
+        alignmentDetails.push({
+            category,
+            requirement: reqDescription,
+            priority: reqPriority,
+            status: analysisResult.status,
+            justification: finalJustification,
+            score: awardedPoints,
+            maxScore: basePoints,
+        });
+    }
+
+    const { output: summaryResult } = await withRetry(() => summaryAndProbesPrompt({
+        alignmentDetails,
+        cv,
+        totalExperience: parsedCv?.totalExperience,
+    }));
+    
+    if (!summaryResult) {
+        throw new Error("CV analysis failed: Could not generate summary.");
+    }
+    
+    const alignmentScore = maxScore > 0 ? Math.round((candidateScore / maxScore) * 100) : 0;
+    let recommendation: AnalyzeCVAgainstJDOutput['recommendation'] = 'Not Recommended';
+
+    if (alignmentScore >= 75) {
+        recommendation = 'Strongly Recommended';
+    } else if (alignmentScore >= 50) {
+        recommendation = 'Recommended with Reservations';
+    }
+
+    const missedCoreRequirement = alignmentDetails.some(detail =>
+        detail.priority === 'MUST-HAVE' &&
+        detail.status !== 'Aligned' &&
+        detail.status !== 'Partially Aligned' &&
+        (detail.category === 'Education' || detail.category === 'Experience')
+    );
+
+    if (missedCoreRequirement) {
+        recommendation = 'Not Recommended';
+        const reason = 'Does not meet a core MUST-HAVE requirement in Education or Experience.';
+        if (!summaryResult.weaknesses.includes(reason)) {
+            summaryResult.weaknesses.push(reason);
+        }
+    } else {
+        const missedAnyMustHave = alignmentDetails.some(detail =>
+            detail.priority === 'MUST-HAVE' && detail.status !== 'Aligned' && detail.status !== 'Partially Aligned'
+        );
+
+        if (missedAnyMustHave && alignmentScore < 75) {
+            recommendation = 'Recommended with Reservations';
+            const reason = 'Does not meet one or more critical MUST-HAVE requirements.';
+            if (!summaryResult.weaknesses.includes(reason)) {
+                summaryResult.weaknesses.push(reason);
+            }
+        }
     }
     
     const endTime = Date.now();
     const processingTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
     
-    // Final check and override to ensure data consistency
     const finalOutput: AnalyzeCVAgainstJDOutput = {
-        ...output,
         candidateName: toTitleCase(candidateName),
-        email: input.parsedCv?.email,
-        totalExperience: input.parsedCv?.totalExperience,
+        email: parsedCv?.email,
+        totalExperience: parsedCv?.totalExperience,
+        alignmentScore,
+        candidateScore,
+        maxScore,
+        recommendation,
+        alignmentDetails,
+        alignmentSummary: summaryResult.alignmentSummary,
+        strengths: summaryResult.strengths,
+        weaknesses: summaryResult.weaknesses,
+        interviewProbes: summaryResult.interviewProbes,
         processingTime,
     };
     
     return finalOutput;
   }
 );
+
+    

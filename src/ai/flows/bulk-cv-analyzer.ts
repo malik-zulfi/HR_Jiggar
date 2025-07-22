@@ -16,7 +16,6 @@ import {
 } from '@/lib/types';
 import { analyzeCVAgainstJD } from './cv-analyzer';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAnalyzeCVsOutput> {
   const results = [];
@@ -42,9 +41,9 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
         error: `Failed to analyze: ${error.message}`,
       });
     }
-    // Add a small delay to avoid hitting API rate limits on the free tier.
-    await delay(1000);
   }
 
   return { results };
 }
+
+    
