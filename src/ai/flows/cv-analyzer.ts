@@ -115,7 +115,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         throw new Error("CV analysis failed to return a valid response.");
     }
 
-    if (!partialOutput.candidateName) {
+    if (!partialOutput.candidateName && parsedCv?.name) {
+        partialOutput.candidateName = parsedCv.name;
+    } else if (!partialOutput.candidateName) {
         const fallbackName = await extractCandidateName({ cvText: cv });
         if (!fallbackName.candidateName) {
             // If we still can't get a name, we have to fail.
@@ -227,5 +229,3 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
