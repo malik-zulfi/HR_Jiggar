@@ -135,3 +135,5 @@ const findSuitablePositionsFlow = ai.defineFlow(
 export async function findSuitablePositionsForCandidate(input: FindSuitablePositionsInput): Promise<FindSuitablePositionsOutput> {
     return findSuitablePositionsFlow(input);
 }
+
+    

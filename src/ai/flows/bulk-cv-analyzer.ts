@@ -48,3 +48,5 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
 
   return { results };
 }
+
+    

@@ -895,3 +895,5 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
         </div>
     );
 };
+
+    

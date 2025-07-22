@@ -154,34 +154,34 @@ function AssessmentPage() {
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
         for (const cvFile of candidatesToProcess) {
-            let parsedDbRecord = null;
-            let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
-
-            if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
-            else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
-            else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
-
-            if (recordJobCode) {
-                try {
-                    const parsedData = await parseCv({ cvText: cvFile.content });
-                    parsedDbRecord = {
-                        ...parsedData,
-                        jobCode: recordJobCode,
-                        cvFileName: cvFile.name,
-                        cvContent: cvFile.content,
-                        createdAt: new Date().toISOString(),
-                    };
-                    addOrUpdateCvInDatabase(parsedDbRecord);
-                } catch (parseError: any) {
-                    toast({ 
-                        variant: 'destructive', 
-                        title: `DB Entry Skipped: ${cvFile.name}`, 
-                        description: `Could not extract an email. Assessment will proceed.` 
-                    });
-                }
-            }
-            
             try {
+                let parsedDbRecord = null;
+                let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
+
+                if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
+                else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
+                else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
+
+                if (recordJobCode) {
+                    try {
+                        const parsedData = await parseCv({ cvText: cvFile.content });
+                        parsedDbRecord = {
+                            ...parsedData,
+                            jobCode: recordJobCode,
+                            cvFileName: cvFile.name,
+                            cvContent: cvFile.content,
+                            createdAt: new Date().toISOString(),
+                        };
+                        addOrUpdateCvInDatabase(parsedDbRecord);
+                    } catch (parseError: any) {
+                        toast({ 
+                            variant: 'destructive', 
+                            title: `DB Entry Skipped: ${cvFile.name}`, 
+                            description: `Could not extract an email. Assessment will proceed.` 
+                        });
+                    }
+                }
+                
                 const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
                     jobDescriptionCriteria: jd,
                     cv: cvFile.content,
@@ -1113,3 +1113,5 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
 
 
 export default AssessmentPage;
+
+    
