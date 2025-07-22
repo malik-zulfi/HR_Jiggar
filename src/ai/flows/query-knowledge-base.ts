@@ -35,7 +35,7 @@ const prompt = ai.definePrompt({
   name: 'queryKnowledgeBasePrompt',
   input: {schema: SummarizedDataSchema},
   output: {schema: QueryKnowledgeBaseOutputSchema},
-  config: { temperature: 0.1 },
+  config: { temperature: 0.0 },
   prompt: `You are an expert recruitment data analyst. Your task is to answer a specific question based on the entire knowledge base provided to you, maintaining the context of the ongoing conversation.
 
 **Knowledge Base Context:**
