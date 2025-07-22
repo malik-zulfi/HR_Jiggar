@@ -43,7 +43,7 @@ function toTitleCase(str: string): string {
 }
 
 // We ask the AI for everything *except* the final recommendation, which we will calculate programmatically.
-const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true });
+const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true, alignmentScore: true, candidateScore: true, maxScore: true });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
     name: 'analyzeCVAgainstJDPrompt',
@@ -59,12 +59,11 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
     c.  Calculate a 'score' for each requirement based on its priority and the alignment status. The 'maxScore' is provided for each requirement.
-3.  **Scoring and Summaries:**
-    a.  Calculate the overall \`alignmentScore\` as a percentage (candidate's total score / total max score * 100).
-    b.  Write a concise \`alignmentSummary\`.
-    c.  List the key \`strengths\` and \`weaknesses\`.
-    d.  Suggest 2-3 targeted \`interviewProbes\` to explore weak areas.
-4.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema. DO NOT determine the final 'recommendation'; that will be handled separately.
+3.  **Summaries (No Overall Score):**
+    a.  Write a concise \`alignmentSummary\`.
+    b.  List the key \`strengths\` and \`weaknesses\`.
+    c.  Suggest 2-3 targeted \`interviewProbes\` to explore weak areas.
+4.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema. DO NOT determine the final 'recommendation' or calculate the overall 'alignmentScore', 'candidateScore', or 'maxScore'. These will be handled separately.
 
 ---
 **Job Description Criteria (JSON):**
@@ -77,7 +76,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 {{{cv}}}
 ---
 
-Now, perform the analysis and return the complete JSON object without the 'recommendation' field.
+Now, perform the analysis and return the complete JSON object without the 'recommendation', 'alignmentScore', 'candidateScore', and 'maxScore' fields.
 `,
 });
 
@@ -93,9 +92,14 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     
     const { output: aiAnalysis } = await withRetry(() => analyzeCVAgainstJDPrompt(input));
 
-    if (!aiAnalysis) {
+    if (!aiAnalysis || !aiAnalysis.alignmentDetails) {
         throw new Error("CV analysis failed: The AI returned an invalid or empty response. Please try again.");
     }
+
+    // Programmatically calculate scores
+    const candidateScore = aiAnalysis.alignmentDetails.reduce((acc, detail) => acc + (detail.score || 0), 0);
+    const maxScore = aiAnalysis.alignmentDetails.reduce((acc, detail) => acc + (detail.maxScore || 0), 0);
+    const alignmentScore = maxScore > 0 ? parseFloat(((candidateScore / maxScore) * 100).toFixed(2)) : 0;
     
     // Programmatic recommendation logic
     let recommendation: AnalyzeCVAgainstJDOutput['recommendation'];
@@ -108,7 +112,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     
     if (missedMustHaveCore) {
         recommendation = 'Not Recommended';
-    } else if (aiAnalysis.alignmentScore >= 85) {
+    } else if (alignmentScore >= 85) {
         recommendation = 'Strongly Recommended';
     } else {
         recommendation = 'Recommended with Reservations';
@@ -120,6 +124,9 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     // Combine AI analysis with the programmatic recommendation
     const finalOutput: AnalyzeCVAgainstJDOutput = {
         ...aiAnalysis,
+        alignmentScore,
+        candidateScore,
+        maxScore,
         recommendation,
         candidateName: toTitleCase(input.parsedCv?.name || aiAnalysis.candidateName),
         email: input.parsedCv?.email,
