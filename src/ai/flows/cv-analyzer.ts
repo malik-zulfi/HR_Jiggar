@@ -173,10 +173,13 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         }
     }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
     if (!candidateName) {
         throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
 =======
+=======
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
     
     const output: AnalyzeCVAgainstJDOutput = {
         ...partialOutput,
