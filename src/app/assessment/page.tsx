@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, AnalyzeCVAgainstJDOutput } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { bulkAnalyzeCVs } from "@/ai/flows/bulk-cv-analyzer";
@@ -149,13 +149,12 @@ function AssessmentPage() {
 
         let successCount = 0;
         let finalCandidateRecords: CandidateRecord[] = [];
+        const jobCode = jd.code;
 
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
-        const jobCode = jd.code;
-
-        // First, parse all CVs to update the central database. This remains a parallel process.
-        await Promise.all(candidatesToProcess.map(async (cvFile) => {
+        for (const cvFile of candidatesToProcess) {
+            let parsedDbRecord = null;
             let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
 
             if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
@@ -165,14 +164,14 @@ function AssessmentPage() {
             if (recordJobCode) {
                 try {
                     const parsedData = await parseCv({ cvText: cvFile.content });
-                    const dbRecord: CvDatabaseRecord = {
+                    parsedDbRecord = {
                         ...parsedData,
                         jobCode: recordJobCode,
                         cvFileName: cvFile.name,
                         cvContent: cvFile.content,
                         createdAt: new Date().toISOString(),
                     };
-                    addOrUpdateCvInDatabase(dbRecord);
+                    addOrUpdateCvInDatabase(parsedDbRecord);
                 } catch (parseError: any) {
                     toast({ 
                         variant: 'destructive', 
@@ -181,52 +180,37 @@ function AssessmentPage() {
                     });
                 }
             }
-        }));
+            
+            try {
+                const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
+                    jobDescriptionCriteria: jd,
+                    cv: cvFile.content,
+                    parsedCv: parsedDbRecord,
+                });
+                
+                const candidateRecord: CandidateRecord = {
+                    cvName: cvFile.name,
+                    cvContent: cvFile.content,
+                    analysis: analysis,
+                    isStale: false,
+                };
+                finalCandidateRecords.push(candidateRecord);
+                
+                setNewCvProcessingStatus(prev => ({
+                    ...prev,
+                    [cvFile.name]: { ...prev[cvFile.name], status: 'done', candidateName: analysis.candidateName }
+                }));
+                successCount++;
 
-        // Now, perform bulk analysis in a single API call
-        try {
-            const bulkInput = {
-                jobDescriptionCriteria: jd,
-                candidates: candidatesToProcess.map(c => ({ fileName: c.name, cv: c.content })),
-            };
-            const bulkResults = await bulkAnalyzeCVs(bulkInput);
-
-            for (const result of bulkResults.results) {
-                if (result.analysis) {
-                    const originalCv = candidatesToProcess.find(c => c.name === result.fileName);
-                    const candidateRecord: CandidateRecord = {
-                        cvName: result.fileName,
-                        cvContent: originalCv?.content || '',
-                        analysis: result.analysis,
-                        isStale: false,
-                    };
-                    finalCandidateRecords.push(candidateRecord);
-
-                    setNewCvProcessingStatus(prev => ({
-                        ...prev,
-                        [result.fileName]: { ...prev[result.fileName], status: 'done', candidateName: result.analysis?.candidateName }
-                    }));
-                    successCount++;
-                } else {
-                    console.error(`Error analyzing CV for ${result.fileName}:`, result.error);
-                    toast({
-                        variant: "destructive",
-                        title: `Analysis Failed for ${result.fileName}`,
-                        description: result.error || "An unexpected error occurred.",
-                    });
-                    setNewCvProcessingStatus(prev => ({ ...prev, [result.fileName]: { ...prev[result.fileName], status: 'error' } }));
-                }
+            } catch (error: any) {
+                console.error(`Error analyzing CV for ${cvFile.name}:`, error);
+                toast({
+                    variant: "destructive",
+                    title: `Analysis Failed for ${cvFile.name}`,
+                    description: error.message || "An unexpected error occurred.",
+                });
+                 setNewCvProcessingStatus(prev => ({ ...prev, [cvFile.name]: { ...prev[cvFile.name], status: 'error' } }));
             }
-        } catch (error: any) {
-             console.error(`Bulk analysis failed:`, error);
-             toast({
-                variant: "destructive",
-                title: `Bulk Analysis Failed`,
-                description: error.message || "An unexpected error occurred during bulk processing.",
-            });
-            candidatesToProcess.forEach(cv => {
-                 setNewCvProcessingStatus(prev => ({ ...prev, [cv.name]: { ...prev[cv.name], status: 'error' } }));
-            });
         }
         
         if (finalCandidateRecords.length > 0) {

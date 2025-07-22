@@ -21,11 +21,14 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
   const results = [];
   for (const candidate of input.candidates) {
     try {
+      // The client-side logic now handles parsing and providing the parsedCv object.
+      // This flow can be simplified to just call the single analyzer.
       const analysis = await analyzeCVAgainstJD({
         jobDescriptionCriteria: input.jobDescriptionCriteria,
         cv: candidate.cv,
-        // We pass null for parsedCv here as this bulk flow focuses on analysis.
-        // The single-entry point in the UI will still handle parsing for the DB.
+        // The client will now handle parsing and can pass the parsed data if available.
+        // For this bulk flow, we assume it might not be pre-parsed, so we pass null.
+        // The single analysis flow is robust enough to handle this.
         parsedCv: null, 
       });
       results.push({
@@ -45,5 +48,3 @@ export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAn
 
   return { results };
 }
-
-    
