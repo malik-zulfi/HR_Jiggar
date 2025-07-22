@@ -42,10 +42,13 @@ function toTitleCase(str: string): string {
     .join(' ');
 }
 
+// We ask the AI for everything *except* the final recommendation, which we will calculate programmatically.
+const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true });
+
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
     name: 'analyzeCVAgainstJDPrompt',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
-    output: { schema: AnalyzeCVAgainstJDOutputSchema },
+    output: { schema: AIAnalysisOutputSchema },
     config: { temperature: 0.0 },
     prompt: `You are an expert recruitment analyst. Your task is to perform a comprehensive analysis of the candidate's CV against the provided Job Description criteria.
 
@@ -56,14 +59,12 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
     c.  Calculate a 'score' for each requirement based on its priority and the alignment status. The 'maxScore' is provided for each requirement.
-3.  **Scoring and Recommendation:**
+3.  **Scoring and Summaries:**
     a.  Calculate the overall \`alignmentScore\` as a percentage (candidate's total score / total max score * 100).
-    b.  Provide a final \`recommendation\` ('Strongly Recommended', 'Recommended with Reservations', 'Not Recommended') based on the alignment score and whether any 'MUST-HAVE' requirements were missed. A candidate who misses a MUST-HAVE in Experience or Education should generally be 'Not Recommended'.
-4.  **Summaries:**
-    a.  Write a concise \`alignmentSummary\`.
-    b.  List the key \`strengths\` and \`weaknesses\`.
-    c.  Suggest 2-3 targeted \`interviewProbes\` to explore weak areas.
-5.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema.
+    b.  Write a concise \`alignmentSummary\`.
+    c.  List the key \`strengths\` and \`weaknesses\`.
+    d.  Suggest 2-3 targeted \`interviewProbes\` to explore weak areas.
+4.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema. DO NOT determine the final 'recommendation'; that will be handled separately.
 
 ---
 **Job Description Criteria (JSON):**
@@ -76,7 +77,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 {{{cv}}}
 ---
 
-Now, perform the analysis and return the complete JSON object.
+Now, perform the analysis and return the complete JSON object without the 'recommendation' field.
 `,
 });
 
@@ -90,19 +91,39 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
   async input => {
     const startTime = Date.now();
     
-    const { output } = await withRetry(() => analyzeCVAgainstJDPrompt(input));
+    const { output: aiAnalysis } = await withRetry(() => analyzeCVAgainstJDPrompt(input));
 
-    if (!output) {
+    if (!aiAnalysis) {
         throw new Error("CV analysis failed: The AI returned an invalid or empty response. Please try again.");
     }
-
+    
+    // Programmatic recommendation logic
+    let recommendation: AnalyzeCVAgainstJDOutput['recommendation'] = 'Recommended with Reservations';
+    
+    const missedMustHaveCore = aiAnalysis.alignmentDetails.some(detail =>
+      (detail.category === 'Experience' || detail.category === 'Education') &&
+      detail.priority === 'MUST-HAVE' &&
+      detail.status === 'Not Aligned'
+    );
+    
+    if (missedMustHaveCore) {
+        recommendation = 'Not Recommended';
+    } else if (aiAnalysis.alignmentScore >= 85) {
+        recommendation = 'Strongly Recommended';
+    } else if (aiAnalysis.alignmentScore >= 70) {
+        recommendation = 'Recommended';
+    } else {
+        recommendation = 'Recommended with Reservations';
+    }
+    
     const endTime = Date.now();
     const processingTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
 
-    // Ensure the final output has the most reliable data from the pre-parsed input.
+    // Combine AI analysis with the programmatic recommendation
     const finalOutput: AnalyzeCVAgainstJDOutput = {
-        ...output,
-        candidateName: toTitleCase(input.parsedCv?.name || output.candidateName),
+        ...aiAnalysis,
+        recommendation,
+        candidateName: toTitleCase(input.parsedCv?.name || aiAnalysis.candidateName),
         email: input.parsedCv?.email,
         totalExperience: input.parsedCv?.totalExperience,
         processingTime,
