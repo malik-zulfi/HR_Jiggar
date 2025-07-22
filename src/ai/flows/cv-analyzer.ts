@@ -150,8 +150,8 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
       partialOutput.alignmentDetails.forEach(detail => {
         if (detail.category === 'Experience') {
           // Regex to find phrases like "X years of experience" in the justification.
-          const experienceRegex = /(\d+(\.\d+)?\+?)\s*years?/i;
-          if (experienceRegex.test(detail.justification)) {
+          const experienceRegex = /(\d+(\.\d{1,2})?)\+?\s*years?/i;
+          if (detail.justification && experienceRegex.test(detail.justification)) {
             // Replace the AI's potentially incorrect text with the factual, calculated value.
             detail.justification = detail.justification.replace(
               experienceRegex,
