@@ -16,37 +16,35 @@ import {
 } from '@/lib/types';
 import { analyzeCVAgainstJD } from './cv-analyzer';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function bulkAnalyzeCVs(input: BulkAnalyzeCVsInput): Promise<BulkAnalyzeCVsOutput> {
-  // While we could create a complex prompt to do this in one LLM call,
-  // it's often more reliable and scalable to make parallel calls for each CV.
-  // This avoids massive prompt sizes and potential quality degradation.
-  // The "batching" here is at the application layer for a better UX.
-  const results = await Promise.all(
-    input.candidates.map(async (candidate) => {
-      try {
-        const analysis = await analyzeCVAgainstJD({
-          jobDescriptionCriteria: input.jobDescriptionCriteria,
-          cv: candidate.cv,
-          // We pass null for parsedCv here as this bulk flow focuses on analysis.
-          // The single-entry point in the UI will still handle parsing for the DB.
-          parsedCv: null,
-        });
-        return {
-          fileName: candidate.fileName,
-          analysis,
-          error: undefined,
-        };
-      } catch (error: any) {
-        console.error(`Error analyzing CV for ${candidate.fileName} in bulk:`, error);
-        return {
-          fileName: candidate.fileName,
-          analysis: null,
-          error: `Failed to analyze: ${error.message}`,
-        };
-      }
-    })
-  );
+  const results = [];
+  for (const candidate of input.candidates) {
+    try {
+      const analysis = await analyzeCVAgainstJD({
+        jobDescriptionCriteria: input.jobDescriptionCriteria,
+        cv: candidate.cv,
+        // We pass null for parsedCv here as this bulk flow focuses on analysis.
+        // The single-entry point in the UI will still handle parsing for the DB.
+        parsedCv: null,
+      });
+      results.push({
+        fileName: candidate.fileName,
+        analysis,
+        error: undefined,
+      });
+    } catch (error: any) {
+      console.error(`Error analyzing CV for ${candidate.fileName} in bulk:`, error);
+      results.push({
+        fileName: candidate.fileName,
+        analysis: null,
+        error: `Failed to analyze: ${error.message}`,
+      });
+    }
+    // Add a small delay to avoid hitting API rate limits on the free tier.
+    await delay(1000);
+  }
 
   return { results };
 }
