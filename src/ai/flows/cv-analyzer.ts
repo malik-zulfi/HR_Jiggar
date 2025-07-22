@@ -64,22 +64,32 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   prompt: `You are a candidate assessment specialist. Analyze the following CV against the structured job description criteria. Your analysis must be intelligent and inferential, not just a simple text match.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 <<<<<<< HEAD
+=======
+>>>>>>> 67199ea64578c601c897c82462f6a39a442b7a65
 **Primary Data Source:**
 You have been given pre-parsed JSON data from the CV. You MUST use this structured data as your primary source for analysis, especially for experience and education details. The candidate's total experience has been pre-calculated for you; use the value from the JSON.
 - Pre-parsed CV JSON: {{{json parsedCv}}}
 - Raw CV Text (for context and fallback): {{{cv}}}
 =======
+<<<<<<< HEAD
 >>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
+=======
+>>>>>>> 67199ea64578c601c897c82462f6a39a442b7a65
 **Pre-Parsed CV Data (for reference):**
 This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
 The candidate's total experience has been pre-calculated for you. You MUST use this value. Do NOT re-calculate it.
 {{{json parsedCv}}}
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 >>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
+=======
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
+>>>>>>> 67199ea64578c601c897c82462f6a39a442b7a65
 
 **Analysis Steps:**
 
@@ -216,7 +226,10 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
              throw new Error("CV analysis failed to return a valid partial response.");
         }
 >>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
+<<<<<<< HEAD
 >>>>>>> 67199ea (Revert "it seems assessment page for candidate experience its using figures ment")
+=======
+>>>>>>> 67199ea64578c601c897c82462f6a39a442b7a65
     }
 <<<<<<< HEAD
 <<<<<<< HEAD
