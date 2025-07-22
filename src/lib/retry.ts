@@ -1,10 +1,11 @@
+
 'use server';
 
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
 
 /**
- * Retries a function that returns a Promise if it fails with a specific transient error.
+ * Retries a function that returns a Promise if it fails with specific transient errors.
  * @param fn The asynchronous function to execute.
  * @returns The result of the function if it succeeds.
  * @throws The last error if all retries fail, or the first non-retryable error.
@@ -16,9 +17,9 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (error: any) {
-      const errorMessage = error.message || '';
-      // Check if the error message indicates a transient, retryable error
-      if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded') || errorMessage.includes('Schema validation failed') || errorMessage.includes('fetch failed')) {
+      const errorMessage = (error.message || '').toLowerCase();
+      // Check for a broader range of retryable, transient errors.
+      if (errorMessage.includes('503') || errorMessage.includes('overloaded') || errorMessage.includes('schema validation failed') || errorMessage.includes('fetch failed')) {
         lastError = error;
         const delay = INITIAL_DELAY_MS * Math.pow(2, i);
         console.log(`Attempt ${i + 1} failed with a transient error. Retrying in ${delay}ms...`);
@@ -32,5 +33,5 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   
   // If all retries have been exhausted, throw the last captured error
   console.error("All retry attempts failed. The last error was:", lastError);
-  throw new Error('The AI service is temporarily unavailable. Please try again later');
+  throw new Error('The AI service is temporarily unavailable after multiple retries. Please try again later.');
 }
