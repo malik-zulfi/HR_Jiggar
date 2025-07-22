@@ -49,7 +49,7 @@ const AnalyzeCVAgainstJDPromptOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit
     processingTime: true,
     candidateScore: true,
     maxScore: true,
-    totalExperience: true,
+    totalExperience: true, // This is now handled programmatically
 });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
@@ -63,10 +63,17 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are a candidate assessment specialist. Your task is to analyze the following CV against the structured job description criteria provided.
 
+<<<<<<< HEAD
 **Primary Data Source:**
 You have been given pre-parsed JSON data from the CV. You MUST use this structured data as your primary source for analysis, especially for experience and education details. The candidate's total experience has been pre-calculated for you; use the value from the JSON.
 - Pre-parsed CV JSON: {{{json parsedCv}}}
 - Raw CV Text (for context and fallback): {{{cv}}}
+=======
+**Pre-Parsed CV Data (for reference):**
+This data provides a structured view of the candidate's CV, including education and experience with dates. Use this as the primary source for calculations.
+The candidate's total experience has been pre-calculated for you. You MUST use this value. Do NOT re-calculate it.
+{{{json parsedCv}}}
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
 
 **Instructions:**
 
@@ -111,6 +118,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         parsedCv,
     }));
 
+<<<<<<< HEAD
     if (!partialOutput) {
         throw new Error("CV analysis failed to return a valid response.");
     }
@@ -122,6 +130,18 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
             throw new Error("CV analysis failed: Could not determine the candidate's name from the document.");
         }
         partialOutput.candidateName = fallbackName.candidateName;
+=======
+    if (!partialOutput || !partialOutput.candidateName) {
+        const fallbackName = await extractCandidateName({ cvText: cv });
+        if (!fallbackName.candidateName) {
+            throw new Error("CV analysis failed: Could not determine the candidate's name.");
+        }
+        if(partialOutput) {
+            partialOutput.candidateName = fallbackName.candidateName;
+        } else {
+             throw new Error("CV analysis failed to return a valid partial response.");
+        }
+>>>>>>> parent of 8cefe18 (it seems assessment page for candidate experience its using figures ment)
     }
     
     const output: AnalyzeCVAgainstJDOutput = {
