@@ -456,11 +456,14 @@ function AssessmentPage() {
       
       for (const candidate of candidatesToReassess) {
           try {
+              const dbRecord = cvDatabase.find(cv => cv.email.toLowerCase() === candidate.analysis.email?.toLowerCase());
+              
               const analysis = await analyzeCVAgainstJD({
                   jobDescriptionCriteria: jd,
                   cv: candidate.cvContent,
-                  parsedCv: null, // Assuming we might not have the full DB record here easily
+                  parsedCv: dbRecord || null,
               });
+
               updatedCandidates.push({
                   ...candidate,
                   analysis,
