@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, AnalyzeCVAgainstJDOutput } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, AnalyzeCVAgainstJDOutput, ParseCvOutput } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
@@ -154,37 +154,40 @@ function AssessmentPage() {
         
         for (const cvFile of candidatesToProcess) {
             try {
-                let parsedDbRecord = null;
-                let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
+                let parsedCvData: ParseCvOutput | null = null;
+                
+                try {
+                    parsedCvData = await parseCv({ cvText: cvFile.content });
+                } catch (parseError: any) {
+                    toast({ 
+                        variant: 'destructive', 
+                        title: `CV Parsing Error: ${cvFile.name}`, 
+                        description: `Could not reliably parse the CV. Assessment will proceed with raw text.` 
+                    });
+                }
 
-                if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
-                else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
-                else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
+                if (parsedCvData) {
+                    let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
+                    if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
+                    else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
+                    else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
 
-                if (recordJobCode) {
-                    try {
-                        const parsedData = await parseCv({ cvText: cvFile.content });
-                        parsedDbRecord = {
-                            ...parsedData,
+                    if (recordJobCode) {
+                        const dbRecord: CvDatabaseRecord = {
+                            ...parsedCvData,
                             jobCode: recordJobCode,
                             cvFileName: cvFile.name,
                             cvContent: cvFile.content,
                             createdAt: new Date().toISOString(),
                         };
-                        addOrUpdateCvInDatabase(parsedDbRecord);
-                    } catch (parseError: any) {
-                        toast({ 
-                            variant: 'destructive', 
-                            title: `DB Entry Skipped: ${cvFile.name}`, 
-                            description: `Could not extract an email. Assessment will proceed.` 
-                        });
+                        addOrUpdateCvInDatabase(dbRecord);
                     }
                 }
                 
                 const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
                     jobDescriptionCriteria: jd,
                     cv: cvFile.content,
-                    parsedCv: parsedDbRecord,
+                    parsedCv: parsedCvData,
                 });
                 
                 const candidateRecord: CandidateRecord = {
