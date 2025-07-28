@@ -253,23 +253,3 @@ export const FindSuitablePositionsOutputSchema = z.object({
   })).describe('A list of newly identified suitable positions for the candidate.'),
 });
 export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;
-
-
-// For Bulk CV Analyzer
-export const BulkAnalyzeCVsInputSchema = z.object({
-  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
-  candidates: z.array(z.object({
-    fileName: z.string().describe('The original file name of the CV.'),
-    cv: z.string().describe('The full text content of the CV to analyze.'),
-  })).describe('A list of candidates with their CV content.'),
-});
-export type BulkAnalyzeCVsInput = z.infer<typeof BulkAnalyzeCVsInputSchema>;
-
-export const BulkAnalyzeCVsOutputSchema = z.object({
-    results: z.array(z.object({
-        fileName: z.string(),
-        analysis: AnalyzeCVAgainstJDOutputSchema.nullable(),
-        error: z.string().optional(),
-    }))
-});
-export type BulkAnalyzeCVsOutput = z.infer<typeof BulkAnalyzeCVsOutputSchema>;
