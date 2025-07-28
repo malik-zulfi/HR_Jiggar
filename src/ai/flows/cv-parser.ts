@@ -4,7 +4,7 @@
  * @fileOverview Parses a CV to extract key information and structure its content.
  *
  * - parseCv - A function that handles the CV parsing process.
- * - ParseCvInput - The input type for the parseCv function.
+ * - ParseCvInput - the input type for the parseCv function.
  * - ParseCvOutput - The return type for the parseCv function.
  */
 
@@ -28,7 +28,6 @@ const prompt = ai.definePrompt({
   name: 'parseCvPrompt',
   input: {schema: ParseCvInputSchema},
   output: {schema: ParseCvOutputSchema},
-  config: { temperature: 0.0 },
   prompt: `You are a world-class CV parsing engine. Your task is to meticulously analyze the provided CV text and extract key information into a structured JSON format.
 
 **Extraction Rules:**
