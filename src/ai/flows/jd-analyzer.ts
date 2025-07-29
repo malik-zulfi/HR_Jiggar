@@ -52,12 +52,12 @@ const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({
     responsibilities: true,
     additionalRequirements: true,
 }).extend({
-    education: z.array(FlexibleRequirementSchema).describe('List of education requirements.'),
-    experience: z.array(FlexibleRequirementSchema).describe('List of experience requirements.'),
-    technicalSkills: z.array(FlexibleRequirementSchema).describe('List of technical skill requirements.'),
-    softSkills: z.array(FlexibleRequirementSchema).describe('List of soft skill requirements.'),
-    certifications: z.array(FlexibleRequirementSchema).describe('List of certification requirements.'),
-    responsibilities: z.array(FlexibleRequirementSchema).describe('List of responsibilities.'),
+    education: z.array(FlexibleRequirementSchema).optional().describe('List of education requirements.'),
+    experience: z.array(FlexibleRequirementSchema).optional().describe('List of experience requirements.'),
+    technicalSkills: z.array(FlexibleRequirementSchema).optional().describe('List of technical skill requirements.'),
+    softSkills: z.array(FlexibleRequirementSchema).optional().describe('List of soft skill requirements.'),
+    certifications: z.array(FlexibleRequirementSchema).optional().describe('List of certification requirements.'),
+    responsibilities: z.array(FlexibleRequirementSchema).optional().describe('List of responsibilities.'),
 });
 
 const prompt = ai.definePrompt({
@@ -67,7 +67,7 @@ const prompt = ai.definePrompt({
   config: { temperature: 0.0 },
   prompt: `You are an expert recruiter. Please analyze the following job description.
 
-First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available).
+First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available). The job code MUST be one of 'OCN', 'WEX', or 'SAN'.
 
 Then, extract the key requirements. For each requirement, determine if it is a single item or a conditional "OR" group.
 
@@ -113,6 +113,8 @@ const getCategoryWeight = (category: keyof Omit<ExtractJDCriteriaOutput, 'jobTit
     }
 }
 
+const validJobCodes = new Set(['OCN', 'WEX', 'SAN']);
+
 const extractJDCriteriaFlow = ai.defineFlow(
   {
     name: 'extractJDCriteriaFlow',
@@ -128,8 +130,12 @@ const extractJDCriteriaFlow = ai.defineFlow(
 
     const { education, experience, technicalSkills, softSkills, responsibilities, certifications, ...rest } = rawOutput;
     
-    const structuredData: Omit<ExtractJDCriteriaOutput, 'formattedCriteria'> = {
+    // Validate the extracted job code
+    const validatedCode = rest.code && validJobCodes.has(rest.code.toUpperCase()) ? rest.code.toUpperCase() : undefined;
+
+    const structuredData: Omit<ExtractJDCriteriaOutput, 'formattedCriteria' | 'code'> & { code?: string } = {
         ...rest,
+        code: validatedCode,
         education: [], experience: [], technicalSkills: [], softSkills: [], responsibilities: [], certifications: [], additionalRequirements: []
     };
     
@@ -200,5 +206,3 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
   }
 );
-
-    

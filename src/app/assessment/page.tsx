@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, AnalyzeCVAgainstJDOutput, ParseCvOutput } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
@@ -70,6 +70,7 @@ function AssessmentPage() {
   const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
   const [replacementPrompt, setReplacementPrompt] = useState<ReplacementPrompt>({ isOpen: false, existingSession: null, newJd: null });
+  const [jobCodePrompt, setJobCodePrompt] = useState<{ isOpen: boolean; callback: (code: JobCode) => void }>({ isOpen: false, callback: () => {} });
   
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
@@ -143,8 +144,8 @@ function AssessmentPage() {
       sessionId: string | null,
       jobCode: string | null | undefined
     ) => {
-        if (!jobCode) {
-            toast({ variant: 'destructive', description: "The Job Description must have a job code (e.g., OCN, WEX, or SAN) to save new candidates." });
+        if (!jobCode || !['OCN', 'WEX', 'SAN'].includes(jobCode)) {
+            toast({ variant: 'destructive', title: "Invalid Job Code", description: "A valid job code (OCN, WEX, or SAN) is required to save new candidates." });
             return;
         }
 
@@ -304,17 +305,13 @@ function AssessmentPage() {
         return;
     }
     
-    // Set active session in localStorage and navigate.
-    // The assessment page will handle the actual processing on load.
     localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessment.id);
     const pendingItems = candidateDbRecords.map(candidate => ({ candidate, assessment }));
     localStorage.setItem(PENDING_ASSESSMENT_KEY, JSON.stringify(pendingItems));
     
-    // Clear handled notifications
     const handledEmails = new Set(positions.map((p: { candidateEmail: any; }) => p.candidateEmail));
     setSuitablePositions(prev => prev.filter(p => !(p.assessment.id === assessment.id && handledEmails.has(p.candidateEmail))));
     
-    // Navigate
     window.location.href = '/assessment';
 
   }, [cvDatabase, toast, setSuitablePositions]);
@@ -398,7 +395,7 @@ function AssessmentPage() {
       setJdAnalysisProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const existingSession = history.find(s => s.analyzedJd.positionNumber && s.analyzedJd.positionNumber === result.positionNumber);
+      const existingSession = history.find(s => s.analyzedJd.positionNumber && result.positionNumber && s.analyzedJd.positionNumber === result.positionNumber);
       
       if (existingSession) {
           setReplacementPrompt({ isOpen: true, existingSession, newJd: result });
@@ -584,12 +581,27 @@ function AssessmentPage() {
       toast({ variant: "destructive", description: "Please upload one or more CV files." });
       return;
     }
-    if (!activeSession?.analyzedJd) {
+    if (!activeSession) {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
-    
-    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd, activeSessionId, activeSession.analyzedJd.code);
+
+    const startAnalysis = (code: JobCode) => {
+        // Update session if needed
+        setHistory(prev => prev.map(s => {
+            if (s.id === activeSession.id && s.analyzedJd.code !== code) {
+                return { ...s, analyzedJd: { ...s.analyzedJd, code } };
+            }
+            return s;
+        }));
+        processAndAnalyzeCandidates(cvs, { ...activeSession.analyzedJd, code }, activeSessionId, code);
+    };
+
+    if (activeSession.analyzedJd.code) {
+        startAnalysis(activeSession.analyzedJd.code as JobCode);
+    } else {
+        setJobCodePrompt({ isOpen: true, callback: startAnalysis });
+    }
   };
 
   const handleAnalyzeFromDb = useCallback(async (selectedCvsFromDb: CvDatabaseRecord[]) => {
@@ -753,6 +765,11 @@ function AssessmentPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <JobCodeDialog
+                isOpen={jobCodePrompt.isOpen}
+                onClose={() => setJobCodePrompt({ isOpen: false, callback: () => {} })}
+                onConfirm={jobCodePrompt.callback}
+            />
 
           {!activeSession ? (
             <>
@@ -852,7 +869,7 @@ function AssessmentPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base"><UserPlus /> Step 2: Add Candidates</CardTitle>
-                        <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description. The job code <Badge>{activeSession.analyzedJd.code || 'N/A'}</Badge> will be used.</CardDescription>
+                        <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description. Job Code: <Badge variant="secondary">{activeSession.analyzedJd.code || 'Not Set'}</Badge></CardDescription>
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
                         <div className="grid md:grid-cols-2 gap-6 items-start">
@@ -1114,5 +1131,49 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
     );
 };
 
+const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (code: JobCode) => void;
+}) => {
+    const [selectedCode, setSelectedCode] = useState<JobCode | null>(null);
+
+    const handleConfirm = () => {
+        if (selectedCode) {
+            onConfirm(selectedCode);
+            onClose();
+            setSelectedCode(null);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" /> Job Code Required</DialogTitle>
+                    <DialogDescription>
+                        A valid job code could not be determined from the Job Description. Please select the correct code for this assessment session to continue.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Select onValueChange={(value) => setSelectedCode(value as JobCode)}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a job code..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="OCN">OCN</SelectItem>
+                            <SelectItem value="WEX">WEX</SelectItem>
+                            <SelectItem value="SAN">SAN</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleConfirm} disabled={!selectedCode}>Confirm & Assess</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 export default AssessmentPage;
