@@ -38,8 +38,7 @@ const prompt = ai.definePrompt({
 4.  **Total Experience**:
     *   You MUST calculate the total years of professional experience.
     *   For roles with an end date of "Present", "Current", or similar, use today's date ({{{currentDate}}}) for the calculation.
-    *   You MUST ignore any employment records with a start date in the future.
-    *   You MUST handle overlapping employment periods by merging them to avoid double-counting time. The total experience is the sum of unique, non-overlapping time periods.
+    *   Handle overlapping employment periods by merging them to avoid double-counting time. The total experience is the sum of unique, non-overlapping time periods.
     *   Return the experience as a string, e.g., "5.5 years". If you cannot calculate it, return null.
 5.  **Structured Content**:
     *   **Summary**: Extract the professional summary or objective statement.
