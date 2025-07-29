@@ -193,8 +193,8 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                             thead: ({node, ...props}) => <thead className="bg-muted/50 font-medium" {...props} />,
                             tbody: ({node, ...props}) => <tbody {...props} />,
                             tr: ({node, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
-                            th: ({node, isHeader, ...props}) => <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" {...props} />,
-                            td: ({node, isHeader, ...props}) => <td className="p-3 align-middle" {...props} />,
+                            th: ({node, isHeader, className, ...props}) => <th className={cn("h-10 px-3 text-left align-middle font-medium text-muted-foreground", className)} {...props} />,
+                            td: ({node, isHeader, className, ...props}) => <td className={cn("p-3 align-middle", className)} {...props} />,
                           }}
                        >
                            {msg.content}
