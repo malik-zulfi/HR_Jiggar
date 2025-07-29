@@ -34,6 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppContext } from "@/components/client-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
@@ -47,6 +48,7 @@ type ReplacementPrompt = {
     existingSession: AssessmentSession | null;
     newJd: ExtractJDCriteriaOutput | null;
 };
+type JobCode = 'OCN' | 'WEX' | 'SAN';
 
 function AssessmentPage() {
   const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
@@ -58,6 +60,7 @@ function AssessmentPage() {
 
   const [jdFile, setJdFile] = useState<UploadedFile | null>(null);
   const [cvs, setCvs] = useState<UploadedFile[]>([]);
+  const [jobCodeForUpload, setJobCodeForUpload] = useState<JobCode | null>(null);
   const [cvResetKey, setCvResetKey] = useState(0);
 
   const [jdAnalysisProgress, setJdAnalysisProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
@@ -116,6 +119,7 @@ function AssessmentPage() {
       const timer = setTimeout(() => {
         setNewCvProcessingStatus({});
         setCvs([]);
+        setJobCodeForUpload(null);
         setCvResetKey(key => key + 1);
       }, 3000);
       return () => clearTimeout(timer);
@@ -138,8 +142,14 @@ function AssessmentPage() {
   const processAndAnalyzeCandidates = useCallback(async (
       candidatesToProcess: UploadedFile[],
       jd: ExtractJDCriteriaOutput,
-      sessionId: string | null
+      sessionId: string | null,
+      jobCode: JobCode | null
     ) => {
+        if (!jobCode) {
+            toast({ variant: 'destructive', description: "A job code must be selected to save candidates to the database." });
+            return;
+        }
+
         const initialStatus = candidatesToProcess.reduce((acc, cv) => {
             acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: cv.name };
             return acc;
@@ -148,7 +158,6 @@ function AssessmentPage() {
 
         let successCount = 0;
         let finalCandidateRecords: CandidateRecord[] = [];
-        const jobCode = jd.code;
 
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
@@ -167,21 +176,14 @@ function AssessmentPage() {
                 }
 
                 if (parsedCvData) {
-                    let recordJobCode: 'OCN' | 'WEX' | 'SAN' | undefined = undefined;
-                    if (jobCode?.startsWith('OCN')) recordJobCode = 'OCN';
-                    else if (jobCode?.startsWith('WEX')) recordJobCode = 'WEX';
-                    else if (jobCode?.startsWith('SAN')) recordJobCode = 'SAN';
-
-                    if (recordJobCode) {
-                        const dbRecord: CvDatabaseRecord = {
-                            ...parsedCvData,
-                            jobCode: recordJobCode,
-                            cvFileName: cvFile.name,
-                            cvContent: cvFile.content,
-                            createdAt: new Date().toISOString(),
-                        };
-                        addOrUpdateCvInDatabase(dbRecord);
-                    }
+                    const dbRecord: CvDatabaseRecord = {
+                        ...parsedCvData,
+                        jobCode: jobCode,
+                        cvFileName: cvFile.name,
+                        cvContent: cvFile.content,
+                        createdAt: new Date().toISOString(),
+                    };
+                    addOrUpdateCvInDatabase(dbRecord);
                 }
                 
                 const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
@@ -275,7 +277,11 @@ function AssessmentPage() {
                           name: item.candidate.cvFileName,
                           content: item.candidate.cvContent,
                       }));
-                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id);
+                      let recordJobCode: JobCode | null = null;
+                      if (firstItem.candidate.jobCode) {
+                          recordJobCode = firstItem.candidate.jobCode;
+                      }
+                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, recordJobCode);
                   }
               }
           } catch(e) {
@@ -324,6 +330,7 @@ function AssessmentPage() {
     setJdFile(null);
     setIsJdAnalysisOpen(false);
     setCvs([]);
+    setJobCodeForUpload(null);
     setCvResetKey(key => key + 1);
   };
 
@@ -437,6 +444,7 @@ function AssessmentPage() {
   
   const handleCvClear = () => {
     setCvs([]);
+    setJobCodeForUpload(null);
   }
 
   const reAssessCandidates = async (
@@ -587,7 +595,11 @@ function AssessmentPage() {
         toast({ variant: "destructive", description: "Please analyze a Job Description first." });
         return;
     }
-    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd, activeSessionId);
+    if (!jobCodeForUpload) {
+        toast({ variant: "destructive", description: "Please select a job code for the CVs." });
+        return;
+    }
+    await processAndAnalyzeCandidates(cvs, activeSession.analyzedJd, activeSessionId, jobCodeForUpload);
   };
 
   const handleAnalyzeFromDb = useCallback(async (selectedCvsFromDb: CvDatabaseRecord[]) => {
@@ -612,7 +624,9 @@ function AssessmentPage() {
         content: cv.cvContent,
     }));
     
-    await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId);
+    // Assuming the job code for DB candidates matches their record
+    const jobCode = newCvsToAdd[0]?.jobCode;
+    await processAndAnalyzeCandidates(uploadedFiles, activeSession.analyzedJd, activeSessionId, jobCode);
     setIsAddFromDbOpen(false);
   }, [activeSession, processAndAnalyzeCandidates, toast, activeSessionId]);
   
@@ -850,9 +864,9 @@ function AssessmentPage() {
                         <CardTitle className="flex items-center gap-2 text-base"><UserPlus /> Step 2: Add Candidates</CardTitle>
                         <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 space-y-4">
                         <div className="grid md:grid-cols-2 gap-6 items-start">
-                            <FileUploader
+                             <FileUploader
                                 key={cvResetKey}
                                 id="cv-uploader"
                                 label="Upload CVs"
@@ -861,30 +875,47 @@ function AssessmentPage() {
                                 onFileClear={handleCvClear}
                                 multiple={true}
                             />
-                            <div className="space-y-4 pt-6">
+                            <div className="space-y-4">
+                                <div className="grid w-full items-center gap-1.5">
+                                    <Label htmlFor="job-code-select">Job Code (Required)</Label>
+                                    <Select value={jobCodeForUpload || ''} onValueChange={(v) => setJobCodeForUpload(v as JobCode)}>
+                                        <SelectTrigger id="job-code-select">
+                                            <SelectValue placeholder="Select a job code..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="OCN">OCN</SelectItem>
+                                            <SelectItem value="WEX">WEX</SelectItem>
+                                            <SelectItem value="SAN">SAN</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                     <p className="text-xs text-muted-foreground">Select a code to associate with the uploaded CVs.</p>
+                                </div>
                                 <Button 
                                     onClick={handleAnalyzeCvs} 
-                                    disabled={cvs.length === 0 || isAssessingNewCvs || isReassessing} 
+                                    disabled={cvs.length === 0 || !jobCodeForUpload || isAssessingNewCvs || isReassessing} 
                                     className="w-full"
                                 >
                                     {isAssessingNewCvs ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                                     {isAssessingNewCvs ? 'Assessing...' : `Add & Assess ${cvs.length > 0 ? `(${cvs.length})` : ''}`}
                                 </Button>
-                                <Dialog open={isAddFromDbOpen} onOpenChange={setIsAddFromDbOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" className="w-full">
-                                            <Database className="mr-2 h-4 w-4"/>
-                                            Add from Database
-                                        </Button>
-                                    </DialogTrigger>
-                                    <AddFromDbDialog 
-                                        allCvs={cvDatabase}
-                                        jobCode={activeSession.analyzedJd.code}
-                                        sessionCandidates={activeSession.candidates}
-                                        onAdd={handleAnalyzeFromDb}
-                                    />
-                                </Dialog>
                             </div>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-center">
+                            <Dialog open={isAddFromDbOpen} onOpenChange={setIsAddFromDbOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline">
+                                        <Database className="mr-2 h-4 w-4"/>
+                                        Add from Database
+                                    </Button>
+                                </DialogTrigger>
+                                <AddFromDbDialog 
+                                    allCvs={cvDatabase}
+                                    jobCode={activeSession.analyzedJd.code}
+                                    sessionCandidates={activeSession.candidates}
+                                    onAdd={handleAnalyzeFromDb}
+                                />
+                            </Dialog>
                         </div>
                     </CardContent>
                 </Card>
@@ -1033,7 +1064,7 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
                 <DialogHeader>
                     <DialogTitle>Cannot Add from Database</DialogTitle>
                     <DialogDescription>
-                        The current Job Description does not have a valid job code (OCN, WEX, or SAN). Please edit the JD to add a valid code before adding candidates from the database.
+                        The current Job Description does not have a valid job code (e.g., OCN, WEX, or SAN). Please edit the JD to add a valid code before adding candidates from the database.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
