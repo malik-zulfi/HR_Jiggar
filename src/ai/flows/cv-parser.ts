@@ -20,8 +20,10 @@ import { withRetry } from '@/lib/retry';
 export type { ParseCvOutput };
 
 export async function parseCv(input: { cvText: string }): Promise<ParseCvOutput> {
-  const currentDate = new Date().toDateString();
-  return parseCvFlow({ ...input, currentDate });
+  const now = new Date();
+  const currentDate = now.toDateString();
+  const experienceCalculatedAt = now.toISOString();
+  return parseCvFlow({ ...input, currentDate, experienceCalculatedAt });
 }
 
 const prompt = ai.definePrompt({

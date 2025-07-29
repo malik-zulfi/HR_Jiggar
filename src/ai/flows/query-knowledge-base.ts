@@ -45,10 +45,13 @@ const prompt = ai.definePrompt({
 **Important Reasoning Rules:**
 *   **Experience Calculations:**
     - The 'totalExperience' field in cvDatabase is a static value from when the CV was parsed
-    - When calculating current durations (e.g., for positions marked as "Present"), use the current date ({{{currentDate}}})
-    - When showing experience breakdowns in tables, calculate the actual durations up to current date
-    - Note that the 'totalExperience' value may differ from current calculations as it's not automatically updated
-    - For precise total experience, recommend re-parsing the CV to update the calculations
+    - Always show both:
+      1. Current calculation: Using the current date ({{{currentDate}}}) for "Present" positions
+      2. Pre-calculated total: Include 'totalExperience' with its calculation date in a note
+    - When showing experience breakdowns in tables:
+      - Calculate current durations up to present date
+      - Add a footer note showing the pre-calculated experience and when it was calculated
+    - If the pre-calculated value is more than 3 months old, suggest re-parsing the CV
 *   **Use Conversation History**: Refer to the \`chatHistory\` to understand the context of the user's current query. Answer follow-up questions based on previous interactions.
 
 **Your Task:**
@@ -109,6 +112,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
             jobCode: cv.jobCode,
             currentTitle: cv.currentTitle,
             totalExperience: cv.totalExperience,
+            experienceCalculatedAt: cv.experienceCalculatedAt,
             cvContent: cv.cvContent,
             structuredContent: cv.structuredContent,
         })),

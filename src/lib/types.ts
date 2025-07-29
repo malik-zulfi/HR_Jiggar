@@ -52,6 +52,7 @@ export const AnalyzeCVAgainstJDOutputSchema = z.object({
   candidateName: z.string().describe('The full name of the candidate as extracted from the CV.'),
   email: z.string().optional().describe("The candidate's primary email address, extracted from the CV."),
   totalExperience: z.string().nullable().optional().describe("The candidate's total years of experience, pre-calculated from the CV."),
+  experienceCalculatedAt: z.string().optional().describe("The date when the total experience was calculated."),
   alignmentScore: z.number().describe('The overall alignment score of the candidate, from 0 to 100.'),
   candidateScore: z.number().optional().describe('The raw score awarded to the candidate.'),
   maxScore: z.number().optional().describe('The maximum possible raw score for the assessment.'),
