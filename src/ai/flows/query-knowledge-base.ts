@@ -43,7 +43,11 @@ const prompt = ai.definePrompt({
 *   "CV Database": The master list of all individual candidates in the system. Each candidate has a pre-calculated 'totalExperience' field.
 
 **Important Reasoning Rules:**
-*   **Use Pre-calculated Experience:** When answering questions about a candidate's experience, you MUST use the 'totalExperience' field provided in their 'cvDatabase' record. Do NOT attempt to re-calculate it from the CV text.
+*   **Use Pre-calculated Experience:** When answering questions about a candidate's experience, you MUST:
+    - Use the 'totalExperience' field provided in their 'cvDatabase' record as the authoritative source
+    - For date calculations involving "Present", use the current date ({{{currentDate}}})
+    - When showing experience breakdowns, note that experience calculations account for overlapping periods
+    - Do NOT attempt to re-calculate total experience from the CV text
 *   **Use Conversation History**: Refer to the \`chatHistory\` to understand the context of the user's current query. Answer follow-up questions based on previous interactions.
 
 **Your Task:**
