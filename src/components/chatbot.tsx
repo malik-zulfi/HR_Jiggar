@@ -185,18 +185,18 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                                     </code>
                                 );
                             },
-                            table: ({node, isHeader, className, ...props}) => (
+                            table: ({node, className, ...props}) => (
                                 <div className="my-2 w-full overflow-auto rounded-md border">
                                     <table className={cn("w-full", className)} {...props} />
                                 </div>
                             ),
-                            thead: ({node, isHeader, className, ...props}) => (
+                            thead: ({node, className, ...props}) => (
                                 <thead className={cn("bg-muted/50 font-medium", className)} {...props} />
                             ),
-                            tbody: ({node, isHeader, className, ...props}) => (
+                            tbody: ({node, className, ...props}) => (
                                 <tbody className={className} {...props} />
                             ),
-                            tr: ({node, isHeader, className, ...props}) => (
+                            tr: ({node, className, ...props}) => (
                                 <tr className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)} {...props} />
                             ),
                             th: ({node, isHeader, className, ...props}) => (
