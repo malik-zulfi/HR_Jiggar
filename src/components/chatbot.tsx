@@ -185,16 +185,26 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                                     </code>
                                 );
                             },
-                            table: ({node, ...props}) => (
+                            table: ({node, isHeader, className, ...props}) => (
                                 <div className="my-2 w-full overflow-auto rounded-md border">
-                                    <table className="w-full" {...props} />
+                                    <table className={cn("w-full", className)} {...props} />
                                 </div>
                             ),
-                            thead: ({node, ...props}) => <thead className="bg-muted/50 font-medium" {...props} />,
-                            tbody: ({node, ...props}) => <tbody {...props} />,
-                            tr: ({node, ...props}) => <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" {...props} />,
-                            th: ({node, isHeader, className, ...props}) => <th className={cn("h-10 px-3 text-left align-middle font-medium text-muted-foreground", className)} {...props} />,
-                            td: ({node, isHeader, className, ...props}) => <td className={cn("p-3 align-middle", className)} {...props} />,
+                            thead: ({node, isHeader, className, ...props}) => (
+                                <thead className={cn("bg-muted/50 font-medium", className)} {...props} />
+                            ),
+                            tbody: ({node, isHeader, className, ...props}) => (
+                                <tbody className={className} {...props} />
+                            ),
+                            tr: ({node, isHeader, className, ...props}) => (
+                                <tr className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)} {...props} />
+                            ),
+                            th: ({node, isHeader, className, ...props}) => (
+                                <th className={cn("h-10 px-3 text-left align-middle font-medium text-muted-foreground", className)} {...props} />
+                            ),
+                            td: ({node, isHeader, className, ...props}) => (
+                                <td className={cn("p-3 align-middle", className)} {...props} />
+                            ),
                           }}
                        >
                            {msg.content}
