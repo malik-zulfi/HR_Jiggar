@@ -74,21 +74,7 @@ export default function DashboardPage() {
 
     const stats = useMemo(() => {
         const totalPositions = filteredHistory.length;
-        
-        const allAssessedEmailsInFilter = new Set<string>();
-        filteredHistory.forEach(session => {
-            session.candidates.forEach(c => {
-                if (c.analysis.email) {
-                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
-                } else {
-                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
-                    if (dbRecord) {
-                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
-                    }
-                }
-            });
-        });
-        const totalCandidatesInAssessments = allAssessedEmailsInFilter.size;
+        const totalCandidatesInAssessments = filteredHistory.reduce((sum, session) => sum + (session.candidates?.length || 0), 0);
         
         const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
@@ -112,6 +98,20 @@ export default function DashboardPage() {
         });
 
         const totalInDb = filteredCvDatabase.length;
+
+        const allAssessedEmailsInFilter = new Set<string>();
+        filteredHistory.forEach(session => {
+            session.candidates.forEach(c => {
+                if (c.analysis.email) {
+                    allAssessedEmailsInFilter.add(c.analysis.email.toLowerCase());
+                } else {
+                    const dbRecord = cvDatabase.find(dbCv => dbCv.name.toLowerCase() === c.analysis.candidateName.toLowerCase());
+                    if (dbRecord) {
+                         allAssessedEmailsInFilter.add(dbRecord.email.toLowerCase());
+                    }
+                }
+            });
+        });
         
         const unassessedCount = filteredCvDatabase.filter(cv => !allAssessedEmailsInFilter.has(cv.email.toLowerCase())).length;
         
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-accent">{stats.totalCandidatesInAssessments}</div>
-                                <p className="text-xs text-muted-foreground">Total unique candidates with an assessment</p>
+                                <p className="text-xs text-muted-foreground">Total CVs processed across all positions</p>
                             </CardContent>
                         </Card>
                         <Card>
