@@ -6,15 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { ExtractJDCriteriaOutput } from "@/lib/types";
+import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
 import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  onRequirementChange: (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
 }
 
 const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon: React.ReactNode }) => {
@@ -30,15 +33,22 @@ const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon
     );
 };
 
-const RequirementSection = ({ title, mustHaves, niceToHaves, icon }: {
+const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange }: {
     title: string;
-    mustHaves?: string[];
-    niceToHaves?: string[];
+    mustHaves?: Requirement[];
+    niceToHaves?: Requirement[];
     icon: React.ReactNode;
+    category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities';
+    onRequirementChange: (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
 }) => {
     if ((!mustHaves || mustHaves.length === 0) && (!niceToHaves || niceToHaves.length === 0)) {
         return null;
     }
+
+    const handleToggle = (reqId: string, currentPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => {
+        const newPriority = currentPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
+        onRequirementChange(category, reqId, newPriority);
+    };
 
     return (
         <div className="break-inside-avoid">
@@ -50,16 +60,54 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon }: {
                 {mustHaves && mustHaves.length > 0 && (
                     <div>
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
-                        <ul className="list-disc list-outside pl-5 space-y-1 text-sm">
-                            {mustHaves.map((item, index) => <li key={`must-${index}`}>{item}</li>)}
+                        <ul className="space-y-2 text-sm">
+                            {mustHaves.map((item) => (
+                                <li key={item.id} className="flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50">
+                                    <span className="flex-1">{item.description}</span>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Switch
+                                                    id={`switch-${item.id}`}
+                                                    checked={true}
+                                                    onCheckedChange={() => handleToggle(item.id, 'MUST_HAVE')}
+                                                    aria-label={`Toggle ${item.description} priority`}
+                                                />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Toggle to Nice to Have</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </li>
+                            ))}
                         </ul>
                     </div>
                 )}
                 {niceToHaves && niceToHaves.length > 0 && (
                      <div>
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
-                        <ul className="list-disc list-outside pl-5 space-y-1 text-sm text-muted-foreground">
-                            {niceToHaves.map((item, index) => <li key={`nice-${index}`}>{item}</li>)}
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                             {niceToHaves.map((item) => (
+                                <li key={item.id} className="flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50">
+                                    <span className="flex-1">{item.description}</span>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Switch
+                                                    id={`switch-${item.id}`}
+                                                    checked={false}
+                                                    onCheckedChange={() => handleToggle(item.id, 'NICE_TO_HAVE')}
+                                                    aria-label={`Toggle ${item.description} priority`}
+                                                />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Toggle to Must Have</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </li>
+                            ))}
                         </ul>
                     </div>
                 )}
@@ -68,7 +116,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon }: {
     );
 };
 
-export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange }: JdAnalysisProps) {
   const {
       JobTitle,
       JobCode,
@@ -84,10 +132,18 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
       Requirements
   } = analysis;
 
-  const experienceMustHaves = [
-      ...(Requirements.Experience.MUST_HAVE.Years !== "Not Found" ? [`${Requirements.Experience.MUST_HAVE.Years} in:`] : []),
-      ...(Requirements.Experience.MUST_HAVE.Fields.map(f => `  - ${f}`))
-  ];
+  const experienceMustHaves = Requirements.Experience.MUST_HAVE.Fields.map((field, index) => ({
+    id: `exp-must-${index}`,
+    description: `${Requirements.Experience.MUST_HAVE.Years} in ${field}`,
+    priority: 'MUST_HAVE' as const
+  }));
+
+  const experienceNiceToHaves = Requirements.Experience.NICE_TO_HAVE.map((desc, index) => ({
+      id: `exp-nice-${index}`,
+      description: desc,
+      priority: 'NICE_TO_HAVE' as const
+  }));
+
 
   return (
     <Collapsible open={isOpen} onOpenChange={onOpenChange} asChild>
@@ -100,7 +156,7 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
                   <Briefcase className="h-5 w-5 text-primary"/>
                   <span className="mr-2">{JobTitle || 'Job Description Breakdown'}</span>
                 </CardTitle>
-                <CardDescription>The JD has been deconstructed. Expand to see details.</CardDescription>
+                <CardDescription>The JD has been deconstructed. You can edit requirement priorities below.</CardDescription>
                  <div className="flex items-center gap-2 flex-wrap mt-2">
                     <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
                     <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
@@ -167,12 +223,12 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
             </div>
 
             <div className="md:columns-2 gap-8 space-y-6">
-              <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} />
-              <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} />
-              <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={Requirements.Experience.NICE_TO_HAVE} />
-              <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} />
-              <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} />
-              <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} />
+              <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} />
+              <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} category="Certifications" onRequirementChange={onRequirementChange} />
+              <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={experienceNiceToHaves} category="Experience" onRequirementChange={onRequirementChange} />
+              <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} />
+              <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} />
+              <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} />
             </div>
           </CardContent>
         </CollapsibleContent>

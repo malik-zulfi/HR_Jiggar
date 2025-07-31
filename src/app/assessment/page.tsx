@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput, Requirement } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
@@ -690,6 +690,55 @@ function AssessmentPage() {
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
   
+  const handleRequirementChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => {
+    if (!activeSession) return;
+    
+    setHistory(prevHistory => {
+        return prevHistory.map(session => {
+            if (session.id === activeSessionId) {
+                const newJd = { ...session.analyzedJd };
+                let requirementFoundAndMoved = false;
+
+                const findAndMove = (sourceArray: Requirement[], targetArray: Requirement[]) => {
+                    const reqIndex = sourceArray.findIndex(r => r.id === reqId);
+                    if (reqIndex > -1) {
+                        const [reqToMove] = sourceArray.splice(reqIndex, 1);
+                        reqToMove.priority = newPriority;
+                        targetArray.push(reqToMove);
+                        requirementFoundAndMoved = true;
+                    }
+                };
+                
+                const currentPriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
+                
+                if (category === 'Responsibilities') {
+                    const source = newJd.Responsibilities[currentPriority];
+                    const target = newJd.Responsibilities[newPriority];
+                    findAndMove(source, target);
+                } else if (category in newJd.Requirements) {
+                    const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
+                    if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat) { // For skill-like categories
+                        const source = cat[currentPriority] as Requirement[];
+                        const target = cat[newPriority] as Requirement[];
+                        findAndMove(source, target);
+                    }
+                }
+                
+                if (requirementFoundAndMoved) {
+                    toast({ description: `Requirement priority updated. Candidates marked for re-assessment.` });
+                    return {
+                        ...session,
+                        analyzedJd: newJd,
+                        candidates: session.candidates.map(c => ({ ...c, isStale: true })),
+                        summary: null,
+                    };
+                }
+            }
+            return session;
+        });
+    });
+  };
+
   const acceptedFileTypes = ".pdf,.docx,.txt";
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
   const isReassessing = Object.keys(reassessStatus).length > 0;
@@ -819,6 +868,7 @@ function AssessmentPage() {
                     analysis={activeSession.analyzedJd}
                     isOpen={isJdAnalysisOpen}
                     onOpenChange={setIsJdAnalysisOpen}
+                    onRequirementChange={handleRequirementChange}
                 />
                 
                 <Card>

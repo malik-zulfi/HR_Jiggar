@@ -1,6 +1,14 @@
 
 import { z } from 'zod';
 
+export const RequirementSchema = z.object({
+  id: z.string().describe("A unique identifier for the requirement, e.g., 'req-1'."),
+  description: z.string().describe("The text of the requirement."),
+  priority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).optional().describe("The priority of the requirement."),
+});
+export type Requirement = z.infer<typeof RequirementSchema>;
+
+
 // NEW: JD Analyzer V2 Schemas
 const OrganizationalRelationshipSchema = z.object({
   ReportsTo: z.array(z.string()).describe("List of roles this position reports to."),
@@ -8,8 +16,8 @@ const OrganizationalRelationshipSchema = z.object({
 }).describe("Defines the position's place in the organization.");
 
 const RequirementsSubSchema = z.object({
-  MUST_HAVE: z.array(z.string()).describe("List of must-have requirements for this category."),
-  NICE_TO_HAVE: z.array(z.string()).describe("List of nice-to-have requirements for this category.")
+  MUST_HAVE: z.array(RequirementSchema).describe("List of must-have requirements for this category."),
+  NICE_TO_HAVE: z.array(RequirementSchema).describe("List of nice-to-have requirements for this category.")
 });
 
 const ExperienceSchema = z.object({
@@ -39,14 +47,8 @@ export const ExtractJDCriteriaOutputSchema = z.object({
   DateApproved: z.string().describe("The date the JD was approved. 'Not Found' if not available."),
   PrincipalObjective: z.string().describe("The principal objective or summary of the job."),
   OrganizationalRelationship: OrganizationalRelationshipSchema,
-  Responsibilities: RequirementsSubSchema.extend({
-      MUST_HAVE: z.array(z.string()).describe("List of must-have responsibilities."),
-      NICE_TO_HAVE: z.array(z.string()).describe("List of nice-to-have responsibilities.")
-  }),
+  Responsibilities: RequirementsSubSchema,
   Requirements: RequirementsSchema,
-  // This field is now deprecated but kept for potential backward compatibility during transition.
-  // It should not be actively used for new logic.
-  formattedCriteria: z.string().optional().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
 });
 export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
 
@@ -55,7 +57,7 @@ export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSche
 export const AlignmentDetailSchema = z.object({
   category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
   requirement: z.string().describe("The specific requirement from the job description. For grouped requirements, this will be a summary of the group."),
-  priority: z.enum(['MUST-HAVE', 'NICE_TO-HAVE']).describe('Priority of the requirement.'),
+  priority: z.enum(['MUST-HAVE', 'NICE_TO_HAVE']).describe('Priority of the requirement.'),
   status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
   justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
   score: z.number().optional().describe('The score awarded for this specific requirement.'),
@@ -171,8 +173,6 @@ export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 export const AssessmentSessionSchema = z.object({
     id: z.string(),
     jdName: z.string(),
-    // originalAnalyzedJd is now deprecated in favor of the new structure but kept for data migration/compatibility.
-    originalAnalyzedJd: ExtractJDCriteriaOutputSchema.optional(),
     analyzedJd: ExtractJDCriteriaOutputSchema,
     candidates: z.array(CandidateRecordSchema),
     summary: CandidateSummaryOutputSchema.nullable(),
