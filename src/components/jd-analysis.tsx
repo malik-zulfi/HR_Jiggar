@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck } from "lucide-react";
+import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface JdAnalysisProps {
