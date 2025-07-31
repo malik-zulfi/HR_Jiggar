@@ -40,7 +40,7 @@ const findSuitablePositionsPrompt = ai.definePrompt({
     name: 'findSuitablePositionsPrompt',
     input: { schema: FindSuitablePositionsPromptInput },
     output: { schema: FindSuitablePositionsPromptOutput },
-    config: { temperature: 0.0 },
+    config: { temperature: 0.1 },
     prompt: `You are an expert recruitment assistant. Your task is to determine which job positions (Assessment Sessions) are a good fit for all the given candidates.
 
 Candidates Information:
@@ -135,3 +135,5 @@ const findSuitablePositionsFlow = ai.defineFlow(
 export async function findSuitablePositionsForCandidate(input: FindSuitablePositionsInput): Promise<FindSuitablePositionsOutput> {
     return findSuitablePositionsFlow(input);
 }
+
+    

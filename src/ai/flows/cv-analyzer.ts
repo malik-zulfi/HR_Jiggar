@@ -48,7 +48,12 @@ const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendat
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
     name: 'analyzeCVAgainstJDPrompt',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
+<<<<<<< HEAD
     output: { schema: AIAnalysisOutputSchema },
+=======
+    output: { schema: AnalyzeCVAgainstJDOutputSchema },
+    config: { temperature: 0.1 },
+>>>>>>> parent of f4af187 (we discussed that to keep our assessments consistent we will set the tem)
     prompt: `You are an expert recruitment analyst. Your task is to perform a comprehensive analysis of the candidate's CV against the provided Job Description criteria.
 
 **IMPORTANT INSTRUCTIONS:**
