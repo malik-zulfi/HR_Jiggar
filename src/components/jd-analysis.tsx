@@ -72,6 +72,7 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
   const {
       JobTitle,
       JobCode,
+      PositionNumber,
       PayGrade,
       Department,
       Company,
@@ -101,7 +102,8 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
                 </CardTitle>
                 <CardDescription>The JD has been deconstructed. Expand to see details.</CardDescription>
                  <div className="flex items-center gap-2 flex-wrap mt-2">
-                    <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold">#</span>} />
+                    <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
+                    <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
                     <InfoBadge label="Grade" value={PayGrade} icon={<Star className="w-3 h-3"/>} />
                     <InfoBadge label="Dept" value={Department} icon={<Users className="w-3 h-3"/>} />
                     <InfoBadge label="Company" value={Company} icon={<Building className="w-3 h-3"/>} />

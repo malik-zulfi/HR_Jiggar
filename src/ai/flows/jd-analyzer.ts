@@ -37,8 +37,8 @@ const prompt = ai.definePrompt({
 
 **Instructions:**
 
-1.  **Full Extraction**: You MUST extract information for every field in the provided JSON schema.
-2.  **"Not Found"**: If you cannot find information for a specific field, you MUST use the string "Not Found". For arrays, if no items are found, return an empty array \`[]\`.
+1.  **Full Extraction**: You MUST extract information for every field in the provided JSON schema, including the new 'PositionNumber' field.
+2.  **"Not Found"**: If you cannot find information for a specific field, you MUST use the string "Not Found". For arrays, if no items are found, return an empty array [].
 3.  **Prioritization**: For each requirement in Responsibilities, TechnicalSkills, SoftSkills, Education, and Certifications, you MUST classify it as either \`MUST_HAVE\` or \`NICE_TO_HAVE\`. Use keywords like "minimum", "required" for MUST_HAVE, and "preferred", "plus", "bonus" for NICE_TO_HAVE. If no keyword is present, default to MUST_HAVE.
 4.  **Experience Field**: For the \`Requirements.Experience.MUST_HAVE.Years\` field, extract the number of years as a string (e.g., "5+ years").
 5.  **Organizational Relationship**: Extract reporting lines and interfaces into their respective arrays.

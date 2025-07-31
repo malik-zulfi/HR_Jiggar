@@ -29,6 +29,7 @@ const RequirementsSchema = z.object({
 }).describe("Detailed breakdown of all job requirements.");
 
 export const ExtractJDCriteriaOutputSchema = z.object({
+  PositionNumber: z.string().describe("The unique position number for the job. 'Not Found' if not available."),
   JobCode: z.string().describe("The internal job code (e.g., OCN, WEX, SAN). 'Not Found' if not available."),
   PayGrade: z.string().describe("The job grade or level. 'Not Found' if not available."),
   JobTitle: z.string().describe("The title of the job position. 'Not Found' if not available."),
@@ -54,7 +55,7 @@ export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSche
 export const AlignmentDetailSchema = z.object({
   category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
   requirement: z.string().describe("The specific requirement from the job description. For grouped requirements, this will be a summary of the group."),
-  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
+  priority: z.enum(['MUST-HAVE', 'NICE_TO-HAVE']).describe('Priority of the requirement.'),
   status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
   justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
   score: z.number().optional().describe('The score awarded for this specific requirement.'),
