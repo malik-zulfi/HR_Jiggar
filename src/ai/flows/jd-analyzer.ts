@@ -31,16 +31,17 @@ export async function extractJDCriteria(input: ExtractJDCriteriaInput): Promise<
   return extractJDCriteriaFlow(input);
 }
 
-const BaseRequirementSchema = z.object({
-    description: z.string(),
+const SingleRequirementSchema = z.object({
+    description: z.string().describe("A single, distinct requirement."),
 });
 
 const GroupedRequirementSchema = z.object({
-    groupType: z.enum(['OR']),
-    requirements: z.array(z.string()),
+    groupType: z.enum(['OR']).describe("The type of grouping, indicating alternative paths."),
+    requirements: z.array(SingleRequirementSchema).describe("The list of alternative requirements within this group, each as an object with a 'description' field."),
 });
 
-const FlexibleRequirementSchema = z.union([BaseRequirementSchema.shape.description, GroupedRequirementSchema]);
+const FlexibleRequirementSchema = z.union([SingleRequirementSchema, GroupedRequirementSchema]);
+
 
 const BaseJDCriteriaSchema = ExtractJDCriteriaOutputSchema.omit({ 
     formattedCriteria: true,
@@ -73,9 +74,9 @@ Then, extract the key requirements. For each requirement, determine if it is a s
 
 **Requirement Extraction Rules:**
 
-1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as simple strings in the \`requirements\` array.
-2.  **Handle Associated Requirements:** If requirements are clearly linked within an "OR" condition (e.g., "Bachelor's degree in Law... with a minimum ten (10) years experience OR Chartered Professional Membership... with a minimum twelve (12) years experience"), you MUST treat each part of the "OR" statement as a complete, distinct requirement string within the group's \`requirements\` array. Do not split the degree from its associated experience.
-3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as a simple string.
+1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as objects with a 'description' field in the \`requirements\` array.
+2.  **Handle Associated Requirements:** If requirements are clearly linked within an "OR" condition (e.g., "Bachelor's degree in Law... with a minimum ten (10) years experience OR Chartered Professional Membership... with a minimum twelve (12) years experience"), you MUST treat each part of the "OR" statement as a complete, distinct requirement description within the group's \`requirements\` array. Do not split the degree from its associated experience.
+3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as an object with a 'description' field.
 4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: technical skills, soft skills, experience, education, certifications, or responsibilities. Do NOT assign priority yet.
 
 Job Description:
@@ -139,23 +140,23 @@ const extractJDCriteriaFlow = ai.defineFlow(
         education: [], experience: [], technicalSkills: [], softSkills: [], responsibilities: [], certifications: [], additionalRequirements: []
     };
     
-    const processCategory = (items: (string | { groupType: 'OR'; requirements: string[] })[] | undefined, category: keyof typeof structuredData) => {
+    const processCategory = (items: ({ description: string } | { groupType: 'OR'; requirements: { description: string }[] })[] | undefined, category: keyof typeof structuredData) => {
         if (!items || items.length === 0) return [];
         
         const defaultWeight = getCategoryWeight(category as any);
 
         return items.map((item): Requirement | RequirementGroup => {
-            if (typeof item === 'string') {
-                const priority = getPriority(item);
+            if ('description' in item) { // It's a single requirement
+                const priority = getPriority(item.description);
                 const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
-                return { description: item, priority, score, defaultScore: score };
+                return { description: item.description, priority, score, defaultScore: score };
             } else { // It's a group
                 return {
                     groupType: 'OR',
-                    requirements: item.requirements.map(desc => {
-                        const priority = getPriority(desc);
+                    requirements: item.requirements.map(req => {
+                        const priority = getPriority(req.description);
                         const score = priority === 'MUST-HAVE' ? defaultWeight : Math.ceil(defaultWeight / 2);
-                        return { description: desc, priority, score, defaultScore: score };
+                        return { description: req.description, priority, score, defaultScore: score };
                     })
                 };
             }
@@ -206,3 +207,5 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
   }
 );
+
+    
