@@ -142,8 +142,8 @@ export default function NotificationsPage() {
                                                         onClick={(e) => { e.preventDefault(); localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, assessmentInfo.id); window.location.href = '/assessment'; }}
                                                         className="flex-1 overflow-hidden"
                                                     >
-                                                        <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.jobTitle}>
-                                                            {assessmentInfo.analyzedJd.jobTitle}
+                                                        <h5 className="font-semibold text-primary truncate" title={assessmentInfo.analyzedJd.JobTitle}>
+                                                            {assessmentInfo.analyzedJd.JobTitle}
                                                         </h5>
                                                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                                                             <Users className="h-3 w-3" /> {candidates.length} new suitable candidate(s)
@@ -200,5 +200,3 @@ export default function NotificationsPage() {
         </div>
     );
 }
-
-    

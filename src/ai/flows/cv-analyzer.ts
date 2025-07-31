@@ -21,7 +21,7 @@ import {
 import { withRetry } from '@/lib/retry';
 
 const AnalyzeCVAgainstJDInputSchema = z.object({
-  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against, including the pre-formatted string.'),
+  jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe('The structured job description criteria to analyze against.'),
   cv: z.string().describe('The CV to analyze.'),
   parsedCv: ParseCvOutputSchema.nullable().optional().describe('Optional pre-parsed CV data. If provided, name and email extraction will be skipped.'),
 });
@@ -46,7 +46,7 @@ function toTitleCase(str: string): string {
 const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true, alignmentScore: true, candidateScore: true, maxScore: true });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
-    name: 'analyzeCVAgainstJDPrompt',
+    name: 'analyzeCVAgainstJDPromptV2',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
     output: { schema: AIAnalysisOutputSchema },
     config: { temperature: 0.1 },
@@ -55,15 +55,16 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 **IMPORTANT INSTRUCTIONS:**
 
 1.  **Use Pre-Parsed Data:** You have been provided with pre-parsed CV data, including the candidate's name, email, and a calculated 'totalExperience'. You MUST use these values as the single source of truth. Do not re-calculate or re-extract them.
-2.  **Detailed Alignment:** For each requirement in the \`jobDescriptionCriteria\`, you must:
+2.  **Analyze All Requirements**: You must iterate through every single requirement listed in the \`jobDescriptionCriteria\` JSON under \`Responsibilities\` and \`Requirements\`. For each one, you must create a corresponding entry in the \`alignmentDetails\` array.
+3.  **Detailed Alignment:** For each requirement, you must:
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
-    c.  Calculate a 'score' for each requirement based on its priority and the alignment status. The 'maxScore' is provided for each requirement.
-3.  **Summaries (No Overall Score):**
+    c.  Calculate a 'score' for each requirement. A 'MUST-HAVE' aligned is 10 points, partially is 5. A 'NICE-TO-HAVE' aligned is 5 points, partially is 2. 'Not Aligned' or 'Not Mentioned' is 0. The 'maxScore' is 10 for MUST-HAVE and 5 for NICE-TO-HAVE.
+4.  **Summaries (No Overall Score):**
     a.  Write a concise \`alignmentSummary\`.
     b.  List the key \`strengths\` and \`weaknesses\`.
     c.  Suggest 2-3 targeted \`interviewProbes\` to explore weak areas.
-4.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema. DO NOT determine the final 'recommendation' or calculate the overall 'alignmentScore', 'candidateScore', or 'maxScore'. These will be handled separately.
+5.  **Output Format:** Your final output MUST be a valid JSON object that strictly adheres to the provided output schema. DO NOT determine the final 'recommendation' or calculate the overall 'alignmentScore', 'candidateScore', or 'maxScore'. These will be handled separately.
 
 ---
 **Job Description Criteria (JSON):**

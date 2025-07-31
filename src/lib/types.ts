@@ -1,37 +1,51 @@
 
 import { z } from 'zod';
 
-// For JD Analyzer
-export const RequirementSchema = z.object({
-  description: z.string().describe('Description of the requirement.'),
-  priority: z.enum(['MUST-HAVE', 'NICE-TO-HAVE']).describe('Priority of the requirement.'),
-  score: z.number().describe('The points this requirement is worth. Editable by the user.'),
-  defaultScore: z.number().describe('The default score assigned by the AI, for tracking changes.'),
-});
-export type Requirement = z.infer<typeof RequirementSchema>;
+// NEW: JD Analyzer V2 Schemas
+const OrganizationalRelationshipSchema = z.object({
+  ReportsTo: z.array(z.string()).describe("List of roles this position reports to."),
+  InterfacesWith: z.array(z.string()).describe("List of roles/departments this position interfaces with.")
+}).describe("Defines the position's place in the organization.");
 
-export const RequirementGroupSchema = z.object({
-  groupType: z.enum(['OR']).describe('The type of grouping, indicating alternative paths.'),
-  requirements: z.array(RequirementSchema).describe('The list of alternative requirements within this group.'),
+const RequirementsSubSchema = z.object({
+  MUST_HAVE: z.array(z.string()).describe("List of must-have requirements for this category."),
+  NICE_TO_HAVE: z.array(z.string()).describe("List of nice-to-have requirements for this category.")
 });
-export type RequirementGroup = z.infer<typeof RequirementGroupSchema>;
 
-const RequirementOrGroupSchema = z.union([RequirementSchema, RequirementGroupSchema]);
+const ExperienceSchema = z.object({
+  MUST_HAVE: z.object({
+    Years: z.string().describe("The minimum number of years of experience required."),
+    Fields: z.array(z.string()).describe("The specific fields or domains of experience required.")
+  }),
+  NICE_TO_HAVE: z.array(z.string()).describe("Nice-to-have experience requirements.")
+});
+
+const RequirementsSchema = z.object({
+  TechnicalSkills: RequirementsSubSchema,
+  SoftSkills: RequirementsSubSchema,
+  Experience: ExperienceSchema,
+  Education: RequirementsSubSchema,
+  Certifications: RequirementsSubSchema,
+}).describe("Detailed breakdown of all job requirements.");
 
 export const ExtractJDCriteriaOutputSchema = z.object({
-  jobTitle: z.string().optional().describe('The title of the job position.'),
-  positionNumber: z.string().optional().describe('The position or requisition number, if available.'),
-  code: z.string().optional().describe('The internal job code, if available.'),
-  grade: z.string().optional().describe('The job grade or level, if available.'),
-  department: z.string().optional().describe('The department or team for the position, if available.'),
-  technicalSkills: z.array(RequirementOrGroupSchema).optional().describe('Technical skills requirements.'),
-  softSkills: z.array(RequirementOrGroupSchema).optional().describe('Soft skills requirements.'),
-  experience: z.array(RequirementOrGroupSchema).optional().describe('Experience requirements.'),
-  education: z.array(RequirementOrGroupSchema).optional().describe('Education requirements.'),
-  certifications: z.array(RequirementOrGroupSchema).optional().describe('Certification requirements.'),
-  responsibilities: z.array(RequirementOrGroupSchema).optional().describe('Responsibilities listed in the job description.'),
-  additionalRequirements: z.array(RequirementOrGroupSchema).optional().describe('User-added requirements that can be deleted.'),
-  formattedCriteria: z.string().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
+  JobCode: z.string().describe("The internal job code (e.g., OCN, WEX, SAN). 'Not Found' if not available."),
+  PayGrade: z.string().describe("The job grade or level. 'Not Found' if not available."),
+  JobTitle: z.string().describe("The title of the job position. 'Not Found' if not available."),
+  Department: z.string().describe("The department or team. 'Not Found' if not available."),
+  Company: z.string().describe("The company name. 'Not Found' if not available."),
+  Location: z.string().describe("The work location. 'Not Found' if not available."),
+  DateApproved: z.string().describe("The date the JD was approved. 'Not Found' if not available."),
+  PrincipalObjective: z.string().describe("The principal objective or summary of the job."),
+  OrganizationalRelationship: OrganizationalRelationshipSchema,
+  Responsibilities: RequirementsSubSchema.extend({
+      MUST_HAVE: z.array(z.string()).describe("List of must-have responsibilities."),
+      NICE_TO_HAVE: z.array(z.string()).describe("List of nice-to-have responsibilities.")
+  }),
+  Requirements: RequirementsSchema,
+  // This field is now deprecated but kept for potential backward compatibility during transition.
+  // It should not be actively used for new logic.
+  formattedCriteria: z.string().optional().describe('A pre-formatted string of all criteria, ordered by importance, for use in other prompts.'),
 });
 export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSchema>;
 
@@ -70,9 +84,7 @@ export const AnalyzeCVAgainstJDOutputSchema = z.object({
   interviewProbes: z.array(z.string()).describe('Suggested interview probes to explore weak areas.'),
   processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
-export type AnalyzeCVAgainstJDOutput = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
-
-export type AnalyzedCandidate = AnalyzeCVAgainstJDOutput;
+export type AnalyzedCandidate = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
 
 
 // For Candidate Summarizer
@@ -92,7 +104,8 @@ const CandidateAssessmentSchema = z.object({
 
 export const CandidateSummaryInputSchema = z.object({
   candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  formattedCriteria: z.string().describe('The pre-formatted string of all job description criteria.'),
+  // DEPRECATED but kept for now. New logic should generate this on the fly if needed.
+  formattedCriteria: z.string().optional().describe('The pre-formatted string of all job description criteria.'),
 });
 export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
 
@@ -162,7 +175,8 @@ export type CandidateRecord = z.infer<typeof CandidateRecordSchema>;
 export const AssessmentSessionSchema = z.object({
     id: z.string(),
     jdName: z.string(),
-    originalAnalyzedJd: ExtractJDCriteriaOutputSchema,
+    // originalAnalyzedJd is now deprecated in favor of the new structure but kept for data migration/compatibility.
+    originalAnalyzedJd: ExtractJDCriteriaOutputSchema.optional(),
     analyzedJd: ExtractJDCriteriaOutputSchema,
     candidates: z.array(CandidateRecordSchema),
     summary: CandidateSummaryOutputSchema.nullable(),

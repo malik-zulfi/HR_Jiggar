@@ -8,10 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { AnalyzeCVAgainstJDOutput } from '@/lib/types';
 import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle } from "lucide-react";
 
-import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, Requirement, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput } from "@/lib/types";
+import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
 import { analyzeCVAgainstJD } from "@/ai/flows/cv-analyzer";
 import { extractJDCriteria } from "@/ai/flows/jd-analyzer";
@@ -84,11 +83,11 @@ function AssessmentPage() {
         if (!session || !session.analyzedJd) return false;
         
         const jd = session.analyzedJd;
-        const titleMatch = jd.jobTitle?.toLowerCase().includes(lowerCaseQuery);
+        const titleMatch = jd.JobTitle?.toLowerCase().includes(lowerCaseQuery);
         const nameMatch = session.jdName?.toLowerCase().includes(lowerCaseQuery);
-        const codeMatch = jd.code?.toLowerCase().includes(lowerCaseQuery);
-        const gradeMatch = jd.grade?.toLowerCase().includes(lowerCaseQuery);
-        const departmentMatch = jd.department?.toLowerCase().includes(lowerCaseQuery);
+        const codeMatch = jd.JobCode?.toLowerCase().includes(lowerCaseQuery);
+        const gradeMatch = jd.PayGrade?.toLowerCase().includes(lowerCaseQuery);
+        const departmentMatch = jd.Department?.toLowerCase().includes(lowerCaseQuery);
         
         return nameMatch || titleMatch || codeMatch || gradeMatch || departmentMatch;
     });
@@ -278,7 +277,7 @@ function AssessmentPage() {
                           content: item.candidate.cvContent,
                       }));
                       
-                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.code);
+                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
                   }
               }
           } catch(e) {
@@ -344,7 +343,6 @@ function AssessmentPage() {
                 if (s.id === existingSession.id) {
                     return {
                         ...s,
-                        originalAnalyzedJd: JSON.parse(JSON.stringify(newJd)),
                         analyzedJd: newJd,
                         candidates: s.candidates.map(c => ({ ...c, isStale: true })),
                         summary: null,
@@ -355,7 +353,7 @@ function AssessmentPage() {
         );
         setActiveSessionId(existingSession.id);
         setIsJdAnalysisOpen(true);
-        toast({ description: `Replaced JD for "${newJd.jobTitle}". Existing candidates marked for re-assessment.` });
+        toast({ description: `Replaced JD for "${newJd.JobTitle}". Existing candidates marked for re-assessment.` });
         setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null });
     };
 
@@ -396,7 +394,7 @@ function AssessmentPage() {
       setJdAnalysisProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const existingSession = history.find(s => s.analyzedJd.positionNumber && result.positionNumber && s.analyzedJd.positionNumber === result.positionNumber);
+      const existingSession = history.find(s => s.analyzedJd.JobTitle && result.JobTitle && s.analyzedJd.JobTitle === result.JobTitle);
       
       if (existingSession) {
           setReplacementPrompt({ isOpen: true, existingSession, newJd: result });
@@ -406,7 +404,6 @@ function AssessmentPage() {
       const newSession: AssessmentSession = {
         id: new Date().toISOString() + Math.random(),
         jdName: jdFile.name,
-        originalAnalyzedJd: JSON.parse(JSON.stringify(result)),
         analyzedJd: result,
         candidates: [],
         summary: null,
@@ -440,8 +437,7 @@ function AssessmentPage() {
 
   const reAssessCandidates = async (
     jd: ExtractJDCriteriaOutput,
-    candidatesToReassess: CandidateRecord[],
-    isPartialReassess: boolean
+    candidatesToReassess: CandidateRecord[]
   ) => {
     if (!candidatesToReassess || candidatesToReassess.length === 0) return;
 
@@ -539,43 +535,9 @@ function AssessmentPage() {
       });
       return;
     }
-    await reAssessCandidates(activeSession.analyzedJd, candidatesToProcess, selectedCandidates.size > 0);
+    await reAssessCandidates(activeSession.analyzedJd, candidatesToProcess);
     setSelectedCandidates(new Set());
   };
-
-  const handleSaveChanges = (editedJd: ExtractJDCriteriaOutput) => {
-    if (!activeSessionId) return;
-
-    const currentSession = history.find(s => s.id === activeSessionId);
-    if (!currentSession || !currentSession.originalAnalyzedJd) return;
-
-    const isDirty = JSON.stringify(currentSession.analyzedJd) !== JSON.stringify(editedJd);
-
-    if (isDirty) {
-      const isRevertedToOriginal = JSON.stringify(editedJd) === JSON.stringify(currentSession.originalAnalyzedJd);
-      const newStaleState = !isRevertedToOriginal;
-
-      setHistory(prev => prev.map(s => {
-        if (s.id === activeSessionId) {
-          const updatedCandidates = s.candidates.map(c => ({
-            ...c,
-            isStale: newStaleState,
-          }));
-          return { ...s, analyzedJd: editedJd, candidates: updatedCandidates, summary: null };
-        }
-        return s;
-      }));
-      
-      if (isRevertedToOriginal) {
-        toast({ description: "Job Description reverted to original. Stale indicators removed." });
-      } else {
-        toast({ description: "Job Description changes saved. Re-assess candidates to see updated scores." });
-      }
-    }
-
-    setIsJdAnalysisOpen(false);
-  };
-
 
   const handleAnalyzeCvs = async () => {
     if (cvs.length === 0) {
@@ -590,16 +552,16 @@ function AssessmentPage() {
     const startAnalysis = (code: JobCode) => {
         // Update session if needed
         setHistory(prev => prev.map(s => {
-            if (s.id === activeSession.id && s.analyzedJd.code !== code) {
-                return { ...s, analyzedJd: { ...s.analyzedJd, code } };
+            if (s.id === activeSession.id && s.analyzedJd.JobCode !== code) {
+                return { ...s, analyzedJd: { ...s.analyzedJd, JobCode: code } };
             }
             return s;
         }));
-        processAndAnalyzeCandidates(cvs, { ...activeSession.analyzedJd, code }, activeSessionId, code);
+        processAndAnalyzeCandidates(cvs, { ...activeSession.analyzedJd, JobCode: code }, activeSessionId, code);
     };
 
-    if (activeSession.analyzedJd.code) {
-        startAnalysis(activeSession.analyzedJd.code as JobCode);
+    if (activeSession.analyzedJd.JobCode && activeSession.analyzedJd.JobCode !== 'Not Found') {
+        startAnalysis(activeSession.analyzedJd.JobCode as JobCode);
     } else {
         setJobCodePrompt({ isOpen: true, callback: startAnalysis });
     }
@@ -670,7 +632,7 @@ function AssessmentPage() {
         interviewProbes: c.analysis.interviewProbes,
         processingTime: c.analysis.processingTime,
       }));
-      const result = await summarizeCandidateAssessments({ candidateAssessments, formattedCriteria: activeSession.analyzedJd.formattedCriteria });
+      const result = await summarizeCandidateAssessments({ candidateAssessments });
       
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);
@@ -754,9 +716,9 @@ function AssessmentPage() {
             <AlertDialog open={replacementPrompt.isOpen} onOpenChange={(isOpen) => !isOpen && setReplacementPrompt({ isOpen: false, existingSession: null, newJd: null })}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Duplicate Position Number Found</AlertDialogTitle>
+                        <AlertDialogTitle>Duplicate Position Found</AlertDialogTitle>
                         <AlertDialogDescription>
-                            An assessment for Position No. <span className="font-bold">{replacementPrompt.existingSession?.analyzedJd.positionNumber}</span> already exists.
+                            An assessment for <span className="font-bold">{replacementPrompt.existingSession?.analyzedJd.JobTitle}</span> already exists.
                             Do you want to replace the old Job Description with this new one? Existing candidates will be kept and marked as stale for re-assessment.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -824,16 +786,15 @@ function AssessmentPage() {
                       >
                         <CardHeader className="flex-1 p-4">
                           <CardTitle className="text-base truncate">
-                            {session.analyzedJd.positionNumber ? `${session.analyzedJd.positionNumber} - ` : ''}
-                            {session.analyzedJd.jobTitle || session.jdName}
+                            {session.analyzedJd.JobCode && session.analyzedJd.JobCode !== 'Not Found' ? `${session.analyzedJd.JobCode} - ` : ''}
+                            {session.analyzedJd.JobTitle || session.jdName}
                           </CardTitle>
                           <CardDescription className="flex items-center gap-1 text-xs pt-1">
                             <Users className="h-3 w-3" /> {session.candidates.length} Candidate(s)
                           </CardDescription>
                            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap pt-2">
-                                {session.analyzedJd.code && <Badge variant="secondary" className="px-1.5 py-0 font-normal">#{session.analyzedJd.code}</Badge>}
-                                {session.analyzedJd.department && <Badge variant="secondary" className="px-1.5 py-0 font-normal">{session.analyzedJd.department}</Badge>}
-                                {session.analyzedJd.grade && <Badge variant="secondary" className="px-1.5 py-0 font-normal">G{session.analyzedJd.grade}</Badge>}
+                                {session.analyzedJd.Department && session.analyzedJd.Department !== 'Not Found' && <Badge variant="secondary" className="px-1.5 py-0 font-normal">{session.analyzedJd.Department}</Badge>}
+                                {session.analyzedJd.PayGrade && session.analyzedJd.PayGrade !== 'Not Found' && <Badge variant="secondary" className="px-1.5 py-0 font-normal">G{session.analyzedJd.PayGrade}</Badge>}
                             </div>
                         </CardHeader>
                         <CardFooter className="p-3 border-t">
@@ -861,8 +822,6 @@ function AssessmentPage() {
                 
                 <JdAnalysis
                     analysis={activeSession.analyzedJd}
-                    originalAnalysis={activeSession.originalAnalyzedJd}
-                    onSaveChanges={handleSaveChanges}
                     isOpen={isJdAnalysisOpen}
                     onOpenChange={setIsJdAnalysisOpen}
                 />
@@ -870,7 +829,7 @@ function AssessmentPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base"><UserPlus /> Step 2: Add Candidates</CardTitle>
-                        <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description. Job Code: <Badge variant="secondary">{activeSession.analyzedJd.code || 'Not Set'}</Badge></CardDescription>
+                        <CardDescription>Upload new CVs or add candidates from your database to assess them against this job description. Job Code: <Badge variant="secondary">{activeSession.analyzedJd.JobCode || 'Not Set'}</Badge></CardDescription>
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
                         <div className="grid md:grid-cols-2 gap-6 items-start">
@@ -905,7 +864,7 @@ function AssessmentPage() {
                                 </DialogTrigger>
                                 <AddFromDbDialog 
                                     allCvs={cvDatabase}
-                                    jobCode={activeSession.analyzedJd.code}
+                                    jobCode={activeSession.analyzedJd.JobCode}
                                     sessionCandidates={activeSession.candidates}
                                     onAdd={handleAnalyzeFromDb}
                                 />
@@ -1015,7 +974,7 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
     const [searchTerm, setSearchTerm] = useState("");
 
     const compatibleCvs = useMemo(() => {
-        if (!jobCode) return [];
+        if (!jobCode || jobCode === 'Not Found') return [];
         return allCvs.filter(cv => cv.jobCode === jobCode);
     }, [allCvs, jobCode]);
 
@@ -1052,13 +1011,13 @@ const AddFromDbDialog = ({ allCvs, jobCode, sessionCandidates, onAdd }: {
         setSelectedCvs(new Set());
     };
 
-    if (!jobCode) {
+    if (!jobCode || jobCode === 'Not Found') {
         return (
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Cannot Add from Database</DialogTitle>
                     <DialogDescription>
-                        The current Job Description does not have a valid job code (e.g., OCN, WEX, or SAN). Please edit the JD to add a valid code before adding candidates from the database.
+                        The current Job Description does not have a valid job code (e.g., OCN, WEX, or SAN). A valid code must be extracted from the JD before adding candidates from the database.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

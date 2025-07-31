@@ -119,7 +119,7 @@ export default function CvDatabasePage() {
                     map.get(email)!.push({
                         sessionId: session.id,
                         sessionName: session.jdName,
-                        jobTitle: session.analyzedJd.jobTitle || 'N/A',
+                        jobTitle: session.analyzedJd.JobTitle || 'N/A',
                         score: candidate.analysis.alignmentScore,
                     });
                 }
@@ -742,7 +742,7 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
     const compatibleAssessments = useMemo(() => {
         const assessedSessionIds = new Set(assessments.map(a => a.sessionId));
         return allAssessments.filter(session =>
-            session.analyzedJd.code === candidate.jobCode && !assessedSessionIds.has(session.id)
+            session.analyzedJd.JobCode === candidate.jobCode && !assessedSessionIds.has(session.id)
         );
     }, [candidate, assessments, allAssessments]);
 
@@ -776,7 +776,7 @@ const AddCandidatePopover = ({ candidate, assessments, allAssessments, onAdd }: 
                                     onClick={() => onAdd(candidate, session, () => setIsOpen(false))}
                                     className="w-full text-left p-2 rounded-md hover:bg-secondary flex flex-col"
                                 >
-                                    <span className="font-medium truncate">{session.analyzedJd.jobTitle}</span>
+                                    <span className="font-medium truncate">{session.analyzedJd.JobTitle}</span>
                                     <span className="text-xs text-muted-foreground">{session.jdName}</span>
                                 </button>
                             ))
@@ -813,7 +813,7 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
         }
         
         return assessments.filter(session => {
-            if (session.analyzedJd.code !== firstCandidateJobCode) return false;
+            if (session.analyzedJd.JobCode !== firstCandidateJobCode) return false;
             
             const sessionEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
             return !selectedCandidates.some(sel => sessionEmails.has(sel.email.toLowerCase()));
@@ -858,7 +858,7 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
                                         onClick={() => handleBulkAdd(session)}
                                         className="w-full text-left p-2 rounded-md hover:bg-secondary flex flex-col"
                                     >
-                                        <span className="font-medium truncate">{session.analyzedJd.jobTitle}</span>
+                                        <span className="font-medium truncate">{session.analyzedJd.JobTitle}</span>
                                         <span className="text-xs text-muted-foreground">{session.jdName}</span>
                                     </button>
                                 ))
@@ -895,5 +895,3 @@ const BulkActions = ({ toast, selectedEmails, candidates, assessments, onDelete,
         </div>
     );
 };
-
-    

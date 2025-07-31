@@ -44,30 +44,30 @@ export default function DashboardPage() {
 
     const filteredHistory = useMemo(() => {
         return history.filter(session => {
-            const codeMatch = filters.code === 'all' || session.analyzedJd.code === filters.code;
-            const deptMatch = filters.department === 'all' || session.analyzedJd.department === filters.department;
+            const codeMatch = filters.code === 'all' || session.analyzedJd.JobCode === filters.code;
+            const deptMatch = filters.department === 'all' || session.analyzedJd.Department === filters.department;
             return codeMatch && deptMatch;
         });
     }, [history, filters]);
 
     const uniqueCodes = useMemo(() => {
         const relevantHistory = history.filter(session => {
-            return filters.department === 'all' || session.analyzedJd.department === filters.department;
+            return filters.department === 'all' || session.analyzedJd.Department === filters.department;
         });
         const codes = new Set<string>();
         relevantHistory.forEach(session => {
-            if (session.analyzedJd.code) codes.add(session.analyzedJd.code);
+            if (session.analyzedJd.JobCode && session.analyzedJd.JobCode !== "Not Found") codes.add(session.analyzedJd.JobCode);
         });
         return ['all', ...Array.from(codes).sort()];
     }, [history, filters.department]);
 
     const uniqueDepartments = useMemo(() => {
         const relevantHistory = history.filter(session => {
-            return filters.code === 'all' || session.analyzedJd.code === filters.code;
+            return filters.code === 'all' || session.analyzedJd.JobCode === filters.code;
         });
         const departments = new Set<string>();
         relevantHistory.forEach(session => {
-            if (session.analyzedJd.department) departments.add(session.analyzedJd.department);
+            if (session.analyzedJd.Department && session.analyzedJd.Department !== "Not Found") departments.add(session.analyzedJd.Department);
         });
         return ['all', ...Array.from(departments).sort()];
     }, [history, filters.code]);
@@ -79,7 +79,7 @@ export default function DashboardPage() {
         const allCandidates: TopCandidate[] = filteredHistory.flatMap(session =>
             (session.candidates || []).map(candidate => ({
                 ...candidate.analysis,
-                jobTitle: session.analyzedJd.jobTitle || 'N/A',
+                jobTitle: session.analyzedJd.JobTitle || 'N/A',
                 jdName: session.jdName,
                 sessionId: session.id,
             }))
@@ -91,7 +91,7 @@ export default function DashboardPage() {
             if (!codeMatch) return false;
 
             if (filters.department !== 'all') {
-                const isCodeInDept = history.some(s => s.analyzedJd.code === cv.jobCode && s.analyzedJd.department === filters.department);
+                const isCodeInDept = history.some(s => s.analyzedJd.JobCode === cv.jobCode && s.analyzedJd.Department === filters.department);
                 return isCodeInDept;
             }
             return true;
@@ -367,8 +367,8 @@ export default function DashboardPage() {
                                     <TableBody>
                                         {stats.recent5Assessments.map((session) => (
                                             <TableRow key={session.id}>
-                                                <TableCell className="font-medium">{session.analyzedJd.jobTitle || session.jdName}</TableCell>
-                                                <TableCell className="text-muted-foreground">{session.analyzedJd.code || 'N/A'}</TableCell>
+                                                <TableCell className="font-medium">{session.analyzedJd.JobTitle || session.jdName}</TableCell>
+                                                <TableCell className="text-muted-foreground">{session.analyzedJd.JobCode === 'Not Found' ? 'N/A' : session.analyzedJd.JobCode}</TableCell>
                                                 <TableCell className="text-center">{session.candidates.length}</TableCell>
                                                 <TableCell className="text-muted-foreground">{new Date(session.createdAt).toLocaleDateString()}</TableCell>
                                                 <TableCell className="text-right">
