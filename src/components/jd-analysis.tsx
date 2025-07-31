@@ -131,36 +131,38 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
         </CardHeader>
         <CollapsibleContent>
           <CardContent>
-            <div className="mb-6">
-                <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
-                    <Target className="h-5 w-5" />
-                    <span className="ml-2">Principal Objective</span>
-                </h3>
-                <p className="text-sm text-muted-foreground">{PrincipalObjective}</p>
-            </div>
-            
-            <div className="mb-6">
-                <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
-                    <Users className="h-5 w-5" />
-                    <span className="ml-2">Organizational Relationship</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    {OrganizationalRelationship.ReportsTo.length > 0 && (
-                        <div>
-                            <h4 className="font-medium">Reports To:</h4>
-                            <ul className="list-disc list-outside pl-5 text-muted-foreground">
-                                {OrganizationalRelationship.ReportsTo.map((role, i) => <li key={`report-${i}`}>{role}</li>)}
-                            </ul>
-                        </div>
-                    )}
-                     {OrganizationalRelationship.InterfacesWith.length > 0 && (
-                        <div>
-                            <h4 className="font-medium">Interfaces With:</h4>
-                            <ul className="list-disc list-outside pl-5 text-muted-foreground">
-                                {OrganizationalRelationship.InterfacesWith.map((role, i) => <li key={`interface-${i}`}>{role}</li>)}
-                            </ul>
-                        </div>
-                    )}
+            <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+                <div className="mb-4">
+                    <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
+                        <Target className="h-5 w-5" />
+                        <span className="ml-2">Principal Objective</span>
+                    </h3>
+                    <p className="text-sm text-muted-foreground">{PrincipalObjective}</p>
+                </div>
+                
+                <div>
+                    <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
+                        <Users className="h-5 w-5" />
+                        <span className="ml-2">Organizational Relationship</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {OrganizationalRelationship.ReportsTo.length > 0 && (
+                            <div>
+                                <h4 className="font-medium">Reports To:</h4>
+                                <ul className="list-disc list-outside pl-5 text-muted-foreground">
+                                    {OrganizationalRelationship.ReportsTo.map((role, i) => <li key={`report-${i}`}>{role}</li>)}
+                                </ul>
+                            </div>
+                        )}
+                         {OrganizationalRelationship.InterfacesWith.length > 0 && (
+                            <div>
+                                <h4 className="font-medium">Interfaces With:</h4>
+                                <ul className="list-disc list-outside pl-5 text-muted-foreground">
+                                    {OrganizationalRelationship.InterfacesWith.map((role, i) => <li key={`interface-${i}`}>{role}</li>)}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
