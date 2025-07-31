@@ -66,23 +66,28 @@ const prompt = ai.definePrompt({
   input: {schema: ExtractJDCriteriaInputSchema},
   output: {schema: BaseJDCriteriaSchema},
   config: { temperature: 0.0 },
-  prompt: `You are an expert recruiter. Please analyze the following job description.
+  prompt: `You are an expert recruiter tasked with deconstructing a job description into a structured JSON format.
 
-First, extract the job title, the position/requisition number, the job code, the grade/level, and the department (if available). The job code MUST be one of 'OCN', 'WEX', or 'SAN'.
+**Instructions:**
 
-Then, extract the key requirements. For each requirement, determine if it is a single item or a conditional "OR" group.
+1.  **Extract Metadata:** Identify and extract the job title, position/requisition number, job code (must be one of 'OCN', 'WEX', or 'SAN'), grade/level, and department.
 
-**Requirement Extraction Rules:**
+2.  **Extract Responsibilities:** Analyze the "Major Activities Performed" section. Each bullet point or distinct duty in this section should be extracted as a single requirement into the \`responsibilities\` array.
 
-1.  **Identify "OR" Groups:** Look for explicit "OR" conditions. For example, "Bachelor's Degree OR 5 years of experience". When you find one, create a group with \`groupType: "OR"\` and list the alternative requirements as objects with a 'description' field in the \`requirements\` array.
-2.  **Handle Associated Requirements:** If requirements are clearly linked within an "OR" condition (e.g., "Bachelor's degree in Law... with a minimum ten (10) years experience OR Chartered Professional Membership... with a minimum twelve (12) years experience"), you MUST treat each part of the "OR" statement as a complete, distinct requirement description within the group's \`requirements\` array. Do not split the degree from its associated experience.
-3.  **Default to Single Items:** If a requirement is not part of an explicit "OR" group, extract it as an object with a 'description' field.
-4.  **Categorize:** Place each single requirement or requirement group into the most appropriate category: technical skills, soft skills, experience, education, certifications, or responsibilities. Do NOT assign priority yet.
+3.  **Extract Qualifications:** Analyze the "Experience and Qualifications" section. Categorize each requirement from this section into one of the following arrays: \`education\`, \`experience\`, \`certifications\`, \`technicalSkills\`, or \`softSkills\`.
+    *   **Technical Skills:** Specific software, tools, or quantifiable knowledge (e.g., "Proficiency in using business continuity software", "Knowledge of relevant laws").
+    *   **Soft Skills:** Interpersonal abilities and personal attributes (e.g., "Excellent communication skills", "Ability to work under pressure").
+    *   **"OR" Groups:** If you find a requirement with a clear "OR" condition (e.g., "Bachelor's Degree OR 5 years of experience"), create a group with \`groupType: "OR"\` and list the alternatives in the \`requirements\` array. Each alternative must be a complete description (e.g., do not split a degree from its associated years of experience if they are linked in the OR clause).
 
-Job Description:
+4.  **Formatting:**
+    *   Every single requirement, whether standalone or in a group, must be an object with a \`description\` field (e.g., \`{ "description": "Excellent communication skills" }\`).
+    *   Do NOT assign priority; this will be handled later.
+
+**Job Description to Analyze:**
 {{{jobDescription}}}
 
-Ensure the output is a valid JSON object.`,
+Ensure your output is a valid JSON object strictly following the provided schema.
+`,
 });
 
 const getPriority = (description: string): Requirement['priority'] => {
@@ -207,5 +212,3 @@ const extractJDCriteriaFlow = ai.defineFlow(
     };
   }
 );
-
-    
