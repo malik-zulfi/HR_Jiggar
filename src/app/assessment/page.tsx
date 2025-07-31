@@ -623,16 +623,11 @@ function AssessmentPage() {
     }, 600);
 
     try {
-      const candidateAssessments = activeSession.candidates.map(c => ({
-        candidateName: c.analysis.candidateName,
-        alignmentScore: c.analysis.alignmentScore,
-        recommendation: c.analysis.recommendation,
-        strengths: c.analysis.strengths,
-        weaknesses: c.analysis.weaknesses,
-        interviewProbes: c.analysis.interviewProbes,
-        processingTime: c.analysis.processingTime,
-      }));
-      const result = await summarizeCandidateAssessments({ candidateAssessments });
+      const candidateAssessments = activeSession.candidates.map(c => c.analysis);
+      const result = await summarizeCandidateAssessments({
+          jobDescriptionCriteria: activeSession.analyzedJd,
+          candidateAssessments,
+      });
       
       if (simulationInterval) clearInterval(simulationInterval);
       setSummaryProgress(prev => prev ? { ...prev, currentStepIndex: steps.length } : null);

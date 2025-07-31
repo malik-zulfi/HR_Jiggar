@@ -84,11 +84,12 @@ export const AnalyzeCVAgainstJDOutputSchema = z.object({
   interviewProbes: z.array(z.string()).describe('Suggested interview probes to explore weak areas.'),
   processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
+export type AnalyzeCVAgainstJDOutput = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
 export type AnalyzedCandidate = z.infer<typeof AnalyzeCVAgainstJDOutputSchema>;
 
 
 // For Candidate Summarizer
-const CandidateAssessmentSchema = z.object({
+export const CandidateAssessmentSchema = z.object({
   candidateName: z.string().describe('The name of the candidate.'),
   alignmentScore: z.number().describe('The alignment score of the candidate.'),
   recommendation: z
@@ -102,12 +103,6 @@ const CandidateAssessmentSchema = z.object({
   processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
 
-export const CandidateSummaryInputSchema = z.object({
-  candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
-  // DEPRECATED but kept for now. New logic should generate this on the fly if needed.
-  formattedCriteria: z.string().optional().describe('The pre-formatted string of all job description criteria.'),
-});
-export type CandidateSummaryInput = z.infer<typeof CandidateSummaryInputSchema>;
 
 export const CandidateSummaryOutputSchema = z.object({
   topTier: z.array(z.string()).describe('Candidates categorized as Top Tier.'),
