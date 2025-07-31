@@ -16,11 +16,12 @@ import {
     CandidateSummaryOutputSchema,
     CandidateAssessmentSchema, // Using the more granular schema
     ExtractJDCriteriaOutputSchema,
+    type CandidateSummaryOutput,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 
 // Define the input schema for this flow
-export const CandidateSummaryInputSchema = z.object({
+const CandidateSummaryInputSchema = z.object({
   jobDescriptionCriteria: ExtractJDCriteriaOutputSchema.describe("The full structured job description criteria."),
   candidateAssessments: z.array(CandidateAssessmentSchema).describe('An array of candidate assessments.'),
 });
