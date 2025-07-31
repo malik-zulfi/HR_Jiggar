@@ -72,21 +72,25 @@ const prompt = ai.definePrompt({
 
 1.  **Extract Metadata:** Identify and extract the job title, position/requisition number, job code (must be one of 'OCN', 'WEX', or 'SAN'), grade/level, and department.
 
-2.  **Extract Responsibilities:** Analyze the "Major Activities Performed" section. Each bullet point or distinct duty in this section should be extracted as a single requirement into the \`responsibilities\` array.
+2.  **Extract Responsibilities:** From the "Major Activities Performed" section, extract each bullet point or distinct duty as a single requirement into the \`responsibilities\` array.
 
-3.  **Extract Qualifications:** Analyze the "Experience and Qualifications" section. Categorize each requirement from this section into one of the following arrays: \`education\`, \`experience\`, \`certifications\`, \`technicalSkills\`, or \`softSkills\`.
-    *   **Technical Skills:** Specific software, tools, or quantifiable knowledge (e.g., "Proficiency in using business continuity software", "Knowledge of relevant laws").
-    *   **Soft Skills:** Interpersonal abilities and personal attributes (e.g., "Excellent communication skills", "Ability to work under pressure").
-    *   **"OR" Groups:** If you find a requirement with a clear "OR" condition (e.g., "Bachelor's Degree OR 5 years of experience"), create a group with \`groupType: "OR"\` and list the alternatives in the \`requirements\` array. Each alternative must be a complete description (e.g., do not split a degree from its associated years of experience if they are linked in the OR clause).
+3.  **Extract Qualifications:** Analyze the "Experience and Qualifications" section and categorize every single point into the correct array below. Do not miss any.
+    *   **\`education\`**: All educational requirements (e.g., "Bachelor’s Degree in a related field").
+    *   **\`experience\`**: All experience-related requirements (e.g., "Minimum 5 years of experience in business continuity").
+    *   **\`technicalSkills\`**: Specific software, tools, or quantifiable knowledge (e.g., "Proficiency in using business continuity software", "Knowledge of relevant laws").
+    *   **\`softSkills\`**: Interpersonal abilities and personal attributes (e.g., "Excellent communication skills", "Ability to work under pressure", "Good command of English and Arabic").
+    *   **\`certifications\`**: Any required or preferred certifications (e.g., "Relevant professional certification (e.g., CBCP, ISO 22301 Lead Implementer)").
 
-4.  **Formatting:**
+4.  **"OR" Groups:** If you find a requirement with a clear "OR" condition (e.g., "Bachelor's Degree OR 5 years of experience"), you MUST create a group with \`groupType: "OR"\` and list the alternatives in the \`requirements\` array. Each alternative must be a complete description.
+
+5.  **Formatting:**
     *   Every single requirement, whether standalone or in a group, must be an object with a \`description\` field (e.g., \`{ "description": "Excellent communication skills" }\`).
     *   Do NOT assign priority; this will be handled later.
 
 **Job Description to Analyze:**
 {{{jobDescription}}}
 
-Ensure your output is a valid JSON object strictly following the provided schema.
+Ensure your output is a valid JSON object strictly following the provided schema, and that you have extracted and categorized every point from the JD.
 `,
 });
 
