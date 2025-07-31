@@ -165,12 +165,12 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange }: JdAnalysi
             </div>
 
             <div className="md:columns-2 gap-8 space-y-6">
-              <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} />
               <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} />
+              <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} />
               <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={Requirements.Experience.NICE_TO_HAVE} />
               <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} />
               <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} />
-              <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} />
+              <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} />
             </div>
           </CardContent>
         </CollapsibleContent>
