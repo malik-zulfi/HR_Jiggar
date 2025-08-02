@@ -8,16 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap } from "lucide-react";
+import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
+import { Input } from './ui/input';
+
+type CategoryKey = keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities';
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onRequirementChange: (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
+  onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
+  onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
 }
 
 const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon: React.ReactNode }) => {
@@ -33,22 +37,98 @@ const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon
     );
 };
 
-const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange }: {
+const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }: {
+    item: Requirement;
+    category: CategoryKey;
+    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
+    onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
+}) => {
+    const isModified = item.priority !== item.originalPriority || item.score !== item.originalScore;
+    const [localScore, setLocalScore] = useState(item.score.toString());
+
+    useEffect(() => {
+        setLocalScore(item.score.toString());
+    }, [item.score]);
+    
+    const handleScoreBlur = () => {
+        const newScore = parseInt(localScore, 10);
+        if (!isNaN(newScore) && newScore !== item.score) {
+            onScoreChange(category, item.priority, item.id, newScore);
+        } else {
+            setLocalScore(item.score.toString()); // Revert if invalid
+        }
+    };
+    
+    const handleToggle = () => {
+        const newPriority = item.priority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
+        onRequirementChange(category, item.id, newPriority);
+    };
+
+    return (
+         <li className={cn(
+            "flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50",
+            isModified && "ring-1 ring-amber-500/50 bg-amber-50/20"
+        )}>
+            {isModified && (
+                 <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="text-amber-500">
+                                <Edit3 className="w-4 h-4" />
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>This requirement has been modified.</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )}
+            <span className="flex-1">{item.description}</span>
+            <div className="flex items-center gap-4">
+                 <Input 
+                    type="number" 
+                    value={localScore}
+                    onChange={(e) => setLocalScore(e.target.value)}
+                    onBlur={handleScoreBlur}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    className="h-8 w-16 text-center"
+                 />
+                 <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Switch
+                                id={`switch-${item.id}`}
+                                checked={item.priority === 'MUST_HAVE'}
+                                onCheckedChange={handleToggle}
+                                aria-label={`Toggle ${item.description} priority`}
+                            />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Toggle to {item.priority === 'MUST_HAVE' ? 'Nice to Have' : 'Must Have'}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+        </li>
+    );
+};
+
+
+const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange }: {
     title: string;
     mustHaves?: Requirement[];
     niceToHaves?: Requirement[];
     icon: React.ReactNode;
-    category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities';
-    onRequirementChange: (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
+    category: CategoryKey;
+    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
+    onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
 }) => {
-    if ((!mustHaves || mustHaves.length === 0) && (!niceToHaves || niceToHaves.length === 0)) {
+    const hasMustHaves = mustHaves && mustHaves.length > 0;
+    const hasNiceToHaves = niceToHaves && niceToHaves.length > 0;
+
+    if (!hasMustHaves && !hasNiceToHaves) {
         return null;
     }
-
-    const handleToggle = (reqId: string, currentPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => {
-        const newPriority = currentPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
-        onRequirementChange(category, reqId, newPriority);
-    };
 
     return (
         <div className="break-inside-avoid">
@@ -57,56 +137,22 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                 <span className="ml-2">{title}</span>
             </h3>
             <div className="space-y-3">
-                {mustHaves && mustHaves.length > 0 && (
+                {hasMustHaves && (
                     <div>
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
                         <ul className="space-y-2 text-sm">
                             {mustHaves.map((item) => (
-                                <li key={item.id} className="flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50">
-                                    <span className="flex-1">{item.description}</span>
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Switch
-                                                    id={`switch-${item.id}`}
-                                                    checked={true}
-                                                    onCheckedChange={() => handleToggle(item.id, 'MUST_HAVE')}
-                                                    aria-label={`Toggle ${item.description} priority`}
-                                                />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Toggle to Nice to Have</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                </li>
+                               <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
                         </ul>
                     </div>
                 )}
-                {niceToHaves && niceToHaves.length > 0 && (
+                {hasNiceToHaves && (
                      <div>
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
                              {niceToHaves.map((item) => (
-                                <li key={item.id} className="flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50">
-                                    <span className="flex-1">{item.description}</span>
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Switch
-                                                    id={`switch-${item.id}`}
-                                                    checked={false}
-                                                    onCheckedChange={() => handleToggle(item.id, 'NICE_TO_HAVE')}
-                                                    aria-label={`Toggle ${item.description} priority`}
-                                                />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Toggle to Must Have</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                </li>
+                                <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
                         </ul>
                     </div>
@@ -116,7 +162,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
     );
 };
 
-export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange }: JdAnalysisProps) {
   const {
       JobTitle,
       JobCode,
@@ -136,7 +182,10 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
     ? [{
         id: 'exp-must-years',
         description: `${Requirements.Experience.MUST_HAVE.Years} in ${Requirements.Experience.MUST_HAVE.Fields.join(', ')}`,
-        priority: 'MUST_HAVE'
+        priority: 'MUST_HAVE',
+        score: 10,
+        originalScore: 10,
+        originalPriority: 'MUST_HAVE',
       }]
     : [];
 
@@ -154,7 +203,7 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
                   <Briefcase className="h-5 w-5 text-primary"/>
                   <span className="mr-2">{JobTitle || 'Job Description Breakdown'}</span>
                 </CardTitle>
-                <CardDescription>The JD has been deconstructed. You can edit requirement priorities below.</CardDescription>
+                <CardDescription>The JD has been deconstructed. You can edit requirement priorities and scores below.</CardDescription>
                  <div className="flex items-center gap-2 flex-wrap mt-2">
                     <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
                     <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
@@ -221,12 +270,12 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
             </div>
 
             <div className="md:columns-2 gap-8 space-y-6">
-              <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} />
-              <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} category="Certifications" onRequirementChange={onRequirementChange} />
-              <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={experienceNiceToHaves} category="Experience" onRequirementChange={onRequirementChange} />
-              <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} />
-              <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} />
-              <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} />
+                <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} category="Certifications" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={experienceNiceToHaves} category="Experience" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
             </div>
           </CardContent>
         </CollapsibleContent>

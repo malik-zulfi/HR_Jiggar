@@ -17,6 +17,7 @@ import {
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
   ParseCvOutputSchema,
+  RequirementSchema,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 
@@ -46,7 +47,7 @@ function toTitleCase(str: string): string {
 const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true, alignmentScore: true, candidateScore: true, maxScore: true });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
-    name: 'analyzeCVAgainstJDPromptV2',
+    name: 'analyzeCVAgainstJDPromptV3',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
     output: { schema: AIAnalysisOutputSchema },
     config: { temperature: 0.1 },
@@ -55,7 +56,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 **IMPORTANT INSTRUCTIONS:**
 
 1.  **Use Pre-Parsed Data:** You have been provided with pre-parsed CV data, including the candidate's name, email, and a calculated 'totalExperience'. You MUST use these values as the single source of truth. Do not re-calculate or re-extract them.
-2.  **Analyze All Requirements**: You must iterate through every single requirement listed in the \`jobDescriptionCriteria\` JSON under \`Responsibilities\` and \`Requirements\`. For each one, you must create a corresponding entry in the \`alignmentDetails\` array.
+2.  **Analyze All Requirements**: You must iterate through every single requirement listed in the \`jobDescriptionCriteria\` JSON. For each one, you must create a corresponding entry in the \`alignmentDetails\` array.
 3.  **Detailed Alignment:** For each requirement, you must:
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
@@ -97,18 +98,44 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         throw new Error("CV analysis failed: The AI returned an invalid or empty response. Please try again.");
     }
 
+    // Combine all requirements from JD into a single map for easy lookup
+    const allJdRequirements = new Map<string, Requirement>();
+    const jd = input.jobDescriptionCriteria;
+    const processReqs = (reqs: Requirement[]) => reqs.forEach(r => allJdRequirements.set(r.description, r));
+    
+    processReqs(jd.Responsibilities.MUST_HAVE);
+    processReqs(jd.Responsibilities.NICE_TO_HAVE);
+    processReqs(jd.Requirements.TechnicalSkills.MUST_HAVE);
+    processReqs(jd.Requirements.TechnicalSkills.NICE_TO_HAVE);
+    processReqs(jd.Requirements.SoftSkills.MUST_HAVE);
+    processReqs(jd.Requirements.SoftSkills.NICE_TO_HAVE);
+    processReqs(jd.Requirements.Education.MUST_HAVE);
+    processReqs(jd.Requirements.Education.NICE_TO_HAVE);
+    processReqs(jd.Requirements.Certifications.MUST_HAVE);
+    processReqs(jd.Requirements.Certifications.NICE_TO_HAVE);
+    processReqs(jd.Requirements.Experience.NICE_TO_HAVE);
+    if (jd.Requirements.Experience.MUST_HAVE.Years) {
+        const expReq = {
+            id: 'exp-must-years',
+            description: `${jd.Requirements.Experience.MUST_HAVE.Years} in ${jd.Requirements.Experience.MUST_HAVE.Fields.join(', ')}`,
+            priority: 'MUST_HAVE' as const,
+            score: 10,
+            originalPriority: 'MUST_HAVE' as const,
+            originalScore: 10
+        };
+        allJdRequirements.set(expReq.description, expReq);
+    }
+
     // Programmatically calculate scores
     const scoredAlignmentDetails = aiAnalysis.alignmentDetails.map(detail => {
         let score = 0;
-        let maxScore = 0;
-        if (detail.priority === 'MUST_HAVE') {
-            maxScore = 10;
-            if (detail.status === 'Aligned') score = 10;
-            if (detail.status === 'Partially Aligned') score = 5;
-        } else if (detail.priority === 'NICE_TO_HAVE') {
-            maxScore = 5;
-            if (detail.status === 'Aligned') score = 5;
-            if (detail.status === 'Partially Aligned') score = 2;
+        const jdReq = allJdRequirements.get(detail.requirement);
+        const maxScore = jdReq?.score || (detail.priority === 'MUST_HAVE' ? 10 : 5);
+
+        if (detail.status === 'Aligned') {
+            score = maxScore;
+        } else if (detail.status === 'Partially Aligned') {
+            score = Math.ceil(maxScore / 2);
         }
         return { ...detail, score, maxScore };
     });

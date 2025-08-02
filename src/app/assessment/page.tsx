@@ -67,7 +67,7 @@ function AssessmentPage() {
   const [reassessStatus, setReassessStatus] = useState<ReassessStatus>({});
   const [summaryProgress, setSummaryProgress] = useState<{ steps: string[], currentStepIndex: number } | null>(null);
 
-  const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(false);
+  const [isJdAnalysisOpen, setIsJdAnalysisOpen] = useState(true);
   const [isAddFromDbOpen, setIsAddFromDbOpen] = useState(false);
   const [replacementPrompt, setReplacementPrompt] = useState<ReplacementPrompt>({ isOpen: false, existingSession: null, newJd: null });
   const [jobCodePrompt, setJobCodePrompt] = useState<{ isOpen: boolean; callback: (code: JobCode) => void }>({ isOpen: false, callback: () => {} });
@@ -694,53 +694,95 @@ function AssessmentPage() {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
-        return prevHistory.map(session => {
-            if (session.id === activeSessionId) {
-                const newJd = { ...session.analyzedJd };
-                let requirementFoundAndMoved = false;
+        const newHistory = [...prevHistory];
+        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
+        if (sessionIndex === -1) return prevHistory;
 
-                const findAndMove = (sourceArray: Requirement[], targetArray: Requirement[]) => {
-                    const reqIndex = sourceArray.findIndex(r => r.id === reqId);
-                    if (reqIndex > -1) {
-                        const [reqToMove] = sourceArray.splice(reqIndex, 1);
-                        reqToMove.priority = newPriority;
-                        targetArray.push(reqToMove);
-                        requirementFoundAndMoved = true;
-                    }
-                };
-                
-                const currentPriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
-                
-                if (category === 'Responsibilities') {
-                    const source = newJd.Responsibilities[currentPriority];
-                    const target = newJd.Responsibilities[newPriority];
-                    findAndMove(source, target);
-                } else if (category in newJd.Requirements) {
-                    const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
-                    if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && 'id' in (cat.NICE_TO_HAVE[0] || {}) ) { // For skill-like categories
-                        const source = cat[currentPriority] as Requirement[];
-                        const target = cat[newPriority] as Requirement[];
-                        findAndMove(source, target);
-                    } else if (category === 'Experience') {
-                        // This category is structured differently and doesn't support toggling in this UI
-                        toast({ variant: 'destructive', description: "Toggling priority for main experience years is not supported."});
-                    }
-                }
-                
-                if (requirementFoundAndMoved) {
-                    toast({ description: `Requirement priority updated. Candidates marked for re-assessment.` });
-                    return {
-                        ...session,
-                        analyzedJd: newJd,
-                        candidates: session.candidates.map(c => ({ ...c, isStale: true })),
-                        summary: null,
-                    };
-                }
+        const sessionToUpdate = { ...newHistory[sessionIndex] };
+        const newJd = { ...sessionToUpdate.analyzedJd };
+        let requirementFoundAndMoved = false;
+
+        const findAndMove = (sourceArray: Requirement[], targetArray: Requirement[]) => {
+            const reqIndex = sourceArray.findIndex(r => r.id === reqId);
+            if (reqIndex > -1) {
+                const [reqToMove] = sourceArray.splice(reqIndex, 1);
+                reqToMove.priority = newPriority;
+                reqToMove.score = newPriority === 'MUST_HAVE' ? 10 : 5; // Update score based on new priority
+                targetArray.push(reqToMove);
+                requirementFoundAndMoved = true;
             }
-            return session;
-        });
+        };
+        
+        const currentPriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
+        
+        if (category === 'Responsibilities') {
+            findAndMove(newJd.Responsibilities[currentPriority], newJd.Responsibilities[newPriority]);
+        } else if (category in newJd.Requirements) {
+            const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
+            if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) { // For skill-like categories
+                 findAndMove(cat[currentPriority] as Requirement[], cat[newPriority] as Requirement[]);
+            } else if (category === 'Experience') {
+                findAndMove(newJd.Requirements.Experience.NICE_TO_HAVE, newJd.Requirements.Experience.NICE_TO_HAVE); // Simplified for now
+            }
+        }
+        
+        if (requirementFoundAndMoved) {
+            toast({ description: `Requirement priority updated. Candidates marked for re-assessment.` });
+            sessionToUpdate.analyzedJd = newJd;
+            sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
+            sessionToUpdate.summary = null;
+            newHistory[sessionIndex] = sessionToUpdate;
+            return newHistory;
+        }
+        
+        return prevHistory;
     });
   };
+
+  const handleScoreChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => {
+    if (!activeSession) return;
+    
+    setHistory(prevHistory => {
+        const newHistory = [...prevHistory];
+        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
+        if (sessionIndex === -1) return prevHistory;
+
+        const sessionToUpdate = { ...newHistory[sessionIndex] };
+        const newJd = { ...sessionToUpdate.analyzedJd };
+        let requirementFound = false;
+
+        const findAndUpdate = (reqs: Requirement[]) => {
+            const reqIndex = reqs.findIndex(r => r.id === reqId);
+            if (reqIndex > -1) {
+                reqs[reqIndex].score = newScore;
+                requirementFound = true;
+            }
+        };
+        
+         if (category === 'Responsibilities') {
+            findAndUpdate(newJd.Responsibilities[priority]);
+        } else if (category in newJd.Requirements) {
+            const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
+            if ('MUST_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) {
+                findAndUpdate((cat as any)[priority]);
+            } else if (category === 'Experience' && priority === 'NICE_TO_HAVE') {
+                 findAndUpdate(newJd.Requirements.Experience.NICE_TO_HAVE);
+            }
+        }
+        
+        if (requirementFound) {
+            toast({ description: `Score updated. Candidates marked for re-assessment.` });
+            sessionToUpdate.analyzedJd = newJd;
+            sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
+            sessionToUpdate.summary = null;
+            newHistory[sessionIndex] = sessionToUpdate;
+            return newHistory;
+        }
+
+        return prevHistory;
+    });
+  };
+
 
   const acceptedFileTypes = ".pdf,.docx,.txt";
   const isAssessingNewCvs = Object.keys(newCvProcessingStatus).length > 0;
@@ -872,6 +914,7 @@ function AssessmentPage() {
                     isOpen={isJdAnalysisOpen}
                     onOpenChange={setIsJdAnalysisOpen}
                     onRequirementChange={handleRequirementChange}
+                    onScoreChange={handleScoreChange}
                 />
                 
                 <Card>

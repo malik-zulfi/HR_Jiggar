@@ -4,7 +4,10 @@ import { z } from 'zod';
 export const RequirementSchema = z.object({
   id: z.string().describe("A unique identifier for the requirement, e.g., 'req-1'."),
   description: z.string().describe("The text of the requirement."),
-  priority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).optional().describe("The priority of the requirement."),
+  priority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).describe("The priority of the requirement."),
+  score: z.number().describe("The point value assigned to this requirement."),
+  originalScore: z.number().describe("The original point value assigned by the AI to track user edits."),
+  originalPriority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).describe("The original priority to track user edits."),
 });
 export type Requirement = z.infer<typeof RequirementSchema>;
 
