@@ -178,7 +178,7 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
       Requirements
   } = analysis;
 
-  const experienceMustHaves: Requirement[] = (Requirements.Experience.MUST_HAVE.Years && Requirements.Experience.MUST_HAVE.Fields.length > 0) 
+  const experienceMustHaves: Requirement[] = (Requirements.Experience.MUST_HAVE.Years && Requirements.Experience.MUST_HAVE.Years !== 'Not Found' && Requirements.Experience.MUST_HAVE.Fields.length > 0) 
     ? [{
         id: 'exp-must-years',
         description: `${Requirements.Experience.MUST_HAVE.Years} in ${Requirements.Experience.MUST_HAVE.Fields.join(', ')}`,
