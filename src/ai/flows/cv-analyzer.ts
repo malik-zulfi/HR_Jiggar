@@ -157,8 +157,10 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         recommendation = 'Not Recommended';
     } else if (alignmentScore >= 85) {
         recommendation = 'Strongly Recommended';
-    } else {
+    } else if (alignmentScore >= 60) {
         recommendation = 'Recommended with Reservations';
+    } else {
+        recommendation = 'Not Recommended';
     }
     
     const endTime = Date.now();
@@ -173,11 +175,14 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         maxScore,
         recommendation,
         candidateName: toTitleCase(input.parsedCv?.name || aiAnalysis.candidateName),
-        email: input.parsedCv?.email,
-        totalExperience: input.parsedCv?.totalExperience,
+        email: input.parsedCv?.email || aiAnalysis.email,
+        totalExperience: input.parsedCv?.totalExperience || aiAnalysis.totalExperience,
+        experienceCalculatedAt: input.parsedCv?.experienceCalculatedAt,
         processingTime,
     };
     
     return finalOutput;
   }
 );
+
+    

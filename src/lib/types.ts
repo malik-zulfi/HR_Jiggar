@@ -155,8 +155,10 @@ export const QueryKnowledgeBaseInputSchema = z.object({
   sessions: z.array(z.lazy(() => AssessmentSessionSchema)).describe('The entire history of assessment sessions, including all JDs and candidates.'),
   cvDatabase: z.array(z.lazy(() => CvDatabaseRecordSchema)).describe("The central database of all parsed CVs, including those not yet assessed."),
   chatHistory: z.array(ChatMessageSchema).optional().describe('The history of the current conversation.'),
+  currentDate: z.string().describe('The current date, for calculating up-to-date experience.'),
 });
 export type QueryKnowledgeBaseInput = z.infer<typeof QueryKnowledgeBaseInputSchema>;
+
 
 export const QueryKnowledgeBaseOutputSchema = z.object({
   answer: z.string().describe('The answer to the user query based on the provided data.'),
@@ -216,6 +218,7 @@ export const CvDatabaseRecordSchema = z.object({
     currentTitle: z.string().optional().describe("Candidate's most recent job title."),
     currentCompany: z.string().optional().describe("Candidate's most recent company."),
     totalExperience: z.string().nullable().optional().describe("Total years of professional experience calculated from the CV."),
+    experienceCalculatedAt: z.string().optional().describe("ISO date string for when experience was calculated."),
     jobCode: z.enum(['OCN', 'WEX', 'SAN']).describe("Job code associated with this CV upload."),
     cvFileName: z.string().describe("Original filename of the CV."),
     cvContent: z.string().describe("Full text content of the CV."),
@@ -227,7 +230,8 @@ export type CvDatabaseRecord = z.infer<typeof CvDatabaseRecordSchema>;
 // Input for the new CV Parser flow
 export const ParseCvInputSchema = z.object({
     cvText: z.string().describe('The full text content of the CV.'),
-    currentDate: z.string().describe("The current date, for calculating experience from 'Present' roles."),
+    currentDate: z.string().describe("The current date as a string, for calculating experience from 'Present' roles."),
+    experienceCalculatedAt: z.string().describe("The ISO date string of when this calculation is being performed."),
 });
 export type ParseCvInput = z.infer<typeof ParseCvInputSchema>;
 
@@ -267,3 +271,5 @@ export const FindSuitablePositionsOutputSchema = z.object({
   })).describe('A list of newly identified suitable positions for the candidate.'),
 });
 export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;
+
+    
