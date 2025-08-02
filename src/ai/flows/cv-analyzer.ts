@@ -59,7 +59,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 3.  **Detailed Alignment:** For each requirement, you must:
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
-    c.  Calculate a 'score' for each requirement. A 'MUST-HAVE' aligned is 10 points, partially is 5. A 'NICE-TO-HAVE' aligned is 5 points, partially is 2. 'Not Aligned' or 'Not Mentioned' is 0. The 'maxScore' is 10 for MUST-HAVE and 5 for NICE-TO-HAVE.
+    c.  DO NOT calculate a 'score' or 'maxScore'. This will be handled programmatically.
 4.  **Summaries (No Overall Score):**
     a.  Write a concise \`alignmentSummary\`.
     b.  List the key \`strengths\` and \`weaknesses\`.
@@ -98,16 +98,31 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     }
 
     // Programmatically calculate scores
-    const candidateScore = aiAnalysis.alignmentDetails.reduce((acc, detail) => acc + (detail.score || 0), 0);
-    const maxScore = aiAnalysis.alignmentDetails.reduce((acc, detail) => acc + (detail.maxScore || 0), 0);
+    const scoredAlignmentDetails = aiAnalysis.alignmentDetails.map(detail => {
+        let score = 0;
+        let maxScore = 0;
+        if (detail.priority === 'MUST_HAVE') {
+            maxScore = 10;
+            if (detail.status === 'Aligned') score = 10;
+            if (detail.status === 'Partially Aligned') score = 5;
+        } else if (detail.priority === 'NICE_TO_HAVE') {
+            maxScore = 5;
+            if (detail.status === 'Aligned') score = 5;
+            if (detail.status === 'Partially Aligned') score = 2;
+        }
+        return { ...detail, score, maxScore };
+    });
+
+    const candidateScore = scoredAlignmentDetails.reduce((acc, detail) => acc + (detail.score || 0), 0);
+    const maxScore = scoredAlignmentDetails.reduce((acc, detail) => acc + (detail.maxScore || 0), 0);
     const alignmentScore = maxScore > 0 ? parseFloat(((candidateScore / maxScore) * 100).toFixed(2)) : 0;
     
     // Programmatic recommendation logic
     let recommendation: AnalyzeCVAgainstJDOutput['recommendation'];
     
-    const missedMustHaveCore = aiAnalysis.alignmentDetails.some(detail =>
+    const missedMustHaveCore = scoredAlignmentDetails.some(detail =>
       (detail.category === 'Experience' || detail.category === 'Education') &&
-      detail.priority === 'MUST-HAVE' &&
+      detail.priority === 'MUST_HAVE' &&
       detail.status === 'Not Aligned'
     );
     
@@ -125,6 +140,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     // Combine AI analysis with the programmatic recommendation
     const finalOutput: AnalyzeCVAgainstJDOutput = {
         ...aiAnalysis,
+        alignmentDetails: scoredAlignmentDetails,
         alignmentScore,
         candidateScore,
         maxScore,

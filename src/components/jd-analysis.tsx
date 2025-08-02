@@ -132,17 +132,15 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
       Requirements
   } = analysis;
 
-  const experienceMustHaves = Requirements.Experience.MUST_HAVE.Fields.map((field, index) => ({
-    id: `exp-must-${index}`,
-    description: `${Requirements.Experience.MUST_HAVE.Years} in ${field}`,
-    priority: 'MUST_HAVE' as const
-  }));
+  const experienceMustHaves: Requirement[] = (Requirements.Experience.MUST_HAVE.Years && Requirements.Experience.MUST_HAVE.Fields.length > 0) 
+    ? [{
+        id: 'exp-must-years',
+        description: `${Requirements.Experience.MUST_HAVE.Years} in ${Requirements.Experience.MUST_HAVE.Fields.join(', ')}`,
+        priority: 'MUST_HAVE'
+      }]
+    : [];
 
-  const experienceNiceToHaves = Requirements.Experience.NICE_TO_HAVE.map((desc, index) => ({
-      id: `exp-nice-${index}`,
-      description: desc,
-      priority: 'NICE_TO_HAVE' as const
-  }));
+  const experienceNiceToHaves = Requirements.Experience.NICE_TO_HAVE || [];
 
 
   return (

@@ -25,7 +25,7 @@ const ExperienceSchema = z.object({
     Years: z.string().describe("The minimum number of years of experience required."),
     Fields: z.array(z.string()).describe("The specific fields or domains of experience required.")
   }),
-  NICE_TO_HAVE: z.array(z.string()).describe("Nice-to-have experience requirements.")
+  NICE_TO_HAVE: z.array(RequirementSchema).describe("Nice-to-have experience requirements.")
 });
 
 const RequirementsSchema = z.object({
@@ -57,7 +57,7 @@ export type ExtractJDCriteriaOutput = z.infer<typeof ExtractJDCriteriaOutputSche
 export const AlignmentDetailSchema = z.object({
   category: z.string().describe("The category of the requirement (e.g., Technical Skills, Experience)."),
   requirement: z.string().describe("The specific requirement from the job description. For grouped requirements, this will be a summary of the group."),
-  priority: z.enum(['MUST-HAVE', 'NICE_TO_HAVE']).describe('Priority of the requirement.'),
+  priority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).describe('Priority of the requirement.'),
   status: z.enum(['Aligned', 'Partially Aligned', 'Not Aligned', 'Not Mentioned']).describe('The alignment status of the candidate for this requirement.'),
   justification: z.string().describe('A brief justification for the alignment status, with evidence from the CV.'),
   score: z.number().optional().describe('The score awarded for this specific requirement.'),

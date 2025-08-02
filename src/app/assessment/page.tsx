@@ -383,7 +383,7 @@ function AssessmentPage() {
             if (nextStep >= prev.steps.length - 1) {
                 if (simulationInterval) clearInterval(simulationInterval);
             }
-            return { ...prev, currentStepIndex: Math.min(nextStep, prev.steps.length -1) };
+            return { ...prev, currentStepIndex: Math.min(nextStep, prev.steps.length - 1) };
         });
     }, 600);
 
@@ -717,10 +717,13 @@ function AssessmentPage() {
                     findAndMove(source, target);
                 } else if (category in newJd.Requirements) {
                     const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
-                    if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat) { // For skill-like categories
+                    if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && 'id' in (cat.NICE_TO_HAVE[0] || {}) ) { // For skill-like categories
                         const source = cat[currentPriority] as Requirement[];
                         const target = cat[newPriority] as Requirement[];
                         findAndMove(source, target);
+                    } else if (category === 'Experience') {
+                        // This category is structured differently and doesn't support toggling in this UI
+                        toast({ variant: 'destructive', description: "Toggling priority for main experience years is not supported."});
                     }
                 }
                 
