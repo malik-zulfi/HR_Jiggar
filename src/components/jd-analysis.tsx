@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine, Trash2 } from "lucide-react";
+import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine, Trash2, Eye, EyeOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
@@ -273,6 +273,7 @@ const AddRequirementForm = ({ onAdd }: { onAdd: (description: string, priority: 
 };
 
 export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange, onAddRequirement, onDeleteRequirement }: JdAnalysisProps) {
+  const [detailsVisible, setDetailsVisible] = useState(false);
   const {
       JobTitle,
       JobCode,
@@ -307,24 +308,36 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
-            <CollapsibleTrigger asChild>
-              <div className="flex-1 cursor-pointer">
-                <CardTitle className="flex items-center gap-2 flex-wrap">
-                  <Briefcase className="h-5 w-5 text-primary"/>
-                  <span className="mr-2">{JobTitle || 'Job Description Breakdown'}</span>
-                </CardTitle>
-                <CardDescription>The JD has been deconstructed. You can edit requirement priorities and scores below.</CardDescription>
-                 <div className="flex items-center gap-2 flex-wrap mt-2">
-                    <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
-                    <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
-                    <InfoBadge label="Grade" value={PayGrade} icon={<Star className="w-3 h-3"/>} />
-                    <InfoBadge label="Dept" value={Department} icon={<Users className="w-3 h-3"/>} />
-                    <InfoBadge label="Company" value={Company} icon={<Building className="w-3 h-3"/>} />
-                    <InfoBadge label="Location" value={Location} icon={<MapPin className="w-3 h-3"/>} />
-                    <InfoBadge label="Approved" value={DateApproved} icon={<Calendar className="w-3 h-3"/>} />
-                </div>
+            <div className="flex-1">
+                <CollapsibleTrigger asChild>
+                  <div className="cursor-pointer">
+                    <CardTitle className="flex items-center gap-2 flex-wrap">
+                      <Briefcase className="h-5 w-5 text-primary"/>
+                      <span className="mr-2">{JobTitle || 'Job Description Breakdown'}</span>
+                    </CardTitle>
+                    <CardDescription>The JD has been deconstructed. You can edit requirement priorities and scores below.</CardDescription>
+                  </div>
+                </CollapsibleTrigger>
+                <Collapsible open={detailsVisible} onOpenChange={setDetailsVisible}>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="link" className="px-0 h-auto text-xs mt-2">
+                           {detailsVisible ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                           {detailsVisible ? 'Hide Details' : 'Show Details'}
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2">
+                         <div className="flex items-center gap-2 flex-wrap">
+                            <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
+                            <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
+                            <InfoBadge label="Grade" value={PayGrade} icon={<Star className="w-3 h-3"/>} />
+                            <InfoBadge label="Dept" value={Department} icon={<Users className="w-3 h-3"/>} />
+                            <InfoBadge label="Company" value={Company} icon={<Building className="w-3 h-3"/>} />
+                            <InfoBadge label="Location" value={Location} icon={<MapPin className="w-3 h-3"/>} />
+                            <InfoBadge label="Approved" value={DateApproved} icon={<Calendar className="w-3 h-3"/>} />
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
               </div>
-            </CollapsibleTrigger>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
