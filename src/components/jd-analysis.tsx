@@ -273,7 +273,7 @@ const AddRequirementForm = ({ onAdd }: { onAdd: (description: string, priority: 
 };
 
 export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange, onAddRequirement, onDeleteRequirement }: JdAnalysisProps) {
-  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [objectiveVisible, setObjectiveVisible] = useState(false);
   const {
       JobTitle,
       JobCode,
@@ -318,25 +318,15 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
                     <CardDescription>The JD has been deconstructed. You can edit requirement priorities and scores below.</CardDescription>
                   </div>
                 </CollapsibleTrigger>
-                <Collapsible open={detailsVisible} onOpenChange={setDetailsVisible}>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="link" className="px-0 h-auto text-xs mt-2">
-                           {detailsVisible ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                           {detailsVisible ? 'Hide Details' : 'Show Details'}
-                        </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-2">
-                         <div className="flex items-center gap-2 flex-wrap">
-                            <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
-                            <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
-                            <InfoBadge label="Grade" value={PayGrade} icon={<Star className="w-3 h-3"/>} />
-                            <InfoBadge label="Dept" value={Department} icon={<Users className="w-3 h-3"/>} />
-                            <InfoBadge label="Company" value={Company} icon={<Building className="w-3 h-3"/>} />
-                            <InfoBadge label="Location" value={Location} icon={<MapPin className="w-3 h-3"/>} />
-                            <InfoBadge label="Approved" value={DateApproved} icon={<Calendar className="w-3 h-3"/>} />
-                        </div>
-                    </CollapsibleContent>
-                </Collapsible>
+                 <div className="flex items-center gap-2 flex-wrap mt-2">
+                    <InfoBadge label="Position" value={PositionNumber} icon={<span className="font-bold">#</span>} />
+                    <InfoBadge label="Code" value={JobCode} icon={<span className="font-bold text-xs">C</span>} />
+                    <InfoBadge label="Grade" value={PayGrade} icon={<Star className="w-3 h-3"/>} />
+                    <InfoBadge label="Dept" value={Department} icon={<Users className="w-3 h-3"/>} />
+                    <InfoBadge label="Company" value={Company} icon={<Building className="w-3 h-3"/>} />
+                    <InfoBadge label="Location" value={Location} icon={<MapPin className="w-3 h-3"/>} />
+                    <InfoBadge label="Approved" value={DateApproved} icon={<Calendar className="w-3 h-3"/>} />
+                </div>
               </div>
             <TooltipProvider>
               <Tooltip>
@@ -357,40 +347,48 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
         </CardHeader>
         <CollapsibleContent>
           <CardContent>
-            <div className="mb-6 p-4 border rounded-lg bg-muted/30">
-                <div className="mb-4">
-                    <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
-                        <Target className="h-5 w-5" />
-                        <span className="ml-2">Principal Objective</span>
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{PrincipalObjective}</p>
-                </div>
-                
-                <div>
-                    <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
-                        <Users className="h-5 w-5" />
-                        <span className="ml-2">Organizational Relationship</span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {OrganizationalRelationship.ReportsTo.length > 0 && (
-                            <div>
-                                <h4 className="font-medium">Reports To:</h4>
-                                <ul className="list-disc list-outside pl-5 text-muted-foreground">
-                                    {OrganizationalRelationship.ReportsTo.map((role, i) => <li key={`report-${i}`}>{role}</li>)}
-                                </ul>
-                            </div>
-                        )}
-                         {OrganizationalRelationship.InterfacesWith.length > 0 && (
-                            <div>
-                                <h4 className="font-medium">Interfaces With:</h4>
-                                <ul className="list-disc list-outside pl-5 text-muted-foreground">
-                                    {OrganizationalRelationship.InterfacesWith.map((role, i) => <li key={`interface-${i}`}>{role}</li>)}
-                                </ul>
-                            </div>
-                        )}
+            <Collapsible open={objectiveVisible} onOpenChange={setObjectiveVisible} className="mb-6">
+                 <CollapsibleContent className="p-4 border rounded-lg bg-muted/30">
+                    <div className="mb-4">
+                        <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
+                            <Target className="h-5 w-5" />
+                            <span className="ml-2">Principal Objective</span>
+                        </h3>
+                        <p className="text-sm text-muted-foreground">{PrincipalObjective}</p>
                     </div>
-                </div>
-            </div>
+                    
+                    <div>
+                        <h3 className="text-base font-semibold mb-2 flex items-center text-primary">
+                            <Users className="h-5 w-5" />
+                            <span className="ml-2">Organizational Relationship</span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            {OrganizationalRelationship.ReportsTo.length > 0 && (
+                                <div>
+                                    <h4 className="font-medium">Reports To:</h4>
+                                    <ul className="list-disc list-outside pl-5 text-muted-foreground">
+                                        {OrganizationalRelationship.ReportsTo.map((role, i) => <li key={`report-${i}`}>{role}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                             {OrganizationalRelationship.InterfacesWith.length > 0 && (
+                                <div>
+                                    <h4 className="font-medium">Interfaces With:</h4>
+                                    <ul className="list-disc list-outside pl-5 text-muted-foreground">
+                                        {OrganizationalRelationship.InterfacesWith.map((role, i) => <li key={`interface-${i}`}>{role}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                 </CollapsibleContent>
+                 <CollapsibleTrigger asChild>
+                    <Button variant="link" className="px-0 h-auto text-xs mt-2 -mb-4">
+                       {objectiveVisible ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                       {objectiveVisible ? 'Hide Objective & Org Chart' : 'Show Objective & Org Chart'}
+                    </Button>
+                </CollapsibleTrigger>
+            </Collapsible>
 
             <div className="md:columns-2 gap-8 space-y-6">
                 <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
