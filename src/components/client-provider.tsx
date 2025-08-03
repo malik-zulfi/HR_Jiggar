@@ -56,6 +56,7 @@ export function ClientProvider({
   const { toast } = useToast();
 
   useEffect(() => {
+    // This effect runs once on mount to load data from localStorage.
     try {
       // Load history
       const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -101,22 +102,14 @@ export function ClientProvider({
   }, []);
 
   useEffect(() => {
+    // This effect runs to save data to localStorage whenever it changes.
+    // It's guarded by isLoading to prevent writing empty initial state.
     if (!isLoading) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
-    }
-  }, [history, isLoading]);
-
-  useEffect(() => {
-    if (!isLoading) {
       localStorage.setItem(CV_DB_STORAGE_KEY, JSON.stringify(cvDatabase));
-    }
-  }, [cvDatabase, isLoading]);
-
-  useEffect(() => {
-    if (!isLoading) {
       localStorage.setItem(SUITABLE_POSITIONS_KEY, JSON.stringify(suitablePositions));
     }
-  }, [suitablePositions, isLoading]);
+  }, [history, cvDatabase, suitablePositions, isLoading]);
   
   const handleBulkImport = useCallback((data: ImportedData, mode: ImportMode) => {
     if (mode === 'replace') {
