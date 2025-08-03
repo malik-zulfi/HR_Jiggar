@@ -35,6 +35,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppContext } from "@/components/client-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { v4 as uuidv4 } from 'uuid';
 
 
 const ACTIVE_SESSION_STORAGE_KEY = 'jiggar-active-session';
@@ -49,6 +50,7 @@ type ReplacementPrompt = {
     newJd: ExtractJDCriteriaOutput | null;
 };
 type JobCode = 'OCN' | 'WEX' | 'SAN';
+type Priority = 'MUST_HAVE' | 'NICE_TO_HAVE';
 
 function AssessmentPage() {
   const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
@@ -690,7 +692,7 @@ function AssessmentPage() {
     toast({ description: `Candidate "${candidateNameToDelete}" has been removed.` });
   };
   
-  const handleRequirementChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => {
+  const handleRequirementChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', reqId: string, newPriority: Priority) => {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
@@ -714,14 +716,15 @@ function AssessmentPage() {
         };
         
         const currentPriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
-        
-        if (category === 'Responsibilities') {
+        const targetCategory = category as keyof typeof newJd.Requirements | 'Responsibilities';
+
+        if (targetCategory === 'Responsibilities') {
             findAndMove(newJd.Responsibilities[currentPriority], newJd.Responsibilities[newPriority]);
-        } else if (category in newJd.Requirements) {
-            const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
-            if ('MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) { // For skill-like categories
+        } else if (targetCategory in newJd.Requirements) {
+            const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
+            if (cat && 'MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) { // For skill-like categories
                  findAndMove(cat[currentPriority] as Requirement[], cat[newPriority] as Requirement[]);
-            } else if (category === 'Experience') {
+            } else if (targetCategory === 'Experience') {
                 findAndMove(newJd.Requirements.Experience.NICE_TO_HAVE, newJd.Requirements.Experience.NICE_TO_HAVE); // Simplified for now
             }
         }
@@ -739,7 +742,7 @@ function AssessmentPage() {
     });
   };
 
-  const handleScoreChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => {
+  const handleScoreChange = (category: keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities', priority: Priority, reqId: string, newScore: number) => {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
@@ -759,13 +762,15 @@ function AssessmentPage() {
             }
         };
         
-         if (category === 'Responsibilities') {
+        const targetCategory = category as keyof typeof newJd.Requirements | 'Responsibilities';
+        
+        if (targetCategory === 'Responsibilities') {
             findAndUpdate(newJd.Responsibilities[priority]);
-        } else if (category in newJd.Requirements) {
-            const cat = newJd.Requirements[category as keyof typeof newJd.Requirements];
-            if ('MUST_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) {
+        } else if (targetCategory in newJd.Requirements) {
+            const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
+            if (cat && 'MUST_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) {
                 findAndUpdate((cat as any)[priority]);
-            } else if (category === 'Experience' && priority === 'NICE_TO_HAVE') {
+            } else if (targetCategory === 'Experience' && priority === 'NICE_TO_HAVE') {
                  findAndUpdate(newJd.Requirements.Experience.NICE_TO_HAVE);
             }
         }
@@ -780,6 +785,41 @@ function AssessmentPage() {
         }
 
         return prevHistory;
+    });
+  };
+
+  const handleAddRequirement = (description: string, priority: Priority, score: number) => {
+    if (!activeSession) return;
+    
+    const newRequirement: Requirement = {
+        id: uuidv4(),
+        description,
+        priority,
+        score,
+        originalPriority: priority,
+        originalScore: score,
+    };
+    
+    setHistory(prevHistory => {
+        const newHistory = [...prevHistory];
+        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
+        if (sessionIndex === -1) return prevHistory;
+
+        const sessionToUpdate = { ...newHistory[sessionIndex] };
+        const newJd = { ...sessionToUpdate.analyzedJd };
+
+        if (!newJd.Requirements.AdditionalRequirements) {
+            newJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
+        }
+        
+        newJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
+        
+        toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
+        sessionToUpdate.analyzedJd = newJd;
+        sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
+        sessionToUpdate.summary = null;
+        newHistory[sessionIndex] = sessionToUpdate;
+        return newHistory;
     });
   };
 
@@ -915,6 +955,7 @@ function AssessmentPage() {
                     onOpenChange={setIsJdAnalysisOpen}
                     onRequirementChange={handleRequirementChange}
                     onScoreChange={handleScoreChange}
+                    onAddRequirement={handleAddRequirement}
                 />
                 
                 <Card>

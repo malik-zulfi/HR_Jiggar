@@ -18,6 +18,7 @@ import {
   type AnalyzeCVAgainstJDOutput,
   ParseCvOutputSchema,
   RequirementSchema,
+  type Requirement,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 
@@ -113,6 +114,10 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     processReqs(jd.Requirements.Education.NICE_TO_HAVE);
     processReqs(jd.Requirements.Certifications.MUST_HAVE);
     processReqs(jd.Requirements.Certifications.NICE_TO_HAVE);
+    if (jd.Requirements.AdditionalRequirements) {
+        processReqs(jd.Requirements.AdditionalRequirements.MUST_HAVE);
+        processReqs(jd.Requirements.AdditionalRequirements.NICE_TO_HAVE);
+    }
     processReqs(jd.Requirements.Experience.NICE_TO_HAVE);
     if (jd.Requirements.Experience.MUST_HAVE.Years) {
         const expReq = {

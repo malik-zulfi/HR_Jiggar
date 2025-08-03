@@ -8,20 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3 } from "lucide-react";
+import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Textarea } from './ui/textarea';
 
 type CategoryKey = keyof ExtractJDCriteriaOutput['Requirements'] | 'Responsibilities';
+type Priority = 'MUST_HAVE' | 'NICE_TO_HAVE';
 
 interface JdAnalysisProps {
   analysis: ExtractJDCriteriaOutput;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
-  onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
+  onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
+  onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
+  onAddRequirement: (description: string, priority: Priority, score: number) => void;
 }
 
 const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon: React.ReactNode }) => {
@@ -40,8 +45,8 @@ const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon
 const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }: {
     item: Requirement;
     category: CategoryKey;
-    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
-    onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
+    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
+    onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
 }) => {
     const isModified = item.priority !== item.originalPriority || item.score !== item.originalScore;
     const [localScore, setLocalScore] = useState(item.score.toString());
@@ -66,32 +71,34 @@ const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }:
 
     return (
          <li className={cn(
-            "flex items-center gap-4 justify-between p-2 rounded-md hover:bg-background/50",
+            "flex items-center gap-2 md:gap-4 justify-between p-2 rounded-md hover:bg-background/50",
             isModified && "ring-1 ring-amber-500/50 bg-amber-50/20"
         )}>
-            {isModified && (
-                 <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="text-amber-500">
-                                <Edit3 className="w-4 h-4" />
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>This requirement has been modified.</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            )}
-            <span className="flex-1">{item.description}</span>
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-2 flex-1">
+                {isModified && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="text-amber-500 pt-0.5">
+                                    <Edit3 className="w-4 h-4" />
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>This requirement has been modified.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+                <span className={cn("flex-1", !isModified && "ml-6")}>{item.description}</span>
+            </div>
+            <div className="flex items-center gap-2 md:gap-4">
                  <Input 
                     type="number" 
                     value={localScore}
                     onChange={(e) => setLocalScore(e.target.value)}
                     onBlur={handleScoreBlur}
                     onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                    className="h-8 w-16 text-center"
+                    className="h-8 w-14 text-center"
                  />
                  <TooltipProvider>
                     <Tooltip>
@@ -114,19 +121,20 @@ const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }:
 };
 
 
-const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange }: {
+const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange, children }: {
     title: string;
     mustHaves?: Requirement[];
     niceToHaves?: Requirement[];
     icon: React.ReactNode;
     category: CategoryKey;
-    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: 'MUST_HAVE' | 'NICE_TO_HAVE') => void;
-    onScoreChange: (category: CategoryKey, priority: 'MUST_HAVE' | 'NICE_TO_HAVE', reqId: string, newScore: number) => void;
+    onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
+    onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
+    children?: React.ReactNode;
 }) => {
     const hasMustHaves = mustHaves && mustHaves.length > 0;
     const hasNiceToHaves = niceToHaves && niceToHaves.length > 0;
 
-    if (!hasMustHaves && !hasNiceToHaves) {
+    if (!hasMustHaves && !hasNiceToHaves && !children) {
         return null;
     }
 
@@ -140,7 +148,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                 {hasMustHaves && (
                     <div>
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
-                        <ul className="space-y-2 text-sm">
+                        <ul className="space-y-1 text-sm">
                             {mustHaves.map((item) => (
                                <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
@@ -150,19 +158,99 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                 {hasNiceToHaves && (
                      <div>
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
-                        <ul className="space-y-2 text-sm text-muted-foreground">
+                        <ul className="space-y-1 text-sm text-muted-foreground">
                              {niceToHaves.map((item) => (
                                 <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
                         </ul>
                     </div>
                 )}
+                 {children}
             </div>
         </div>
     );
 };
 
-export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange }: JdAnalysisProps) {
+const AddRequirementForm = ({ onAdd }: { onAdd: (description: string, priority: Priority, score: number) => void }) => {
+    const [description, setDescription] = useState("");
+    const [priority, setPriority] = useState<Priority>("MUST_HAVE");
+    const [score, setScore] = useState("10");
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handlePriorityChange = (value: string) => {
+        const newPriority = value as Priority;
+        setPriority(newPriority);
+        setScore(newPriority === 'MUST_HAVE' ? "10" : "5");
+    };
+    
+    const handleAddClick = () => {
+        if (!description.trim()) return;
+        const finalScore = parseInt(score, 10);
+        if (isNaN(finalScore)) return;
+
+        onAdd(description, priority, finalScore);
+        setDescription("");
+        setPriority("MUST_HAVE");
+        setScore("10");
+        setIsOpen(false);
+    };
+
+    return (
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="mt-4">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Requirement
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-96">
+                <div className="grid gap-4">
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Add a Custom Requirement</h4>
+                        <p className="text-sm text-muted-foreground">This will be added to the 'Additional Requirements' category.</p>
+                    </div>
+                    <div className="grid gap-2">
+                        <div className="grid grid-cols-3 items-center gap-4">
+                            <Label htmlFor="width">Description</Label>
+                            <Textarea
+                                id="description"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className="col-span-2 h-20"
+                                placeholder="e.g., '5+ years experience with React'"
+                            />
+                        </div>
+                        <div className="grid grid-cols-3 items-center gap-4">
+                            <Label htmlFor="maxWidth">Priority</Label>
+                            <RadioGroup value={priority} onValueChange={handlePriorityChange} className="col-span-2 flex items-center gap-4">
+                                <div>
+                                    <RadioGroupItem value="MUST_HAVE" id="r-must" />
+                                    <Label htmlFor="r-must" className="ml-2">Must Have</Label>
+                                </div>
+                                <div>
+                                    <RadioGroupItem value="NICE_TO_HAVE" id="r-nice" />
+                                    <Label htmlFor="r-nice" className="ml-2">Nice to Have</Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
+                        <div className="grid grid-cols-3 items-center gap-4">
+                            <Label htmlFor="score">Score</Label>
+                            <Input
+                                id="score"
+                                type="number"
+                                value={score}
+                                onChange={(e) => setScore(e.target.value)}
+                                className="col-span-2 h-8"
+                            />
+                        </div>
+                    </div>
+                     <Button onClick={handleAddClick}>Add Requirement</Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+};
+
+export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange, onAddRequirement }: JdAnalysisProps) {
   const {
       JobTitle,
       JobCode,
@@ -276,6 +364,9 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
                 <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                 <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                 <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                <RequirementSection title="Additional Requirements" icon={<PenLine className="h-5 w-5"/>} mustHaves={Requirements.AdditionalRequirements?.MUST_HAVE} niceToHaves={Requirements.AdditionalRequirements?.NICE_TO_HAVE} category="AdditionalRequirements" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange}>
+                    <AddRequirementForm onAdd={onAddRequirement} />
+                </RequirementSection>
             </div>
           </CardContent>
         </CollapsibleContent>

@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { CandidateSummaryOutput, AnalyzedCandidate, ExtractJDCriteriaOutput } from "@/lib/types";
+import type { CandidateSummaryOutput, AnalyzedCandidate, ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { Award, Target, Telescope, UserMinus, UserCheck, Users, Download, Loader2, FileSpreadsheet } from "lucide-react";
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -20,9 +20,38 @@ interface SummaryDisplayProps {
   analyzedJd: ExtractJDCriteriaOutput;
 }
 
-function isRequirementGroup(item: any): item is { groupType: 'OR'; requirements: any[] } {
-    return 'groupType' in item;
+function extractAllRequirements(jd: ExtractJDCriteriaOutput): Requirement[] {
+    const allReqs: Requirement[] = [];
+    const { Responsibilities, Requirements } = jd;
+
+    const addReqs = (category: { MUST_HAVE: Requirement[], NICE_TO_HAVE: Requirement[] } | undefined) => {
+        if (category) {
+            allReqs.push(...category.MUST_HAVE, ...category.NICE_TO_HAVE);
+        }
+    };
+    
+    addReqs(Responsibilities);
+    addReqs(Requirements.Education);
+    addReqs(Requirements.TechnicalSkills);
+    addReqs(Requirements.SoftSkills);
+    addReqs(Requirements.Certifications);
+    addReqs(Requirements.AdditionalRequirements);
+
+    if (Requirements.Experience.MUST_HAVE.Years && Requirements.Experience.MUST_HAVE.Years !== 'Not Found' && Requirements.Experience.MUST_HAVE.Fields.length > 0) {
+        allReqs.push({
+            id: 'exp-must-years',
+            description: `${Requirements.Experience.MUST_HAVE.Years} in ${Requirements.Experience.MUST_HAVE.Fields.join(', ')}`,
+            priority: 'MUST_HAVE',
+            score: 10,
+            originalScore: 10,
+            originalPriority: 'MUST_HAVE',
+        });
+    }
+    allReqs.push(...(Requirements.Experience.NICE_TO_HAVE || []));
+
+    return allReqs;
 }
+
 
 export default function SummaryDisplay({ summary, candidates, analyzedJd }: SummaryDisplayProps) {
   const { toast } = useToast();
@@ -42,15 +71,7 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
     toast({ description: "Generating cross-candidate alignment report..." });
 
     try {
-      const allJdRequirements = [
-        ...(analyzedJd.education || []),
-        ...(analyzedJd.experience || []),
-        ...(analyzedJd.technicalSkills || []),
-        ...(analyzedJd.softSkills || []),
-        ...(analyzedJd.certifications || []),
-        ...(analyzedJd.responsibilities || []),
-        ...(analyzedJd.additionalRequirements || []),
-      ];
+      const allJdRequirements = extractAllRequirements(analyzedJd);
 
       if (allJdRequirements.length === 0) {
           toast({ variant: "destructive", title: "Export Failed", description: "No job description requirements to create a report from." });
@@ -63,8 +84,8 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       const normalizeString = (str: string) => (str || '').trim().toLowerCase();
       
       const priorityEmojis: { [key: string]: string } = {
-        'MUST-HAVE': '★',
-        'NICE-TO-HAVE': '•',
+        'MUST_HAVE': '★',
+        'NICE_TO_HAVE': '•',
       };
       
       const statusEmojis: { [key: string]: string } = {
@@ -87,28 +108,16 @@ export default function SummaryDisplay({ summary, candidates, analyzedJd }: Summ
       });
 
       // Data row creation
-      const dataRows = allJdRequirements.map(jdReqOrGroup => {
-        
-        let reqDescription: string;
-        let reqPriority: 'MUST-HAVE' | 'NICE-TO-HAVE';
-
-        if (isRequirementGroup(jdReqOrGroup)) {
-            reqDescription = jdReqOrGroup.requirements.map(r => r.description).join(' OR ');
-            reqPriority = jdReqOrGroup.requirements.some(r => r.priority === 'MUST-HAVE') ? 'MUST-HAVE' : 'NICE-TO-HAVE';
-        } else {
-            reqDescription = jdReqOrGroup.description;
-            reqPriority = jdReqOrGroup.priority;
-        }
-
+      const dataRows = allJdRequirements.map(jdReq => {
         const rowData: (string | undefined)[] = [
-          priorityEmojis[reqPriority],
-          reqDescription
+          priorityEmojis[jdReq.priority],
+          jdReq.description
         ];
 
         candidateNames.forEach(name => {
           const candidate = candidateMap.get(name);
           const alignmentDetail = candidate?.alignmentDetails.find(
-            detail => normalizeString(detail.requirement).substring(0,50) === normalizeString(reqDescription).substring(0,50)
+            detail => normalizeString(detail.requirement).substring(0,50) === normalizeString(jdReq.description).substring(0,50)
           );
 
           if (alignmentDetail) {

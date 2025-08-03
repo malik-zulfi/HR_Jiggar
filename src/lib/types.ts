@@ -37,6 +37,7 @@ const RequirementsSchema = z.object({
   Experience: ExperienceSchema,
   Education: RequirementsSubSchema,
   Certifications: RequirementsSubSchema,
+  AdditionalRequirements: RequirementsSubSchema.optional(),
 }).describe("Detailed breakdown of all job requirements.");
 
 export const ExtractJDCriteriaOutputSchema = z.object({
