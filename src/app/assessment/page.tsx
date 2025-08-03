@@ -248,6 +248,7 @@ function AssessmentPage() {
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
     useEffect(() => {
+        // Only run this on the client after the initial render.
         const timer = setTimeout(() => {
             const processPendingAssessments = () => {
                 const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -285,13 +286,13 @@ function AssessmentPage() {
                 }
             };
 
-            // Only run if history is loaded
+            // Only run if history is loaded to avoid race conditions
             if (history && history.length > 0) {
                 processPendingAssessments();
             }
         }, 0);
     
-        // Run only on mount and when history is hydrated
+        // This effect should only run once on mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -801,30 +802,36 @@ function AssessmentPage() {
 
   const handleAddRequirement = (description: string, priority: Priority, score: number) => {
     if (!activeSession) return;
-    
+
     setHistory(prevHistory => {
-        const newHistory = JSON.parse(JSON.stringify(prevHistory));
-        const sessionToUpdate = newHistory.find((s: AssessmentSession) => s.id === activeSessionId);
-        
-        if (!sessionToUpdate) return prevHistory;
+        const newHistory = prevHistory.map(session => {
+            if (session.id !== activeSessionId) {
+                return session;
+            }
 
-        const newRequirement: Requirement = {
-            id: uuidv4(),
-            description,
-            priority,
-            score,
-            originalPriority: priority,
-            originalScore: score,
-        };
+            // Deep clone the session to avoid mutation issues
+            const updatedSession = JSON.parse(JSON.stringify(session));
+            
+            const newRequirement: Requirement = {
+                id: uuidv4(),
+                description,
+                priority,
+                score,
+                originalPriority: priority,
+                originalScore: score,
+            };
 
-        if (!sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements) {
-            sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
-        }
-        
-        sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
-        
-        sessionToUpdate.candidates = sessionToUpdate.candidates.map((c: CandidateRecord) => ({ ...c, isStale: true }));
-        sessionToUpdate.summary = null;
+            if (!updatedSession.analyzedJd.Requirements.AdditionalRequirements) {
+                updatedSession.analyzedJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
+            }
+            
+            updatedSession.analyzedJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
+            
+            updatedSession.candidates = updatedSession.candidates.map((c: CandidateRecord) => ({ ...c, isStale: true }));
+            updatedSession.summary = null;
+
+            return updatedSession;
+        });
 
         toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
         
