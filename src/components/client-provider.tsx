@@ -193,7 +193,7 @@ export function ClientProvider({
         setManualCheckStatus('done');
         setTimeout(() => setManualCheckStatus('idle'), 3000);
     }
-  }, [history, cvDatabase, suitablePositions, toast, setSuitablePositions]);
+  }, [history, cvDatabase, suitablePositions, toast]);
 
 
   const contextValue = {
@@ -223,5 +223,3 @@ export function ClientProvider({
     </AppContext.Provider>
   );
 }
-
-    
