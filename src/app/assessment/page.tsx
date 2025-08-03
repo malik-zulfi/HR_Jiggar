@@ -248,53 +248,52 @@ function AssessmentPage() {
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
     useEffect(() => {
-        if (history.length === 0 && typeof window !== 'undefined' && localStorage.getItem('jiggar-history')) {
-            return;
-        }
+        const timer = setTimeout(() => {
+            const processPendingAssessments = () => {
+                const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+                const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
     
-        const processPendingAssessments = () => {
-            const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-            const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
+                try {
+                    let sessionToActivate = null;
+                    if (intendedSessionId) {
+                        sessionToActivate = history.find(s => s.id === intendedSessionId);
+                        setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+                        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                    }
     
-            try {
-                if (intendedSessionId) {
-                    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-                    const sessionToActivate = history.find(s => s.id === intendedSessionId);
-                    setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
-                }
-    
-                if (pendingAssessmentJSON) {
-                    try {
+                    if (pendingAssessmentJSON) {
                         const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
                         if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                             const firstItem = pendingItems[0];
                             const assessment = history.find(s => s.id === firstItem.assessment.id);
+                            
                             if (assessment) {
                                 const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
                                     name: item.candidate.cvFileName,
                                     content: item.candidate.cvContent,
                                 }));
-    
                                 processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
                             }
                         }
-                    } catch (e) {
-                        console.error("Could not parse pending assessments", e);
-                    } finally {
                         localStorage.removeItem(PENDING_ASSESSMENT_KEY);
                     }
+    
+                } catch (error) {
+                    console.error("Failed to process pending state from localStorage", error);
+                    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                    localStorage.removeItem(PENDING_ASSESSMENT_KEY);
                 }
-    
-            } catch (error) {
-                console.error("Failed to load state from localStorage", error);
-                localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+            };
+
+            // Only run if history is loaded
+            if (history && history.length > 0) {
+                processPendingAssessments();
             }
-        };
+        }, 0);
     
-        const timer = setTimeout(processPendingAssessments, 0);
-        return () => clearTimeout(timer);
-    
-    }, [history, processAndAnalyzeCandidates]);
+        // Run only on mount and when history is hydrated
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
