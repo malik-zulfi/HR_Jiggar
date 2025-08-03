@@ -696,51 +696,56 @@ function AssessmentPage() {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
-        const newHistory = [...prevHistory];
-        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
-        if (sessionIndex === -1) return prevHistory;
+        return prevHistory.map(session => {
+            if (session.id !== activeSessionId) return session;
 
-        const sessionToUpdate = { ...newHistory[sessionIndex] };
-        const newJd = { ...sessionToUpdate.analyzedJd };
-        let requirementFoundAndMoved = false;
+            const newJd = { ...session.analyzedJd };
+            let requirementFoundAndMoved = false;
 
-        const findAndMove = (sourceArray: Requirement[], targetArray: Requirement[]) => {
-            const reqIndex = sourceArray.findIndex(r => r.id === reqId);
-            if (reqIndex > -1) {
-                const [reqToMove] = sourceArray.splice(reqIndex, 1);
-                reqToMove.priority = newPriority;
-                reqToMove.score = newPriority === 'MUST_HAVE' ? 10 : 5; // Update score based on new priority
-                targetArray.push(reqToMove);
-                requirementFoundAndMoved = true;
+            const processCategory = (cat: { MUST_HAVE: Requirement[], NICE_TO_HAVE: Requirement[] } | undefined) => {
+                if (!cat) return;
+                
+                const sourcePriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
+                const sourceArray = cat[sourcePriority];
+                const targetArray = cat[newPriority];
+                
+                const reqIndex = sourceArray.findIndex(r => r.id === reqId);
+                if (reqIndex > -1) {
+                    const [reqToMove] = sourceArray.splice(reqIndex, 1);
+                    reqToMove.priority = newPriority;
+                    reqToMove.score = newPriority === 'MUST_HAVE' ? 10 : 5; // Reset score to default for new priority
+                    targetArray.push(reqToMove);
+                    requirementFoundAndMoved = true;
+                }
+            };
+            
+            const categoriesToSearch = [
+                newJd.Responsibilities,
+                newJd.Requirements.TechnicalSkills,
+                newJd.Requirements.SoftSkills,
+                newJd.Requirements.Education,
+                newJd.Requirements.Certifications,
+                newJd.Requirements.AdditionalRequirements,
+                { MUST_HAVE: [], NICE_TO_HAVE: newJd.Requirements.Experience.NICE_TO_HAVE }
+            ];
+
+            for (const cat of categoriesToSearch) {
+                processCategory(cat);
+                if (requirementFoundAndMoved) break;
             }
-        };
-        
-        const currentPriority = newPriority === 'MUST_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
-        const targetCategory = category as keyof typeof newJd.Requirements | 'Responsibilities';
-
-        if (targetCategory === 'Responsibilities') {
-            findAndMove(newJd.Responsibilities[currentPriority], newJd.Responsibilities[newPriority]);
-        } else if (targetCategory === 'AdditionalRequirements') {
-            findAndMove((newJd.Requirements.AdditionalRequirements as any)[currentPriority], (newJd.Requirements.AdditionalRequirements as any)[newPriority]);
-        } else if (targetCategory in newJd.Requirements) {
-            const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
-            if (cat && 'MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) { // For skill-like categories
-                 findAndMove(cat[currentPriority] as Requirement[], cat[newPriority] as Requirement[]);
-            } else if (targetCategory === 'Experience') {
-                findAndMove(newJd.Requirements.Experience.NICE_TO_HAVE, newJd.Requirements.Experience.NICE_TO_HAVE); // Simplified for now
+            
+            if (requirementFoundAndMoved) {
+                toast({ description: `Requirement priority updated. Candidates marked for re-assessment.` });
+                return {
+                    ...session,
+                    analyzedJd: newJd,
+                    candidates: session.candidates.map(c => ({ ...c, isStale: true })),
+                    summary: null
+                };
             }
-        }
-        
-        if (requirementFoundAndMoved) {
-            toast({ description: `Requirement priority updated. Candidates marked for re-assessment.` });
-            sessionToUpdate.analyzedJd = newJd;
-            sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
-            sessionToUpdate.summary = null;
-            newHistory[sessionIndex] = sessionToUpdate;
-            return newHistory;
-        }
-        
-        return prevHistory;
+            
+            return session;
+        });
     });
   };
 
@@ -748,47 +753,50 @@ function AssessmentPage() {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
-        const newHistory = [...prevHistory];
-        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
-        if (sessionIndex === -1) return prevHistory;
+        return prevHistory.map(session => {
+            if (session.id !== activeSessionId) return session;
 
-        const sessionToUpdate = { ...newHistory[sessionIndex] };
-        const newJd = { ...sessionToUpdate.analyzedJd };
-        let requirementFound = false;
+            const newJd = { ...session.analyzedJd };
+            let requirementFound = false;
 
-        const findAndUpdate = (reqs: Requirement[]) => {
-            const reqIndex = reqs.findIndex(r => r.id === reqId);
-            if (reqIndex > -1) {
-                reqs[reqIndex].score = newScore;
-                requirementFound = true;
+            const findAndUpdate = (reqs: Requirement[] | undefined) => {
+                if (!reqs) return;
+                const req = reqs.find(r => r.id === reqId);
+                if (req) {
+                    req.score = newScore;
+                    requirementFound = true;
+                }
+            };
+            
+            const categoriesToSearch = [
+                newJd.Responsibilities,
+                newJd.Requirements.TechnicalSkills,
+                newJd.Requirements.SoftSkills,
+                newJd.Requirements.Education,
+                newJd.Requirements.Certifications,
+                newJd.Requirements.AdditionalRequirements
+            ];
+
+            for (const cat of categoriesToSearch) {
+                if(cat) findAndUpdate(cat[priority]);
+                if (requirementFound) break;
             }
-        };
-        
-        const targetCategory = category as keyof typeof newJd.Requirements | 'Responsibilities';
-        
-        if (targetCategory === 'Responsibilities') {
-            findAndUpdate(newJd.Responsibilities[priority]);
-        } else if (targetCategory === 'AdditionalRequirements') {
-            findAndUpdate((newJd.Requirements.AdditionalRequirements as any)[priority]);
-        } else if (targetCategory in newJd.Requirements) {
-            const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
-            if (cat && 'MUST_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) {
-                findAndUpdate((cat as any)[priority]);
-            } else if (targetCategory === 'Experience' && priority === 'NICE_TO_HAVE') {
+            
+            if (!requirementFound && priority === 'NICE_TO_HAVE') {
                  findAndUpdate(newJd.Requirements.Experience.NICE_TO_HAVE);
             }
-        }
-        
-        if (requirementFound) {
-            toast({ description: `Score updated. Candidates marked for re-assessment.` });
-            sessionToUpdate.analyzedJd = newJd;
-            sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
-            sessionToUpdate.summary = null;
-            newHistory[sessionIndex] = sessionToUpdate;
-            return newHistory;
-        }
-
-        return prevHistory;
+            
+            if (requirementFound) {
+                toast({ description: `Score updated. Candidates marked for re-assessment.` });
+                return {
+                    ...session,
+                    analyzedJd: newJd,
+                    candidates: session.candidates.map(c => ({ ...c, isStale: true })),
+                    summary: null
+                };
+            }
+            return session;
+        });
     });
   };
 
@@ -805,25 +813,26 @@ function AssessmentPage() {
     };
     
     setHistory(prevHistory => {
-        const newHistory = [...prevHistory];
-        const sessionIndex = newHistory.findIndex(s => s.id === activeSessionId);
-        if (sessionIndex === -1) return prevHistory;
+        return prevHistory.map(session => {
+            if (session.id !== activeSessionId) return session;
 
-        const sessionToUpdate = { ...newHistory[sessionIndex] };
-        const newJd = { ...sessionToUpdate.analyzedJd };
+            const newJd = { ...session.analyzedJd };
 
-        if (!newJd.Requirements.AdditionalRequirements) {
-            newJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
-        }
-        
-        newJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
-        
-        toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
-        sessionToUpdate.analyzedJd = newJd;
-        sessionToUpdate.candidates = sessionToUpdate.candidates.map(c => ({ ...c, isStale: true }));
-        sessionToUpdate.summary = null;
-        newHistory[sessionIndex] = sessionToUpdate;
-        return newHistory;
+            if (!newJd.Requirements.AdditionalRequirements) {
+                newJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
+            }
+            
+            newJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
+            
+            toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
+
+            return {
+                ...session,
+                analyzedJd: newJd,
+                candidates: session.candidates.map(c => ({ ...c, isStale: true })),
+                summary: null,
+            };
+        });
     });
   };
 
