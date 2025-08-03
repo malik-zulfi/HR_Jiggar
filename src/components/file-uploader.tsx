@@ -57,7 +57,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
             content = textContentAcc;
 
             // If PDF text is sparse, it might be an image-based PDF.
-            if (content.trim().length < 100) {
+            if (content.trim().length < 10) {
                 toast({ 
                     title: "Image-based PDF Detected",
                     description: `Performing OCR on "${file.name}" to extract text. This may take a few moments...`
@@ -82,7 +82,7 @@ export default function FileUploader({ onFileUpload, onFileClear, acceptedFileTy
                         }
                     }
                 }
-                content = ocrContent;
+                content = content + '\n\n' + ocrContent;
             }
 
         } else if (fileExtension === 'docx') {
