@@ -291,8 +291,8 @@ function AssessmentPage() {
             }
         };
     
-        // Defer the execution to after the current render cycle.
-        setTimeout(processPendingAssessments, 0);
+        const timer = setTimeout(processPendingAssessments, 0);
+        return () => clearTimeout(timer);
     
     }, [history, processAndAnalyzeCandidates]);
 
@@ -1279,5 +1279,3 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
-
-    
