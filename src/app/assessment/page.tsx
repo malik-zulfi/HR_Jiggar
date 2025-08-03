@@ -247,57 +247,53 @@ function AssessmentPage() {
         }
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
-    useEffect(() => {
-        // This effect should only run once on mount, after the initial render.
-        const timer = setTimeout(() => {
-            const processPendingAssessments = () => {
-                const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-                const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
-    
-                try {
-                    // History is loaded from ClientProvider. We access it from its state setter's callback
-                    // to ensure we have the latest version without adding it as a dependency.
-                    setHistory(currentHistory => {
-                        let sessionToActivate = null;
-                        if (intendedSessionId) {
-                            sessionToActivate = currentHistory.find(s => s.id === intendedSessionId);
-                            setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
-                            localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-                        }
-        
-                        if (pendingAssessmentJSON) {
-                            const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
-                            if (Array.isArray(pendingItems) && pendingItems.length > 0) {
-                                const firstItem = pendingItems[0];
-                                const assessment = currentHistory.find(s => s.id === firstItem.assessment.id);
-                                
-                                if (assessment) {
-                                    const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
-                                        name: item.candidate.cvFileName,
-                                        content: item.candidate.cvContent,
-                                    }));
-                                    processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
-                                }
-                            }
-                            localStorage.removeItem(PENDING_ASSESSMENT_KEY);
-                        }
-                        // Return the same history, we're just reading it.
-                        return currentHistory;
-                    });
-    
-                } catch (error) {
-                    console.error("Failed to process pending state from localStorage", error);
+  useEffect(() => {
+    const processPendingAssessments = () => {
+        const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+        const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
+
+        try {
+            setHistory(currentHistory => {
+                let sessionToActivate = null;
+                if (intendedSessionId) {
+                    sessionToActivate = currentHistory.find(s => s.id === intendedSessionId);
+                    setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
                     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                }
+
+                if (pendingAssessmentJSON) {
+                    const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
+                    if (Array.isArray(pendingItems) && pendingItems.length > 0) {
+                        const firstItem = pendingItems[0];
+                        const assessment = currentHistory.find(s => s.id === firstItem.assessment.id);
+                        
+                        if (assessment) {
+                            const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
+                                name: item.candidate.cvFileName,
+                                content: item.candidate.cvContent,
+                            }));
+                            processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                        }
+                    }
                     localStorage.removeItem(PENDING_ASSESSMENT_KEY);
                 }
-            };
+                return currentHistory;
+            });
 
-            processPendingAssessments();
-        }, 0);
+        } catch (error) {
+            console.error("Failed to process pending state from localStorage", error);
+            localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+            localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+        }
+    };
     
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    const timer = setTimeout(() => {
+      processPendingAssessments();
+    }, 0);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
@@ -812,7 +808,6 @@ function AssessmentPage() {
                 return session;
             }
 
-            // Deep clone the session to avoid mutation issues
             const updatedSession = JSON.parse(JSON.stringify(session));
             
             const newRequirement: Requirement = {
@@ -835,11 +830,10 @@ function AssessmentPage() {
 
             return updatedSession;
         });
-
-        toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
-        
         return newHistory;
     });
+
+    toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
   };
 
 
