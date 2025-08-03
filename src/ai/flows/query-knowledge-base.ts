@@ -28,7 +28,8 @@ export async function queryKnowledgeBase(input: QueryKnowledgeBaseInput): Promis
 const SummarizedDataSchema = z.object({
     query: z.string(),
     chatHistory: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).optional(),
-    knowledgeBase: z.any() // Using any to avoid schema complexity in the prompt definition
+    knowledgeBase: z.any(), // Using any to avoid schema complexity in the prompt definition
+    currentDate: z.string(),
 });
 
 const prompt = ai.definePrompt({
@@ -122,6 +123,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
         query: query,
         chatHistory: chatHistory,
         knowledgeBase,
+        currentDate: new Date().toDateString(),
     }));
     
     if (!output) {
