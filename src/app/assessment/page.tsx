@@ -287,8 +287,9 @@ function AssessmentPage() {
         }
     };
     
+    // Defer execution until after the initial render cycle is complete.
     const timer = setTimeout(() => {
-      processPendingAssessments();
+        processPendingAssessments();
     }, 0);
 
     return () => clearTimeout(timer);
@@ -835,6 +836,31 @@ function AssessmentPage() {
 
     toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
   };
+  
+  const handleDeleteRequirement = (reqId: string) => {
+    if (!activeSession) return;
+
+    setHistory(prevHistory => {
+        return prevHistory.map(session => {
+            if (session.id !== activeSessionId) return session;
+
+            const updatedSession = JSON.parse(JSON.stringify(session));
+            const additionalReqs = updatedSession.analyzedJd.Requirements.AdditionalRequirements;
+
+            if (additionalReqs) {
+                additionalReqs.MUST_HAVE = additionalReqs.MUST_HAVE.filter((r: Requirement) => r.id !== reqId);
+                additionalReqs.NICE_TO_HAVE = additionalReqs.NICE_TO_HAVE.filter((r: Requirement) => r.id !== reqId);
+            }
+            
+            updatedSession.candidates = updatedSession.candidates.map((c: CandidateRecord) => ({ ...c, isStale: true }));
+            updatedSession.summary = null;
+
+            return updatedSession;
+        });
+    });
+
+    toast({ description: `Requirement deleted. Candidates marked for re-assessment.` });
+  };
 
 
   const acceptedFileTypes = ".pdf,.docx,.txt";
@@ -969,6 +995,7 @@ function AssessmentPage() {
                     onRequirementChange={handleRequirementChange}
                     onScoreChange={handleScoreChange}
                     onAddRequirement={handleAddRequirement}
+                    onDeleteRequirement={handleDeleteRequirement}
                 />
                 
                 <Card>
@@ -1282,5 +1309,3 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
-
-    

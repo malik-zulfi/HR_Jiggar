@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
 import { cn } from '@/lib/utils';
-import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine } from "lucide-react";
+import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
@@ -27,6 +27,7 @@ interface JdAnalysisProps {
   onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
   onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
   onAddRequirement: (description: string, priority: Priority, score: number) => void;
+  onDeleteRequirement: (reqId: string) => void;
 }
 
 const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon: React.ReactNode }) => {
@@ -42,11 +43,13 @@ const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon
     );
 };
 
-const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }: {
+const RequirementItem = ({ item, category, isDeletable, onRequirementChange, onScoreChange, onDeleteRequirement }: {
     item: Requirement;
     category: CategoryKey;
+    isDeletable?: boolean;
     onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
     onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
+    onDeleteRequirement: (reqId: string) => void;
 }) => {
     const isModified = item.priority !== item.originalPriority || item.score !== item.originalScore;
     const [localScore, setLocalScore] = useState(item.score.toString());
@@ -115,13 +118,32 @@ const RequirementItem = ({ item, category, onRequirementChange, onScoreChange }:
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
+                {isDeletable && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() => onDeleteRequirement(item.id)}
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </TooltipTrigger>
+                             <TooltipContent>
+                                <p>Delete this requirement</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
             </div>
         </li>
     );
 };
 
 
-const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange, children }: {
+const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange, onDeleteRequirement, children }: {
     title: string;
     mustHaves?: Requirement[];
     niceToHaves?: Requirement[];
@@ -129,10 +151,12 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
     category: CategoryKey;
     onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
     onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
+    onDeleteRequirement: (reqId: string) => void;
     children?: React.ReactNode;
 }) => {
     const hasMustHaves = mustHaves && mustHaves.length > 0;
     const hasNiceToHaves = niceToHaves && niceToHaves.length > 0;
+    const isAdditional = category === 'AdditionalRequirements';
 
     if (!hasMustHaves && !hasNiceToHaves && !children) {
         return null;
@@ -150,7 +174,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
                         <ul className="space-y-1 text-sm">
                             {mustHaves.map((item) => (
-                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} isDeletable={isAdditional} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
                             ))}
                         </ul>
                     </div>
@@ -160,7 +184,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
                         <ul className="space-y-1 text-sm text-muted-foreground">
                              {niceToHaves.map((item) => (
-                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} isDeletable={isAdditional} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
                             ))}
                         </ul>
                     </div>
@@ -250,7 +274,7 @@ const AddRequirementForm = ({ onAdd }: { onAdd: (description: string, priority: 
     );
 };
 
-export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange, onAddRequirement }: JdAnalysisProps) {
+export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequirementChange, onScoreChange, onAddRequirement, onDeleteRequirement }: JdAnalysisProps) {
   const {
       JobTitle,
       JobCode,
@@ -358,13 +382,13 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
             </div>
 
             <div className="md:columns-2 gap-8 space-y-6">
-                <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} category="Certifications" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={experienceNiceToHaves} category="Experience" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
-                <RequirementSection title="Additional Requirements" icon={<PenLine className="h-5 w-5"/>} mustHaves={Requirements.AdditionalRequirements?.MUST_HAVE} niceToHaves={Requirements.AdditionalRequirements?.NICE_TO_HAVE} category="AdditionalRequirements" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange}>
+                <RequirementSection title="Education" icon={<GraduationCap className="h-5 w-5"/>} mustHaves={Requirements.Education.MUST_HAVE} niceToHaves={Requirements.Education.NICE_TO_HAVE} category="Education" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Certifications" icon={<Star className="h-5 w-5"/>} mustHaves={Requirements.Certifications.MUST_HAVE} niceToHaves={Requirements.Certifications.NICE_TO_HAVE} category="Certifications" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Experience" icon={<Briefcase className="h-5 w-5"/>} mustHaves={experienceMustHaves} niceToHaves={experienceNiceToHaves} category="Experience" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Technical Skills" icon={<BrainCircuit className="h-5 w-5"/>} mustHaves={Requirements.TechnicalSkills.MUST_HAVE} niceToHaves={Requirements.TechnicalSkills.NICE_TO_HAVE} category="TechnicalSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Soft Skills" icon={<ClipboardCheck className="h-5 w-5"/>} mustHaves={Requirements.SoftSkills.MUST_HAVE} niceToHaves={Requirements.SoftSkills.NICE_TO_HAVE} category="SoftSkills" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Responsibilities" icon={<ListChecks className="h-5 w-5"/>} mustHaves={Responsibilities.MUST_HAVE} niceToHaves={Responsibilities.NICE_TO_HAVE} category="Responsibilities" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                <RequirementSection title="Additional Requirements" icon={<PenLine className="h-5 w-5"/>} mustHaves={Requirements.AdditionalRequirements?.MUST_HAVE} niceToHaves={Requirements.AdditionalRequirements?.NICE_TO_HAVE} category="AdditionalRequirements" onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement}>
                     <AddRequirementForm onAdd={onAddRequirement} />
                 </RequirementSection>
             </div>
