@@ -42,7 +42,8 @@ const prompt = ai.definePrompt({
 2.  **"Not Found"**: If you cannot find information for a specific field, you MUST use the string "Not Found". For arrays, if no items are found, return an empty array.
 3.  **Prioritization & Scoring**:
     *   For each requirement in Responsibilities, TechnicalSkills, SoftSkills, Education, and Certifications, you MUST classify it as either \`MUST_HAVE\` or \`NICE_TO_HAVE\`.
-    *   Use keywords like "minimum", "required" for MUST_HAVE, and "preferred", "plus", "bonus" for NICE_TO_HAVE. If no keyword is present, default to MUST_HAVE.
+    *   A requirement is NICE_TO_HAVE if it uses keywords like "preferred", "plus", "bonus", "nice to have", "advantage", or "will be a plus".
+    *   All other requirements are considered MUST_HAVE by default.
     *   Assign a \`score\` of **10** for every MUST_HAVE requirement.
     *   Assign a \`score\` of **5** for every NICE_TO_HAVE requirement.
 4.  **Unique IDs**: For every single requirement you extract (in any category), you MUST assign a unique 'id' string.
