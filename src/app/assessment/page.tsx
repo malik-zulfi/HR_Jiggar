@@ -720,6 +720,8 @@ function AssessmentPage() {
 
         if (targetCategory === 'Responsibilities') {
             findAndMove(newJd.Responsibilities[currentPriority], newJd.Responsibilities[newPriority]);
+        } else if (targetCategory === 'AdditionalRequirements') {
+            findAndMove((newJd.Requirements.AdditionalRequirements as any)[currentPriority], (newJd.Requirements.AdditionalRequirements as any)[newPriority]);
         } else if (targetCategory in newJd.Requirements) {
             const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
             if (cat && 'MUST_HAVE' in cat && 'NICE_TO_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) { // For skill-like categories
@@ -766,6 +768,8 @@ function AssessmentPage() {
         
         if (targetCategory === 'Responsibilities') {
             findAndUpdate(newJd.Responsibilities[priority]);
+        } else if (targetCategory === 'AdditionalRequirements') {
+            findAndUpdate((newJd.Requirements.AdditionalRequirements as any)[priority]);
         } else if (targetCategory in newJd.Requirements) {
             const cat = newJd.Requirements[targetCategory as keyof typeof newJd.Requirements];
             if (cat && 'MUST_HAVE' in cat && Array.isArray(cat.MUST_HAVE)) {
@@ -1269,3 +1273,5 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
+
+    
