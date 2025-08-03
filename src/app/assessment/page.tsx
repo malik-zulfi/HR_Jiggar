@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle, Edit3 } from "lucide-react";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput, Requirement } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
@@ -247,50 +247,54 @@ function AssessmentPage() {
         }
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
-  useEffect(() => {
-    if (history.length === 0 && typeof window !== 'undefined' && localStorage.getItem('jiggar-history')) {
-        return;
-    }
-
-    const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-    const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
-
-    try {
-      if (intendedSessionId) {
-        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-        const sessionToActivate = history.find(s => s.id === intendedSessionId);
-        setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
-      }
-      
-      if (pendingAssessmentJSON) {
-          try {
-              const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
-              if (Array.isArray(pendingItems) && pendingItems.length > 0) {
-                  const firstItem = pendingItems[0];
-                  const assessment = history.find(s => s.id === firstItem.assessment.id);
-                  if (assessment) {
-                      const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
-                          name: item.candidate.cvFileName,
-                          content: item.candidate.cvContent,
-                      }));
-                      
-                      setTimeout(() => {
-                          processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
-                      }, 0);
-                  }
-              }
-          } catch(e) {
-              console.error("Could not parse pending assessments", e);
-          } finally {
-              localStorage.removeItem(PENDING_ASSESSMENT_KEY);
-          }
-      }
-      
-    } catch (error) {
-      console.error("Failed to load state from localStorage", error);
-      localStorage.removeItem(PENDING_ASSESSMENT_KEY);
-    }
-  }, [history, processAndAnalyzeCandidates]);
+    useEffect(() => {
+        if (history.length === 0 && typeof window !== 'undefined' && localStorage.getItem('jiggar-history')) {
+            return;
+        }
+    
+        const processPendingAssessments = () => {
+            const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+            const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
+    
+            try {
+                if (intendedSessionId) {
+                    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                    const sessionToActivate = history.find(s => s.id === intendedSessionId);
+                    setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+                }
+    
+                if (pendingAssessmentJSON) {
+                    try {
+                        const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
+                        if (Array.isArray(pendingItems) && pendingItems.length > 0) {
+                            const firstItem = pendingItems[0];
+                            const assessment = history.find(s => s.id === firstItem.assessment.id);
+                            if (assessment) {
+                                const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
+                                    name: item.candidate.cvFileName,
+                                    content: item.candidate.cvContent,
+                                }));
+    
+                                processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Could not parse pending assessments", e);
+                    } finally {
+                        localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+                    }
+                }
+    
+            } catch (error) {
+                console.error("Failed to load state from localStorage", error);
+                localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+            }
+        };
+    
+        // Defer the execution to after the current render cycle.
+        setTimeout(processPendingAssessments, 0);
+    
+    }, [history, processAndAnalyzeCandidates]);
 
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
@@ -800,12 +804,10 @@ function AssessmentPage() {
     if (!activeSession) return;
     
     setHistory(prevHistory => {
-        const activeSessionIndex = prevHistory.findIndex(s => s.id === activeSessionId);
-        if (activeSessionIndex === -1) return prevHistory;
-
-        // Deep clone the session to avoid mutation issues.
         const newHistory = JSON.parse(JSON.stringify(prevHistory));
-        const sessionToUpdate = newHistory[activeSessionIndex];
+        const sessionToUpdate = newHistory.find((s: AssessmentSession) => s.id === activeSessionId);
+        
+        if (!sessionToUpdate) return prevHistory;
 
         const newRequirement: Requirement = {
             id: uuidv4(),
@@ -822,7 +824,6 @@ function AssessmentPage() {
         
         sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
         
-        // Mark all candidates as stale
         sessionToUpdate.candidates = sessionToUpdate.candidates.map((c: CandidateRecord) => ({ ...c, isStale: true }));
         sessionToUpdate.summary = null;
 
