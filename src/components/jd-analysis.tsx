@@ -150,7 +150,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
                         <ul className="space-y-1 text-sm">
                             {mustHaves.map((item) => (
-                               <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
                         </ul>
                     </div>
@@ -160,7 +160,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
                         <ul className="space-y-1 text-sm text-muted-foreground">
                              {niceToHaves.map((item) => (
-                                <RequirementItem key={item.id} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
+                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} />
                             ))}
                         </ul>
                     </div>
