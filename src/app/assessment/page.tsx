@@ -248,36 +248,42 @@ function AssessmentPage() {
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
     useEffect(() => {
-        // Only run this on the client after the initial render.
+        // This effect should only run once on mount, after the initial render.
         const timer = setTimeout(() => {
             const processPendingAssessments = () => {
                 const intendedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
                 const pendingAssessmentJSON = localStorage.getItem(PENDING_ASSESSMENT_KEY);
     
                 try {
-                    let sessionToActivate = null;
-                    if (intendedSessionId) {
-                        sessionToActivate = history.find(s => s.id === intendedSessionId);
-                        setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
-                        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-                    }
-    
-                    if (pendingAssessmentJSON) {
-                        const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
-                        if (Array.isArray(pendingItems) && pendingItems.length > 0) {
-                            const firstItem = pendingItems[0];
-                            const assessment = history.find(s => s.id === firstItem.assessment.id);
-                            
-                            if (assessment) {
-                                const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
-                                    name: item.candidate.cvFileName,
-                                    content: item.candidate.cvContent,
-                                }));
-                                processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
-                            }
+                    // History is loaded from ClientProvider. We access it from its state setter's callback
+                    // to ensure we have the latest version without adding it as a dependency.
+                    setHistory(currentHistory => {
+                        let sessionToActivate = null;
+                        if (intendedSessionId) {
+                            sessionToActivate = currentHistory.find(s => s.id === intendedSessionId);
+                            setActiveSessionId(sessionToActivate ? sessionToActivate.id : null);
+                            localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
                         }
-                        localStorage.removeItem(PENDING_ASSESSMENT_KEY);
-                    }
+        
+                        if (pendingAssessmentJSON) {
+                            const pendingItems: { candidate: CvDatabaseRecord, assessment: AssessmentSession }[] = JSON.parse(pendingAssessmentJSON);
+                            if (Array.isArray(pendingItems) && pendingItems.length > 0) {
+                                const firstItem = pendingItems[0];
+                                const assessment = currentHistory.find(s => s.id === firstItem.assessment.id);
+                                
+                                if (assessment) {
+                                    const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
+                                        name: item.candidate.cvFileName,
+                                        content: item.candidate.cvContent,
+                                    }));
+                                    processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                                }
+                            }
+                            localStorage.removeItem(PENDING_ASSESSMENT_KEY);
+                        }
+                        // Return the same history, we're just reading it.
+                        return currentHistory;
+                    });
     
                 } catch (error) {
                     console.error("Failed to process pending state from localStorage", error);
@@ -286,13 +292,10 @@ function AssessmentPage() {
                 }
             };
 
-            // Only run if history is loaded to avoid race conditions
-            if (history && history.length > 0) {
-                processPendingAssessments();
-            }
+            processPendingAssessments();
         }, 0);
     
-        // This effect should only run once on mount.
+        return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
