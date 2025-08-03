@@ -272,3 +272,5 @@ export const FindSuitablePositionsOutputSchema = z.object({
   })).describe('A list of newly identified suitable positions for the candidate.'),
 });
 export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;
+
+    
