@@ -108,7 +108,6 @@ export const CandidateAssessmentSchema = z.object({
   interviewProbes: z
     .array(z.string())
     .describe('Suggested interview probes to explore weak/unclear areas.'),
-  processingTime: z.number().optional().describe('The time taken to process the CV in seconds.'),
 });
 
 

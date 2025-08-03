@@ -127,7 +127,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
     }));
     
     if (!output) {
-      throw new Error("The AI failed to generate a valid response. Please try asking your question in a different way.");
+      throw new Error("The AI failed to generate a valid response (schema validation failed). Please try asking your question in a different way.");
     }
 
     return output;
