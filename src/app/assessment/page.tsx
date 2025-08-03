@@ -248,11 +248,7 @@ function AssessmentPage() {
     }, [toast, addOrUpdateCvInDatabase, setHistory]);
 
   useEffect(() => {
-    // This effect runs when the page loads. It handles activating a session
-    // and processing any pending bulk-added candidates.
-
-    // Guard against running this logic before the history state is hydrated from localStorage
-    if (history.length === 0 && localStorage.getItem('jiggar-history')) {
+    if (history.length === 0 && typeof window !== 'undefined' && localStorage.getItem('jiggar-history')) {
         return;
     }
 
@@ -803,36 +799,36 @@ function AssessmentPage() {
   const handleAddRequirement = (description: string, priority: Priority, score: number) => {
     if (!activeSession) return;
     
-    const newRequirement: Requirement = {
-        id: uuidv4(),
-        description,
-        priority,
-        score,
-        originalPriority: priority,
-        originalScore: score,
-    };
-    
     setHistory(prevHistory => {
-        return prevHistory.map(session => {
-            if (session.id !== activeSessionId) return session;
+        const activeSessionIndex = prevHistory.findIndex(s => s.id === activeSessionId);
+        if (activeSessionIndex === -1) return prevHistory;
 
-            const newJd = { ...session.analyzedJd };
+        // Deep clone the session to avoid mutation issues.
+        const newHistory = JSON.parse(JSON.stringify(prevHistory));
+        const sessionToUpdate = newHistory[activeSessionIndex];
 
-            if (!newJd.Requirements.AdditionalRequirements) {
-                newJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
-            }
-            
-            newJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
-            
-            toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
+        const newRequirement: Requirement = {
+            id: uuidv4(),
+            description,
+            priority,
+            score,
+            originalPriority: priority,
+            originalScore: score,
+        };
 
-            return {
-                ...session,
-                analyzedJd: newJd,
-                candidates: session.candidates.map(c => ({ ...c, isStale: true })),
-                summary: null,
-            };
-        });
+        if (!sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements) {
+            sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements = { MUST_HAVE: [], NICE_TO_HAVE: [] };
+        }
+        
+        sessionToUpdate.analyzedJd.Requirements.AdditionalRequirements[priority].push(newRequirement);
+        
+        // Mark all candidates as stale
+        sessionToUpdate.candidates = sessionToUpdate.candidates.map((c: CandidateRecord) => ({ ...c, isStale: true }));
+        sessionToUpdate.summary = null;
+
+        toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
+        
+        return newHistory;
     });
   };
 
@@ -1282,3 +1278,5 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
+
+    
