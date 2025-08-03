@@ -186,10 +186,10 @@ function AssessmentPage() {
                         createdAt: new Date().toISOString(),
                     };
                     addOrUpdateCvInDatabase(dbRecord);
-                } else if (parsedCvData) {
+                } else {
                     toast({
                         variant: 'destructive',
-                        title: `Cannot Save to Database: ${parsedCvData.name || cvFile.name}`,
+                        title: `Cannot Save to Database: ${parsedCvData?.name || cvFile.name}`,
                         description: 'The candidate could not be saved to the central database because no email address was found. The assessment will continue for this session only.'
                     });
                 }
@@ -827,7 +827,7 @@ function AssessmentPage() {
                 score,
                 originalPriority: priority,
                 originalScore: score,
-                isUserAdded: true, // Flag as user-added
+                isUserAdded: true,
             };
 
             if (!updatedSession.analyzedJd.Requirements.AdditionalRequirements) {
@@ -844,7 +844,6 @@ function AssessmentPage() {
         return updatedHistory;
     });
     
-    // The toast is a side-effect that should happen *after* the state update is queued.
     toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
   };
   
@@ -852,7 +851,7 @@ function AssessmentPage() {
     if (!activeSession) return;
 
     setHistory(prevHistory => {
-        return prevHistory.map(session => {
+        const updatedHistory = prevHistory.map(session => {
             if (session.id !== activeSessionId) return session;
 
             const updatedSession = JSON.parse(JSON.stringify(session));
@@ -868,6 +867,7 @@ function AssessmentPage() {
 
             return updatedSession;
         });
+        return updatedHistory;
     });
 
     toast({ description: `Requirement deleted. Candidates marked for re-assessment.` });
@@ -1320,3 +1320,5 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
+
+    
