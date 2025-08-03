@@ -8,6 +8,7 @@ export const RequirementSchema = z.object({
   score: z.number().describe("The point value assigned to this requirement."),
   originalScore: z.number().describe("The original point value assigned by the AI to track user edits."),
   originalPriority: z.enum(['MUST_HAVE', 'NICE_TO_HAVE']).describe("The original priority to track user edits."),
+  isUserAdded: z.boolean().optional().describe("A flag to indicate if the requirement was added by the user."),
 });
 export type Requirement = z.infer<typeof RequirementSchema>;
 

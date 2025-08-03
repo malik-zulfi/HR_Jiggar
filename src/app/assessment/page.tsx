@@ -804,11 +804,12 @@ function AssessmentPage() {
     if (!activeSession) return;
 
     setHistory(prevHistory => {
-        const newHistory = prevHistory.map(session => {
+        return prevHistory.map(session => {
             if (session.id !== activeSessionId) {
                 return session;
             }
 
+            // Deep clone the session to avoid mutation issues
             const updatedSession = JSON.parse(JSON.stringify(session));
             
             const newRequirement: Requirement = {
@@ -818,6 +819,7 @@ function AssessmentPage() {
                 score,
                 originalPriority: priority,
                 originalScore: score,
+                isUserAdded: true, // Flag as user-added
             };
 
             if (!updatedSession.analyzedJd.Requirements.AdditionalRequirements) {
@@ -831,9 +833,8 @@ function AssessmentPage() {
 
             return updatedSession;
         });
-        return newHistory;
     });
-
+    // The toast is a side-effect that should happen *after* the state update is queued.
     toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
   };
   

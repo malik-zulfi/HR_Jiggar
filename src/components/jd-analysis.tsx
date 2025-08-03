@@ -43,10 +43,9 @@ const InfoBadge = ({ label, value, icon }: { label: string, value?: string, icon
     );
 };
 
-const RequirementItem = ({ item, category, isDeletable, onRequirementChange, onScoreChange, onDeleteRequirement }: {
+const RequirementItem = ({ item, category, onRequirementChange, onScoreChange, onDeleteRequirement }: {
     item: Requirement;
     category: CategoryKey;
-    isDeletable?: boolean;
     onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
     onScoreChange: (category: CategoryKey, priority: Priority, reqId: string, newScore: number) => void;
     onDeleteRequirement: (reqId: string) => void;
@@ -118,7 +117,7 @@ const RequirementItem = ({ item, category, isDeletable, onRequirementChange, onS
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-                {isDeletable && (
+                {item.isUserAdded && (
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -156,7 +155,6 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
 }) => {
     const hasMustHaves = mustHaves && mustHaves.length > 0;
     const hasNiceToHaves = niceToHaves && niceToHaves.length > 0;
-    const isAdditional = category === 'AdditionalRequirements';
 
     if (!hasMustHaves && !hasNiceToHaves && !children) {
         return null;
@@ -174,7 +172,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
                         <ul className="space-y-1 text-sm">
                             {mustHaves.map((item) => (
-                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} isDeletable={isAdditional} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
                             ))}
                         </ul>
                     </div>
@@ -184,7 +182,7 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
                         <ul className="space-y-1 text-sm text-muted-foreground">
                              {niceToHaves.map((item) => (
-                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} isDeletable={isAdditional} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
                             ))}
                         </ul>
                     </div>
