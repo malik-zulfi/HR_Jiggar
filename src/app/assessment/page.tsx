@@ -169,14 +169,15 @@ function AssessmentPage() {
                 try {
                     parsedCvData = await parseCv({ cvText: cvFile.content });
                 } catch (parseError: any) {
-                    toast({ 
+                     toast({ 
                         variant: 'destructive', 
-                        title: `CV Parsing Error: ${cvFile.name}`, 
-                        description: `Could not reliably parse the CV. Assessment will proceed with raw text.` 
+                        title: `CV Parsing Warning: ${cvFile.name}`, 
+                        description: `Could not reliably parse all CV data. Assessment will proceed with raw text.` 
                     });
                 }
 
-                if (parsedCvData) {
+                // Only add to DB if we have a valid record with an email
+                if (parsedCvData && parsedCvData.email) {
                     const dbRecord: CvDatabaseRecord = {
                         ...parsedCvData,
                         jobCode: jobCode as JobCode,
@@ -185,6 +186,12 @@ function AssessmentPage() {
                         createdAt: new Date().toISOString(),
                     };
                     addOrUpdateCvInDatabase(dbRecord);
+                } else if (parsedCvData) {
+                    toast({
+                        variant: 'destructive',
+                        title: `Cannot Save to Database: ${parsedCvData.name || cvFile.name}`,
+                        description: 'The candidate could not be saved to the central database because no email address was found. The assessment will continue for this session only.'
+                    });
                 }
                 
                 const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
@@ -225,6 +232,7 @@ function AssessmentPage() {
                     
                     const newUniqueCandidates = finalCandidateRecords.filter(c => {
                         const newEmail = c.analysis.email?.toLowerCase();
+                        // Allow adding candidates without email, but check for duplicates if email exists
                         return newEmail ? !existingEmails.has(newEmail) : true;
                     });
                     
@@ -804,7 +812,7 @@ function AssessmentPage() {
     if (!activeSession) return;
 
     setHistory(prevHistory => {
-        return prevHistory.map(session => {
+        const updatedHistory = prevHistory.map(session => {
             if (session.id !== activeSessionId) {
                 return session;
             }
@@ -833,7 +841,9 @@ function AssessmentPage() {
 
             return updatedSession;
         });
+        return updatedHistory;
     });
+    
     // The toast is a side-effect that should happen *after* the state update is queued.
     toast({ description: `Added new requirement. Candidates marked for re-assessment.` });
   };

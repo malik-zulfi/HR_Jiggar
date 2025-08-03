@@ -64,9 +64,10 @@ const parseCvFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await withRetry(() => prompt(input));
-    if (!output || !output.email) {
-        throw new Error("CV parsing failed: Could not extract a valid email address from the document.");
+    if (!output) {
+        throw new Error("CV parsing failed: The AI returned an empty or invalid response.");
     }
+    // We no longer throw an error if email is missing, but the frontend will handle it.
     return output;
   }
 );
