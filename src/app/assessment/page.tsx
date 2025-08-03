@@ -271,7 +271,6 @@ function AssessmentPage() {
               const pendingItems: {candidate: CvDatabaseRecord, assessment: AssessmentSession}[] = JSON.parse(pendingAssessmentJSON);
               if (Array.isArray(pendingItems) && pendingItems.length > 0) {
                   const firstItem = pendingItems[0];
-                  // Ensure the assessment from the pending items still exists in our history
                   const assessment = history.find(s => s.id === firstItem.assessment.id);
                   if (assessment) {
                       const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
@@ -279,13 +278,14 @@ function AssessmentPage() {
                           content: item.candidate.cvContent,
                       }));
                       
-                      processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                      setTimeout(() => {
+                          processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                      }, 0);
                   }
               }
           } catch(e) {
               console.error("Could not parse pending assessments", e);
           } finally {
-              // Always remove the pending key to avoid re-processing
               localStorage.removeItem(PENDING_ASSESSMENT_KEY);
           }
       }
@@ -294,7 +294,7 @@ function AssessmentPage() {
       console.error("Failed to load state from localStorage", error);
       localStorage.removeItem(PENDING_ASSESSMENT_KEY);
     }
-  }, [history, processAndAnalyzeCandidates]); // Depend on history to re-run once it's hydrated
+  }, [history, processAndAnalyzeCandidates]);
 
   const handleQuickAddToAssessment = useCallback(async (positions: SuitablePosition[]) => {
     if (positions.length === 0) return;
@@ -1273,5 +1273,3 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
 };
 
 export default AssessmentPage;
-
-    
