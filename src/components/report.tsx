@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AlignmentDetail, Requirement } from "@/lib/types";
+import type { AnalyzedCandidate, CandidateSummaryOutput, ExtractJDCriteriaOutput, AlignmentDetail, Requirement, RequirementGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ReportProps {
@@ -8,17 +8,27 @@ interface ReportProps {
   analyzedJd: ExtractJDCriteriaOutput;
 }
 
-const RequirementList = ({ title, requirements }: { title: string; requirements: Requirement[] | undefined }) => {
+const RequirementList = ({ title, requirements }: { title: string; requirements: (Requirement | RequirementGroup)[] | undefined }) => {
   if (!requirements || requirements.length === 0) return null;
   return (
     <div className="mb-4 break-inside-avoid">
       <h3 className="text-xl font-bold mb-2 text-gray-800">{title}</h3>
       <ul className="list-disc list-outside pl-5 space-y-1">
-        {requirements.map((req, index) => (
-          <li key={index} className="text-gray-700">
-            {req.description} <span className="text-sm font-semibold">({req.priority.replace('-', ' ')})</span>
-          </li>
-        ))}
+        {requirements.map((req, index) => {
+            if ('groupType' in req) {
+                return (
+                    <li key={index} className="text-gray-700">
+                        {req.requirements.map(r => r.description).join(` ${req.groupType === 'ANY' ? 'OR' : 'AND'} `)}
+                        <span className="text-sm font-semibold"> ({req.requirements[0].priority.replace('-', ' ')})</span>
+                    </li>
+                );
+            }
+            return (
+              <li key={index} className="text-gray-700">
+                {req.description} <span className="text-sm font-semibold">({req.priority.replace('-', ' ')})</span>
+              </li>
+            );
+        })}
       </ul>
     </div>
   );
@@ -125,7 +135,7 @@ const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => {
                                                 <div className="flex items-start gap-2">
                                                     <div className={cn(
                                                         "h-3 w-3 mt-1 rounded-full shrink-0",
-                                                        item.priority === 'MUST-HAVE' ? 'bg-red-700' : 'bg-gray-500'
+                                                        item.priority === 'MUST_HAVE' ? 'bg-red-700' : 'bg-gray-500'
                                                     )} />
                                                     <span className="font-medium text-gray-800">{item.requirement}</span>
                                                 </div>
@@ -148,12 +158,10 @@ const ReportAlignmentTable = ({ details }: { details: AlignmentDetail[] }) => {
 
 
 export default function Report({ summary, candidates, analyzedJd }: ReportProps) {
-  const hasMustHaveCert = analyzedJd.certifications?.some(c => {
-    if ('groupType' in c) {
-        return c.requirements.some(r => r.priority === 'MUST-HAVE');
-    }
-    return c.priority === 'MUST-HAVE';
-  });
+  const { Requirements, Responsibilities } = analyzedJd;
+  
+  const allEducationReqs = [...Requirements.Education.MUST_HAVE, ...Requirements.Education.NICE_TO_HAVE];
+  const allCertificationReqs = [...Requirements.Certifications.MUST_HAVE, ...Requirements.Certifications.NICE_TO_HAVE];
 
   return (
     <div id="pdf-report" className="p-8 bg-white text-black font-sans" style={{ width: '800px' }}>
@@ -175,16 +183,15 @@ export default function Report({ summary, candidates, analyzedJd }: ReportProps)
       </div>
 
       <div className="mb-8 p-4 border border-gray-200 rounded-lg break-inside-avoid">
-        <h2 className="text-2xl font-bold mb-1 text-gray-800">{analyzedJd.jobTitle || 'Job Description Breakdown'}</h2>
-        {analyzedJd.positionNumber && <p className="text-md text-gray-600 mb-4">Position #{analyzedJd.positionNumber}</p>}
+        <h2 className="text-2xl font-bold mb-1 text-gray-800">{analyzedJd.JobTitle || 'Job Description Breakdown'}</h2>
+        {analyzedJd.PositionNumber && <p className="text-md text-gray-600 mb-4">Position #{analyzedJd.PositionNumber}</p>}
         <div className="columns-2 gap-8">
-            <RequirementList title="Education" requirements={analyzedJd.education as Requirement[]} />
-            <RequirementList title="Experience" requirements={analyzedJd.experience as Requirement[]} />
-            {hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications as Requirement[]} />}
-            <RequirementList title="Technical Skills" requirements={analyzedJd.technicalSkills as Requirement[]} />
-            <RequirementList title="Soft Skills" requirements={analyzedJd.softSkills as Requirement[]} />
-            {!hasMustHaveCert && <RequirementList title="Certifications" requirements={analyzedJd.certifications as Requirement[]} />}
-            <RequirementList title="Responsibilities" requirements={analyzedJd.responsibilities as Requirement[]} />
+            <RequirementList title="Education" requirements={allEducationReqs} />
+            <RequirementList title="Experience" requirements={Requirements.Experience.NICE_TO_HAVE} />
+            <RequirementList title="Certifications" requirements={allCertificationReqs} />
+            <RequirementList title="Technical Skills" requirements={[...Requirements.TechnicalSkills.MUST_HAVE, ...Requirements.TechnicalSkills.NICE_TO_HAVE]} />
+            <RequirementList title="Soft Skills" requirements={[...Requirements.SoftSkills.MUST_HAVE, ...Requirements.SoftSkills.NICE_TO_HAVE]} />
+            <RequirementList title="Responsibilities" requirements={[...Responsibilities.MUST_HAVE, ...Responsibilities.NICE_TO_HAVE]} />
         </div>
       </div>
       

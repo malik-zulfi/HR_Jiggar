@@ -12,6 +12,12 @@ export const RequirementSchema = z.object({
 });
 export type Requirement = z.infer<typeof RequirementSchema>;
 
+export const RequirementGroupSchema = z.object({
+  groupType: z.enum(['ANY', 'ALL']).describe("Defines if the candidate must meet ANY or ALL of the requirements in this group."),
+  requirements: z.array(RequirementSchema).describe("The list of requirements within this group.")
+});
+export type RequirementGroup = z.infer<typeof RequirementGroupSchema>;
+
 
 // NEW: JD Analyzer V2 Schemas
 const OrganizationalRelationshipSchema = z.object({
@@ -23,6 +29,12 @@ const RequirementsSubSchema = z.object({
   MUST_HAVE: z.array(RequirementSchema).describe("List of must-have requirements for this category."),
   NICE_TO_HAVE: z.array(RequirementSchema).describe("List of nice-to-have requirements for this category.")
 });
+
+const GroupedRequirementsSubSchema = z.object({
+    MUST_HAVE: z.array(RequirementGroupSchema).describe("List of must-have requirement groups for this category."),
+    NICE_TO_HAVE: z.array(RequirementGroupSchema).describe("List of nice-to-have requirement groups for this category.")
+});
+
 
 const ExperienceSchema = z.object({
   MUST_HAVE: z.object({
@@ -36,8 +48,8 @@ const RequirementsSchema = z.object({
   TechnicalSkills: RequirementsSubSchema,
   SoftSkills: RequirementsSubSchema,
   Experience: ExperienceSchema,
-  Education: RequirementsSubSchema,
-  Certifications: RequirementsSubSchema,
+  Education: GroupedRequirementsSubSchema,
+  Certifications: GroupedRequirementsSubSchema,
   AdditionalRequirements: RequirementsSubSchema.optional(),
 }).describe("Detailed breakdown of all job requirements.");
 
@@ -272,5 +284,3 @@ export const FindSuitablePositionsOutputSchema = z.object({
   })).describe('A list of newly identified suitable positions for the candidate.'),
 });
 export type FindSuitablePositionsOutput = z.infer<typeof FindSuitablePositionsOutputSchema>;
-
-    

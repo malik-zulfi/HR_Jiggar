@@ -18,6 +18,7 @@ import {
   type AnalyzeCVAgainstJDOutput,
   ParseCvOutputSchema,
   RequirementSchema,
+  RequirementGroupSchema,
   type Requirement,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
@@ -48,7 +49,7 @@ function toTitleCase(str: string): string {
 const AIAnalysisOutputSchema = AnalyzeCVAgainstJDOutputSchema.omit({ recommendation: true, alignmentScore: true, candidateScore: true, maxScore: true });
 
 const analyzeCVAgainstJDPrompt = ai.definePrompt({
-    name: 'analyzeCVAgainstJDPromptV3',
+    name: 'analyzeCVAgainstJDPromptV4',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
     output: { schema: AIAnalysisOutputSchema },
     config: { temperature: 0.1 },
@@ -57,8 +58,14 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
 **IMPORTANT INSTRUCTIONS:**
 
 1.  **Use Pre-Parsed Data:** You have been provided with pre-parsed CV data, including the candidate's name, email, and a calculated 'totalExperience'. You MUST use these values as the single source of truth. Do not re-calculate or re-extract them.
-2.  **Analyze All Requirements**: You must iterate through every single requirement listed in the \`jobDescriptionCriteria\` JSON. For each one, you must create a corresponding entry in the \`alignmentDetails\` array.
-3.  **Detailed Alignment:** For each requirement, you must:
+2.  **Analyze All Requirements & Groups**:
+    *   You must iterate through every single requirement and requirement group listed in the \`jobDescriptionCriteria\` JSON.
+    *   For simple requirements (in Skills, Responsibilities, etc.), create a corresponding entry in the \`alignmentDetails\` array.
+    *   **For GROUPED requirements (in Education & Certifications), you MUST analyze the group as a whole.**
+        *   If \`groupType: 'ANY'\` (an "OR" condition), check if the candidate meets at least one requirement in the group. If so, the entire group is 'Aligned'.
+        *   If \`groupType: 'ALL'\`, check if the candidate meets all requirements in the group.
+        *   Create a single entry in \`alignmentDetails\` for the entire group, summarizing the outcome. The 'requirement' field for this entry should be a summary of the group (e.g., "Bachelor's OR Master's Degree").
+3.  **Detailed Alignment:** For each requirement or group, you must:
     a.  Determine the candidate's alignment status: 'Aligned', 'Partially Aligned', 'Not Aligned', or 'Not Mentioned'.
     b.  Provide a concise 'justification' for the status, citing evidence directly from the CV.
     c.  DO NOT calculate a 'score' or 'maxScore'. This will be handled programmatically.
@@ -99,10 +106,13 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
         throw new Error("CV analysis failed: The AI returned an invalid or empty response. Please try again.");
     }
 
-    // Combine all requirements from JD into a single map for easy lookup
     const allJdRequirements = new Map<string, Requirement>();
     const jd = input.jobDescriptionCriteria;
+
     const processReqs = (reqs: Requirement[]) => reqs.forEach(r => allJdRequirements.set(r.description, r));
+    const processGroupedReqs = (groups: { requirements: Requirement[] }[]) => {
+        groups.forEach(g => g.requirements.forEach(r => allJdRequirements.set(r.description, r)));
+    };
     
     processReqs(jd.Responsibilities.MUST_HAVE);
     processReqs(jd.Responsibilities.NICE_TO_HAVE);
@@ -110,10 +120,11 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     processReqs(jd.Requirements.TechnicalSkills.NICE_TO_HAVE);
     processReqs(jd.Requirements.SoftSkills.MUST_HAVE);
     processReqs(jd.Requirements.SoftSkills.NICE_TO_HAVE);
-    processReqs(jd.Requirements.Education.MUST_HAVE);
-    processReqs(jd.Requirements.Education.NICE_TO_HAVE);
-    processReqs(jd.Requirements.Certifications.MUST_HAVE);
-    processReqs(jd.Requirements.Certifications.NICE_TO_HAVE);
+    processGroupedReqs(jd.Requirements.Education.MUST_HAVE);
+    processGroupedReqs(jd.Requirements.Education.NICE_TO_HAVE);
+    processGroupedReqs(jd.Requirements.Certifications.MUST_HAVE);
+    processGroupedReqs(jd.Requirements.Certifications.NICE_TO_HAVE);
+    
     if (jd.Requirements.AdditionalRequirements) {
         processReqs(jd.Requirements.AdditionalRequirements.MUST_HAVE);
         processReqs(jd.Requirements.AdditionalRequirements.NICE_TO_HAVE);
@@ -134,6 +145,7 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     // Programmatically calculate scores
     const scoredAlignmentDetails = aiAnalysis.alignmentDetails.map(detail => {
         let score = 0;
+        
         const jdReq = allJdRequirements.get(detail.requirement);
         const maxScore = jdReq?.score || (detail.priority === 'MUST_HAVE' ? 10 : 5);
 
@@ -189,5 +201,3 @@ const analyzeCVAgainstJDFlow = ai.defineFlow(
     return finalOutput;
   }
 );
-
-    

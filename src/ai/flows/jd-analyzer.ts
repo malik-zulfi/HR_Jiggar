@@ -14,6 +14,7 @@ import {z} from 'genkit';
 import { 
     ExtractJDCriteriaOutputSchema, 
     type ExtractJDCriteriaOutput,
+    RequirementGroupSchema,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 import {v4 as uuidv4} from 'uuid';
@@ -30,7 +31,7 @@ export async function extractJDCriteria(input: ExtractJDCriteriaInput): Promise<
 }
 
 const prompt = ai.definePrompt({
-  name: 'extractJDCriteriaPromptV3',
+  name: 'extractJDCriteriaPromptV4',
   input: {schema: ExtractJDCriteriaInputSchema},
   output: {schema: ExtractJDCriteriaOutputSchema},
   config: { temperature: 0.0 },
@@ -41,15 +42,20 @@ const prompt = ai.definePrompt({
 1.  **Full Extraction**: You MUST extract information for every field in the provided JSON schema.
 2.  **"Not Found"**: If you cannot find information for a specific field, you MUST use the string "Not Found". For arrays, if no items are found, return an empty array.
 3.  **Prioritization & Scoring**:
-    *   For each requirement in Responsibilities, TechnicalSkills, SoftSkills, Education, and Certifications, you MUST classify it as either \`MUST_HAVE\` or \`NICE_TO_HAVE\`.
+    *   For each requirement, you MUST classify it as either \`MUST_HAVE\` or \`NICE_TO_HAVE\`.
     *   A requirement is NICE_TO_HAVE if it uses keywords like "preferred", "plus", "bonus", "nice to have", "advantage", or "will be a plus".
     *   All other requirements are considered MUST_HAVE by default.
     *   Assign a \`score\` of **10** for every MUST_HAVE requirement.
     *   Assign a \`score\` of **5** for every NICE_TO_HAVE requirement.
 4.  **Unique IDs**: For every single requirement you extract (in any category), you MUST assign a unique 'id' string.
-5.  **Experience Field**: For the \`Requirements.Experience.MUST_HAVE.Years\` field, extract the number of years as a string (e.g., "5+ years"). For \`Requirements.Experience.NICE_TO_HAVE\`, extract each point as an object with 'id', 'description', etc.
-6.  **Organizational Relationship**: Extract reporting lines and interfaces into their respective arrays.
-7.  **Follow Schema Strictly**: Your final output must be a valid JSON object that strictly adheres to the provided output schema.
+5.  **Requirement Grouping (Education & Certifications ONLY)**:
+    *   For the 'Education' and 'Certifications' categories, you MUST group requirements.
+    *   If a requirement contains an "OR" condition (e.g., "Bachelor's OR Master's degree"), create a group with \`groupType: 'ANY'\` and place each option as a separate requirement inside it.
+    *   If a requirement is standalone, create a group with \`groupType: 'ALL'\` and place the single requirement inside it.
+    *   All other categories (Skills, Responsibilities, etc.) should NOT be grouped and should just be a flat list of requirements.
+6.  **Experience Field**: For the \`Requirements.Experience.MUST_HAVE.Years\` field, extract the number of years as a string (e.g., "5+ years"). For \`Requirements.Experience.NICE_TO_HAVE\`, extract each point as an object with 'id', 'description', etc.
+7.  **Organizational Relationship**: Extract reporting lines and interfaces into their respective arrays.
+8.  **Follow Schema Strictly**: Your final output must be a valid JSON object that strictly adheres to the provided output schema.
 
 **Job Description to Analyze:**
 {{{jobDescription}}}
@@ -79,11 +85,24 @@ const extractJDCriteriaFlow = ai.defineFlow(
         }));
     };
     
+    const processGroupedRequirements = (groups: any[]) => {
+        return groups.map(g => ({
+            ...g,
+            requirements: processRequirements(g.requirements || []),
+        }));
+    };
+
     const processCategory = (category: any) => {
-        if (category && category.MUST_HAVE) {
+        if (!category) return;
+        if (category.MUST_HAVE && Array.isArray(category.MUST_HAVE) && category.MUST_HAVE.some((i: any) => i.groupType)) {
+             category.MUST_HAVE = processGroupedRequirements(category.MUST_HAVE);
+        } else if (category.MUST_HAVE) {
             category.MUST_HAVE = processRequirements(category.MUST_HAVE);
         }
-        if (category && category.NICE_TO_HAVE) {
+
+        if (category.NICE_TO_HAVE && Array.isArray(category.NICE_TO_HAVE) && category.NICE_TO_HAVE.some((i: any) => i.groupType)) {
+            category.NICE_TO_HAVE = processGroupedRequirements(category.NICE_TO_HAVE);
+        } else if (category.NICE_TO_HAVE) {
             category.NICE_TO_HAVE = processRequirements(category.NICE_TO_HAVE);
         }
     };
@@ -95,6 +114,9 @@ const extractJDCriteriaFlow = ai.defineFlow(
     processCategory(output.Requirements.Certifications);
     if(output.Requirements.Experience.NICE_TO_HAVE) {
         output.Requirements.Experience.NICE_TO_HAVE = processRequirements(output.Requirements.Experience.NICE_TO_HAVE);
+    }
+    if (output.Requirements.AdditionalRequirements) {
+        processCategory(output.Requirements.AdditionalRequirements);
     }
     
     const validatedCode = output.JobCode && ['OCN', 'WEX', 'SAN'].includes(output.JobCode.toUpperCase()) 
