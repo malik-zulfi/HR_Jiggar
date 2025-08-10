@@ -21,8 +21,11 @@ import { withRetry } from '@/lib/retry';
 
 export type { QueryKnowledgeBaseInput, QueryKnowledgeBaseOutput };
 
-export async function queryKnowledgeBase(input: QueryKnowledgeBaseInput): Promise<QueryKnowledgeBaseOutput> {
-  return queryKnowledgeBaseFlow(input);
+export async function queryKnowledgeBase(input: Omit<QueryKnowledgeBaseInput, 'currentDate'>): Promise<QueryKnowledgeBaseOutput> {
+  return queryKnowledgeBaseFlow({
+    ...input,
+    currentDate: new Date().toDateString(),
+  });
 }
 
 const SummarizedDataSchema = z.object({
@@ -87,7 +90,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
   },
   async (input: QueryKnowledgeBaseInput) => {
     
-    const { query, sessions, cvDatabase, chatHistory } = input;
+    const { query, sessions, cvDatabase, chatHistory, currentDate } = input;
     
     // Create a summarized version of the data to pass to the prompt
     const knowledgeBase = {
@@ -123,7 +126,7 @@ const queryKnowledgeBaseFlow = ai.defineFlow(
         query: query,
         chatHistory: chatHistory,
         knowledgeBase,
-        currentDate: new Date().toDateString(),
+        currentDate: currentDate,
     }));
     
     if (!output) {
