@@ -193,10 +193,7 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
                             thead: ({node, className, ...props}) => (
                                 <thead className={cn("bg-muted/50 font-medium", className)} {...props} />
                             ),
-                            tbody: ({node, className, ...props}) => (
-                                <tbody className={className} {...props} />
-                            ),
-                            tr: ({node, className, ...props}) => (
+                            tr: ({node, isHeader, className, ...props}) => (
                                 <tr className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)} {...props} />
                             ),
                             th: ({node, isHeader, className, ...props}) => (
@@ -244,3 +241,5 @@ export default function Chatbot({ sessions, cvDatabase }: ChatbotProps) {
     </>
   );
 }
+
+    
