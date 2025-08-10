@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { ExtractJDCriteriaOutput, Requirement } from "@/lib/types";
+import type { ExtractJDCriteriaOutput, Requirement, RequirementGroup } from "@/lib/types";
 import { cn } from '@/lib/utils';
 import { Briefcase, ChevronsUpDown, Building, MapPin, Calendar, Target, User, Users, Star, BrainCircuit, ListChecks, ClipboardCheck, GraduationCap, Edit3, PlusCircle, PenLine, Trash2, Eye, EyeOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -141,11 +141,15 @@ const RequirementItem = ({ item, category, onRequirementChange, onScoreChange, o
     );
 };
 
+const isRequirementGroup = (item: any): item is RequirementGroup => {
+  return 'groupType' in item && Array.isArray(item.requirements);
+};
+
 
 const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onRequirementChange, onScoreChange, onDeleteRequirement, children }: {
     title: string;
-    mustHaves?: Requirement[];
-    niceToHaves?: Requirement[];
+    mustHaves?: (Requirement | RequirementGroup)[];
+    niceToHaves?: (Requirement | RequirementGroup)[];
     icon: React.ReactNode;
     category: CategoryKey;
     onRequirementChange: (category: CategoryKey, reqId: string, newPriority: Priority) => void;
@@ -160,6 +164,26 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
         return null;
     }
 
+    const renderList = (items: (Requirement | RequirementGroup)[], priority: Priority) => (
+        <ul className="space-y-1 text-sm">
+            {items.map((item, index) => {
+                if (isRequirementGroup(item)) {
+                    return (
+                        <li key={`group-${index}`} className="p-2 border rounded-md bg-background/30">
+                           <Badge variant="secondary" className="mb-2">Must match {item.groupType === 'ANY' ? 'ANY' : 'ALL'} of:</Badge>
+                           <ul className="space-y-1">
+                                {item.requirements.map(req => (
+                                    <RequirementItem key={`${req.id}-${req.priority}`} item={req} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
+                                ))}
+                           </ul>
+                        </li>
+                    )
+                }
+                return <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />;
+            })}
+        </ul>
+    );
+
     return (
         <div className="break-inside-avoid">
             <h3 className="text-base font-semibold mb-3 flex items-center text-primary">
@@ -170,21 +194,15 @@ const RequirementSection = ({ title, mustHaves, niceToHaves, icon, category, onR
                 {hasMustHaves && (
                     <div>
                         <h4 className="text-sm font-bold text-accent mb-1">Must Have</h4>
-                        <ul className="space-y-1 text-sm">
-                            {mustHaves.map((item) => (
-                               <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
-                            ))}
-                        </ul>
+                        {renderList(mustHaves, 'MUST_HAVE')}
                     </div>
                 )}
                 {hasNiceToHaves && (
                      <div>
                         <h4 className="text-sm font-bold text-muted-foreground mb-1">Nice to Have</h4>
-                        <ul className="space-y-1 text-sm text-muted-foreground">
-                             {niceToHaves.map((item) => (
-                                <RequirementItem key={`${item.id}-${item.priority}`} item={item} category={category} onRequirementChange={onRequirementChange} onScoreChange={onScoreChange} onDeleteRequirement={onDeleteRequirement} />
-                            ))}
-                        </ul>
+                         <div className="text-muted-foreground">
+                            {renderList(niceToHaves, 'NICE_TO_HAVE')}
+                        </div>
                     </div>
                 )}
                  {children}
@@ -407,3 +425,5 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
     </Collapsible>
   );
 }
+
+    
