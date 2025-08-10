@@ -135,11 +135,11 @@ export default function AlignmentTable({ details }: AlignmentTableProps) {
                                                         <TooltipTrigger className="mt-1">
                                                             <div className={cn(
                                                                 "h-3 w-3 rounded-full shrink-0", 
-                                                                item.priority === 'MUST-HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
+                                                                item.priority === 'MUST_HAVE' ? 'bg-destructive' : 'bg-muted-foreground'
                                                             )} />
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            <p>{item.priority.replace('-', ' ')}</p>
+                                                            <p>{item.priority.replace('_', ' ')}</p>
                                                         </TooltipContent>
                                                     </Tooltip>
                                                     <span className="font-medium">{item.requirement}</span>
