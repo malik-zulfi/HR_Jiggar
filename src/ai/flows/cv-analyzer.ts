@@ -52,7 +52,7 @@ const analyzeCVAgainstJDPrompt = ai.definePrompt({
     name: 'analyzeCVAgainstJDPromptV4',
     input: { schema: AnalyzeCVAgainstJDInputSchema },
     output: { schema: AIAnalysisOutputSchema },
-    config: { temperature: 0.1 },
+    config: { temperature: 0.0 },
     prompt: `You are an expert recruitment analyst. Your task is to perform a comprehensive analysis of the candidate's CV against the provided Job Description criteria.
 
 **IMPORTANT INSTRUCTIONS:**
