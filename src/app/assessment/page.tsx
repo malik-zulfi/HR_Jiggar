@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle, Edit3 } from "lucide-react";
+import { Loader2, Briefcase, FileText, Users, Lightbulb, History, Trash2, RefreshCw, PanelLeftClose, SlidersHorizontal, UserPlus, Database, Search, Plus, ArrowLeft, Wand2, ListFilter, AlertTriangle, Edit3, MailQuestion } from "lucide-react";
 
 import type { CandidateSummaryOutput, ExtractJDCriteriaOutput, AssessmentSession, CandidateRecord, CvDatabaseRecord, SuitablePosition, AlignmentDetail, ParseCvOutput, Requirement } from "@/lib/types";
 import { AssessmentSessionSchema, CvDatabaseRecordSchema } from "@/lib/types";
@@ -51,6 +51,12 @@ type ReplacementPrompt = {
 };
 type JobCode = 'OCN' | 'WEX' | 'SAN';
 type Priority = 'MUST_HAVE' | 'NICE_TO_HAVE';
+type CandidateNeedingEmail = {
+    parsedData: ParseCvOutput;
+    cvFile: UploadedFile;
+    jd: ExtractJDCriteriaOutput;
+    jobCode: JobCode;
+};
 
 function AssessmentPage() {
   const { history, setHistory, cvDatabase, setCvDatabase, suitablePositions, setSuitablePositions } = useAppContext();
@@ -74,6 +80,8 @@ function AssessmentPage() {
   const [replacementPrompt, setReplacementPrompt] = useState<ReplacementPrompt>({ isOpen: false, existingSession: null, newJd: null });
   const [jobCodePrompt, setJobCodePrompt] = useState<{ isOpen: boolean; callback: (code: JobCode) => void }>({ isOpen: false, callback: () => {} });
   
+  const [emailPromptQueue, setEmailPromptQueue] = useState<CandidateNeedingEmail[]>([]);
+
   const activeSession = useMemo(() => history.find(s => s.id === activeSessionId), [history, activeSessionId]);
   
   const filteredHistory = useMemo(() => {
@@ -140,120 +148,112 @@ function AssessmentPage() {
     });
   }, [setCvDatabase]);
 
+  const completeCandidateProcessing = useCallback(async (
+    cvFile: UploadedFile,
+    jd: ExtractJDCriteriaOutput,
+    jobCode: JobCode,
+    parsedCvData: ParseCvOutput,
+  ) => {
+      try {
+          const dbRecord: CvDatabaseRecord = {
+              ...parsedCvData,
+              jobCode,
+              cvFileName: cvFile.name,
+              cvContent: cvFile.content,
+              createdAt: new Date().toISOString(),
+          };
+          addOrUpdateCvInDatabase(dbRecord);
+          
+          const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
+              jobDescriptionCriteria: jd,
+              cv: cvFile.content,
+              parsedCv: parsedCvData,
+          });
+
+          const candidateRecord: CandidateRecord = {
+              cvName: cvFile.name,
+              cvContent: cvFile.content,
+              analysis: analysis,
+              isStale: false,
+          };
+          
+          setHistory(prev => prev.map(session => {
+              if (session.id === activeSessionId) {
+                  const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
+                  if (analysis.email && existingEmails.has(analysis.email.toLowerCase())) {
+                       toast({ variant: 'destructive', description: `Candidate ${analysis.candidateName} already existed in this session and was skipped.` });
+                       return session;
+                  }
+                  
+                  const allCandidates = [...session.candidates, candidateRecord];
+                  allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
+                  return { ...session, candidates: allCandidates, summary: null };
+              }
+              return session;
+          }));
+          
+          setNewCvProcessingStatus(prev => ({
+              ...prev,
+              [cvFile.name]: { ...prev[cvFile.name], status: 'done', candidateName: analysis.candidateName }
+          }));
+
+          toast({ description: `${analysis.candidateName} has been successfully assessed.` });
+          return true; // Success
+      } catch (error: any) {
+          console.error(`Error analyzing CV for ${cvFile.name}:`, error);
+          toast({
+              variant: "destructive",
+              title: `Analysis Failed for ${cvFile.name}`,
+              description: error.message || "An unexpected error occurred.",
+          });
+          setNewCvProcessingStatus(prev => ({ ...prev, [cvFile.name]: { ...prev[cvFile.name], status: 'error' } }));
+          return false; // Failure
+      }
+  }, [activeSessionId, addOrUpdateCvInDatabase, setHistory, toast]);
+  
+
   const processAndAnalyzeCandidates = useCallback(async (
       candidatesToProcess: UploadedFile[],
       jd: ExtractJDCriteriaOutput,
       sessionId: string | null,
-      jobCode: string | null | undefined
+      jobCode: JobCode
     ) => {
-        if (!jobCode || !['OCN', 'WEX', 'SAN'].includes(jobCode)) {
-            toast({ variant: 'destructive', title: "Invalid Job Code", description: "A valid job code (OCN, WEX, or SAN) is required to save new candidates." });
-            return;
-        }
-
         const initialStatus = candidatesToProcess.reduce((acc, cv) => {
             acc[cv.name] = { status: 'processing', fileName: cv.name, candidateName: cv.name };
             return acc;
         }, {} as CvProcessingStatus);
         setNewCvProcessingStatus(initialStatus);
 
-        let successCount = 0;
-        let finalCandidateRecords: CandidateRecord[] = [];
-
         toast({ description: `Assessing ${candidatesToProcess.length} candidate(s)... This may take a moment.` });
         
+        let pendingEmailQueue: CandidateNeedingEmail[] = [];
+
         for (const cvFile of candidatesToProcess) {
             try {
-                let parsedCvData: ParseCvOutput | null = null;
+                const parsedCvData = await parseCv({ cvText: cvFile.content });
                 
-                try {
-                    parsedCvData = await parseCv({ cvText: cvFile.content });
-                } catch (parseError: any) {
-                     toast({ 
-                        variant: 'destructive', 
-                        title: `CV Parsing Warning: ${cvFile.name}`, 
-                        description: `Could not reliably parse all CV data. Assessment will proceed with raw text.` 
-                    });
-                }
-
-                // Only add to DB if we have a valid record with an email
                 if (parsedCvData && parsedCvData.email) {
-                    const dbRecord: CvDatabaseRecord = {
-                        ...parsedCvData,
-                        jobCode: jobCode as JobCode,
-                        cvFileName: cvFile.name,
-                        cvContent: cvFile.content,
-                        createdAt: new Date().toISOString(),
-                    };
-                    addOrUpdateCvInDatabase(dbRecord);
+                    await completeCandidateProcessing(cvFile, jd, jobCode, parsedCvData);
                 } else {
-                    toast({
-                        variant: 'destructive',
-                        title: `Cannot Save to Database: ${parsedCvData?.name || cvFile.name}`,
-                        description: 'The candidate could not be saved to the central database because no email address was found. The assessment will continue for this session only.'
-                    });
+                    // Queue for manual email entry
+                    pendingEmailQueue.push({ parsedData: parsedCvData, cvFile, jd, jobCode });
+                    setNewCvProcessingStatus(prev => ({ ...prev, [cvFile.name]: { ...prev[cvFile.name], status: 'done', candidateName: parsedCvData.name } }));
                 }
-                
-                const analysis: AnalyzeCVAgainstJDOutput = await analyzeCVAgainstJD({
-                    jobDescriptionCriteria: jd,
-                    cv: cvFile.content,
-                    parsedCv: parsedCvData,
-                });
-                
-                const candidateRecord: CandidateRecord = {
-                    cvName: cvFile.name,
-                    cvContent: cvFile.content,
-                    analysis: analysis,
-                    isStale: false,
-                };
-                finalCandidateRecords.push(candidateRecord);
-                
-                setNewCvProcessingStatus(prev => ({
-                    ...prev,
-                    [cvFile.name]: { ...prev[cvFile.name], status: 'done', candidateName: analysis.candidateName }
-                }));
-                successCount++;
-
             } catch (error: any) {
-                console.error(`Error analyzing CV for ${cvFile.name}:`, error);
+                console.error(`Error parsing CV for ${cvFile.name}:`, error);
                 toast({
                     variant: "destructive",
-                    title: `Analysis Failed for ${cvFile.name}`,
-                    description: error.message || "An unexpected error occurred.",
+                    title: `Parsing Failed for ${cvFile.name}`,
+                    description: error.message || "An unexpected error occurred. Please check the console.",
                 });
                  setNewCvProcessingStatus(prev => ({ ...prev, [cvFile.name]: { ...prev[cvFile.name], status: 'error' } }));
             }
         }
         
-        if (finalCandidateRecords.length > 0) {
-            setHistory(prev => prev.map(session => {
-                if (session.id === sessionId) {
-                    const existingEmails = new Set(session.candidates.map(c => c.analysis.email?.toLowerCase()).filter(Boolean));
-                    
-                    const newUniqueCandidates = finalCandidateRecords.filter(c => {
-                        const newEmail = c.analysis.email?.toLowerCase();
-                        // Allow adding candidates without email, but check for duplicates if email exists
-                        return newEmail ? !existingEmails.has(newEmail) : true;
-                    });
-                    
-                    if (newUniqueCandidates.length < finalCandidateRecords.length) {
-                         toast({ variant: 'destructive', description: `Some candidates already existed in this session and were skipped.` });
-                    }
-
-                    if (newUniqueCandidates.length > 0) {
-                        const allCandidates = [...session.candidates, ...newUniqueCandidates];
-                        allCandidates.sort((a, b) => b.analysis.alignmentScore - a.analysis.alignmentScore);
-                        return { ...session, candidates: allCandidates, summary: null };
-                    }
-                }
-                return session;
-            }));
+        if (pendingEmailQueue.length > 0) {
+            setEmailPromptQueue(prev => [...prev, ...pendingEmailQueue]);
         }
-
-        if (successCount > 0) {
-            toast({ description: `${successCount} candidate(s) have been successfully assessed.` });
-        }
-    }, [toast, addOrUpdateCvInDatabase, setHistory]);
+    }, [toast, completeCandidateProcessing]);
 
   useEffect(() => {
     const processPendingAssessments = () => {
@@ -275,12 +275,12 @@ function AssessmentPage() {
                         const firstItem = pendingItems[0];
                         const assessment = currentHistory.find(s => s.id === firstItem.assessment.id);
                         
-                        if (assessment) {
+                        if (assessment && assessment.analyzedJd.JobCode && assessment.analyzedJd.JobCode !== "Not Found") {
                             const uploadedFiles: UploadedFile[] = pendingItems.map(item => ({
                                 name: item.candidate.cvFileName,
                                 content: item.candidate.cvContent,
                             }));
-                            processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode);
+                            processAndAnalyzeCandidates(uploadedFiles, assessment.analyzedJd, assessment.id, assessment.analyzedJd.JobCode as JobCode);
                         }
                     }
                     localStorage.removeItem(PENDING_ASSESSMENT_KEY);
@@ -295,7 +295,6 @@ function AssessmentPage() {
         }
     };
     
-    // Defer execution until after the initial render cycle is complete.
     const timer = setTimeout(() => {
         processPendingAssessments();
     }, 0);
@@ -884,6 +883,15 @@ function AssessmentPage() {
   const showReviewSection = (activeSession?.candidates?.length ?? 0) > 0 || isAssessingNewCvs || isReassessing;
   const showSummarySection = (activeSession?.candidates?.length ?? 0) > 0 && !isAssessingNewCvs && !isReassessing;
 
+  const handleEmailProvided = async (candidate: CandidateNeedingEmail, email: string) => {
+    // Remove the candidate from the queue
+    setEmailPromptQueue(prev => prev.filter(c => c.cvFile.name !== candidate.cvFile.name));
+    // Continue processing with the provided email
+    const updatedParsedData = { ...candidate.parsedData, email };
+    await completeCandidateProcessing(candidate.cvFile, candidate.jd, candidate.jobCode, updatedParsedData);
+  };
+
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header
@@ -911,6 +919,11 @@ function AssessmentPage() {
                 isOpen={jobCodePrompt.isOpen}
                 onClose={() => setJobCodePrompt({ isOpen: false, callback: () => {} })}
                 onConfirm={jobCodePrompt.callback}
+            />
+            <EmailPromptDialog
+                queue={emailPromptQueue}
+                onEmailProvided={handleEmailProvided}
+                onSkip={() => setEmailPromptQueue(prev => prev.slice(1))}
             />
 
           {!activeSession ? (
@@ -1319,6 +1332,61 @@ const JobCodeDialog = ({ isOpen, onClose, onConfirm }: {
     );
 };
 
-export default AssessmentPage;
+const EmailPromptDialog = ({ queue, onEmailProvided, onSkip }: {
+    queue: CandidateNeedingEmail[];
+    onEmailProvided: (candidate: CandidateNeedingEmail, email: string) => void;
+    onSkip: () => void;
+}) => {
+    const [email, setEmail] = useState('');
+    const currentCandidate = queue.length > 0 ? queue[0] : null;
 
-    
+    useEffect(() => {
+        // Reset email when the candidate changes
+        setEmail('');
+    }, [currentCandidate]);
+
+    if (!currentCandidate) {
+        return null;
+    }
+
+    const handleSubmit = () => {
+        if (email.trim() && email.includes('@')) {
+            onEmailProvided(currentCandidate, email);
+        }
+    };
+
+    return (
+        <Dialog open={!!currentCandidate} onOpenChange={(isOpen) => !isOpen && onSkip()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <MailQuestion className="text-primary"/>
+                        Email Address Required
+                    </DialogTitle>
+                    <DialogDescription>
+                        The AI could not automatically find an email address for <span className="font-bold">{currentCandidate.parsedData.name || currentCandidate.cvFile.name}</span>. Please enter it below to save this candidate to the database.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                    <Label htmlFor="manual-email">Candidate Email</Label>
+                    <Input
+                        id="manual-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="candidate@example.com"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={onSkip}>Skip Candidate</Button>
+                    <Button onClick={handleSubmit} disabled={!email.trim() || !email.includes('@')}>
+                        Save and Assess
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+export default AssessmentPage;

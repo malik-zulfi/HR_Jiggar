@@ -34,7 +34,7 @@ const prompt = ai.definePrompt({
 
 **Extraction Rules:**
 
-1.  **Unique Identifier**: You MUST extract the candidate's email address. This is the most critical field. If multiple emails are found, use the first one. It is absolutely essential that you find and return the email address.
+1.  **Email is Critical**: You MUST try your absolute best to extract the candidate's email address. If you cannot find one, you may leave the field empty, but it is a critical piece of information.
 2.  **Core Details**: Extract the candidate's full name, a contact phone number, and a URL to their LinkedIn profile if available. Format the name in Title Case.
 3.  **Current Role**: Identify the candidate's most recent or current job title and company.
 4.  **Total Experience**:
