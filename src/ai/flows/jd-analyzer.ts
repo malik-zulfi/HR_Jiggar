@@ -15,6 +15,7 @@ import {
     ExtractJDCriteriaOutputSchema, 
     type ExtractJDCriteriaOutput,
     RequirementGroupSchema,
+    RequirementSchema,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';
 import {v4 as uuidv4} from 'uuid';
@@ -76,7 +77,7 @@ const extractJDCriteriaFlow = ai.defineFlow(
     }
     
     // Post-process to add unique IDs and original values if they are missing
-    const processRequirements = (reqs: any[]) => {
+    const processRequirements = (reqs: z.infer<typeof RequirementSchema>[]) => {
         return reqs.map(r => ({
             ...r,
             id: r.id || uuidv4(),
@@ -85,7 +86,7 @@ const extractJDCriteriaFlow = ai.defineFlow(
         }));
     };
     
-    const processGroupedRequirements = (groups: any[]) => {
+    const processGroupedRequirements = (groups: z.infer<typeof RequirementGroupSchema>[]) => {
         return groups.map(g => ({
             ...g,
             requirements: processRequirements(g.requirements || []),
@@ -94,16 +95,19 @@ const extractJDCriteriaFlow = ai.defineFlow(
 
     const processCategory = (category: any) => {
         if (!category) return;
-        if (category.MUST_HAVE && Array.isArray(category.MUST_HAVE) && category.MUST_HAVE.some((i: any) => i.groupType)) {
-             category.MUST_HAVE = processGroupedRequirements(category.MUST_HAVE);
-        } else if (category.MUST_HAVE) {
-            category.MUST_HAVE = processRequirements(category.MUST_HAVE);
+        if (category.MUST_HAVE) {
+            if (Array.isArray(category.MUST_HAVE) && category.MUST_HAVE.some((i: any) => i.groupType)) {
+                 category.MUST_HAVE = processGroupedRequirements(category.MUST_HAVE);
+            } else {
+                category.MUST_HAVE = processRequirements(category.MUST_HAVE);
+            }
         }
-
-        if (category.NICE_TO_HAVE && Array.isArray(category.NICE_TO_HAVE) && category.NICE_TO_HAVE.some((i: any) => i.groupType)) {
-            category.NICE_TO_HAVE = processGroupedRequirements(category.NICE_TO_HAVE);
-        } else if (category.NICE_TO_HAVE) {
-            category.NICE_TO_HAVE = processRequirements(category.NICE_TO_HAVE);
+        if (category.NICE_TO_HAVE) {
+            if (Array.isArray(category.NICE_TO_HAVE) && category.NICE_TO_HAVE.some((i: any) => i.groupType)) {
+                category.NICE_TO_HAVE = processGroupedRequirements(category.NICE_TO_HAVE);
+            } else {
+                category.NICE_TO_HAVE = processRequirements(category.NICE_TO_HAVE);
+            }
         }
     };
     

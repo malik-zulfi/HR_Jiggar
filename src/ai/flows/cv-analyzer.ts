@@ -17,8 +17,6 @@ import {
   AnalyzeCVAgainstJDOutputSchema,
   type AnalyzeCVAgainstJDOutput,
   ParseCvOutputSchema,
-  RequirementSchema,
-  RequirementGroupSchema,
   type Requirement,
 } from '@/lib/types';
 import { withRetry } from '@/lib/retry';

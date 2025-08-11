@@ -425,5 +425,3 @@ export default function JdAnalysis({ analysis, isOpen, onOpenChange, onRequireme
     </Collapsible>
   );
 }
-
-    
