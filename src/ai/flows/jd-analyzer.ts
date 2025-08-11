@@ -68,7 +68,7 @@ const isRequirementGroupArray = (arr: any[]): arr is z.infer<typeof RequirementG
 };
 
 const isRequirementArray = (arr: any[]): arr is z.infer<typeof RequirementSchema>[] => {
-    return arr.length === 0 || (arr[0] && !('groupType' in arr[0]));
+    return arr.length === 0 || (arr.length > 0 && arr[0] && !('groupType' in arr[0]));
 }
 
 
