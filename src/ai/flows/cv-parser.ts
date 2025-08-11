@@ -30,6 +30,7 @@ const prompt = ai.definePrompt({
   name: 'parseCvPrompt',
   input: {schema: ParseCvInputSchema},
   output: {schema: ParseCvOutputSchema},
+  config: { temperature: 0.0 },
   prompt: `You are a world-class CV parsing engine. Your task is to meticulously analyze the provided CV text and extract key information into a structured JSON format.
 
 **Extraction Rules:**
